@@ -1,11 +1,17 @@
 # Invernadero Inteligente IoT
 
-Base de trabajo para la parte web del proyecto: backend en Python/FastAPI con persistencia en MongoDB Atlas y dashboard en React + Tailwind.
+Base final de la parte web del proyecto: backend en Python con FastAPI, persistencia en MongoDB Atlas y dashboard en React + Vite + Tailwind.
+
+## Alcance
+
+Este repositorio cubre solo la parte web + MongoDB + MQTT del enunciado. La integración con la Raspberry Pi queda documentada como siguiente paso técnico.
 
 ## Estructura
 
-- `backend/`: API para lecturas, eventos, comandos y estado del sistema.
+- `backend/`: API para lecturas, eventos, comandos, estado del sistema y logs de actuadores.
 - `frontend/`: dashboard web para monitoreo y control.
+- `raspberry/`: servicio base para la Raspberry Pi con MQTT y GPIO preparado.
+- `docs/`: auditoría y pendientes de integración.
 
 ## MongoDB
 
@@ -17,14 +23,17 @@ Colecciones previstas por el enunciado:
 - `system_status`
 - `actuator_logs`
 
-## Backend y control
+## Backend
+
+Framework: FastAPI.
 
 El backend expone endpoints para:
 
 - recibir lecturas, eventos y comandos,
 - guardar estado del sistema y logs de actuadores,
 - publicar comandos por MQTT,
-- servir un resumen para el dashboard.
+- servir un resumen para el dashboard,
+- verificar la conexión a MongoDB.
 
 Variables de entorno del backend:
 
@@ -37,16 +46,19 @@ Variables de entorno del backend:
 - `MQTT_PASSWORD`
 - `MQTT_BASE_TOPIC`
 
+## Frontend
+
 Variables de entorno del frontend:
 
 - `VITE_API_BASE_URL`
 
-## Siguiente paso
+## Documentación
 
-1. Crear el entorno virtual del backend.
-2. Instalar dependencias del frontend.
-3. Conectar el backend con MongoDB Atlas.
-4. Levantar el dashboard y consumir la API.
+- [Auditoría de cumplimiento](docs/auditoria-web-mongo-mqtt.md)
+- [Guía de backend](backend/README.md)
+- [Guía de frontend](frontend/README.md)
+- [Guía de Raspberry Pi](docs/raspberry-pi.md)
+- [Pendientes de integración](docs/pendientes.md)
 
 ## Arranque local
 

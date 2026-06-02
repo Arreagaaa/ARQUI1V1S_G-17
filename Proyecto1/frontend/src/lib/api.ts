@@ -1,0 +1,63 @@
+import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus } from '../types';
+
+const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, init);
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function getDashboard() {
+  return request<{
+    status: SystemStatus;
+    recent_readings: SensorReading[];
+    recent_events: EventItem[];
+    recent_commands: CommandItem[];
+    recent_logs: ActuatorLog[];
+  }>("/api/dashboard");
+}
+
+export async function getHealth() {
+  return request<{ status: string; mongodb: boolean; timestamp: string }>("/api/health");
+}
+
+export async function createCommand(payload: CommandItem) {
+  return request<unknown>("/api/commands", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createReading(payload: SensorReading) {
+  return request<unknown>("/api/readings", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createEvent(payload: EventItem) {
+  return request<unknown>("/api/events", {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function controlActuator(actuator: string, state: string, area?: string) {
+  const params = new URLSearchParams({ state });
+  if (area) params.set('area', area);
+  return request<unknown>(`/api/control/${encodeURIComponent(actuator)}?${params.toString()}`, {
+    method: 'POST',
+  });
+}

@@ -19,8 +19,16 @@
 1. Ajustar credenciales reales en `raspberry/.env`.
 2. Validar el broker MQTT y los tópicos de control.
 3. Conectar los GPIO reales a los pines definidos.
-4. Probar el envío de lecturas y logs hacia el backend.
-5. Validar el ciclo completo con la Raspberry Pi 3.
+4. Implementar LCD en el centro de control.
+5. Implementar botones físicos para control local.
+6. Probar el envío de lecturas y logs hacia el backend.
+7. Validar el ciclo completo con la Raspberry Pi 3.
+
+## Documentación y entrega
+
+1. Grabar el video demostrativo.
+2. Confirmar que la documentación técnica esté completa.
+3. Revisar que la demo cubra sensores, control, persistencia y dashboard.
 
 ## Frontend
 

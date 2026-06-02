@@ -4,8 +4,13 @@ Este archivo reúne los bloques de entorno para backend, frontend y Raspberry Pi
 
 ## Backend
 
+1. Copia `backend/.env.example` a `backend/.env`.
+2. Usa `mongodb://localhost:27017` mientras trabajamos en local con Compass.
+3. Si cambias de origen de frontend, actualiza `CORS_ORIGINS`.
+4. El backend carga `backend/.env` automáticamente al iniciar.
+
 ```bash
-MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB_NAME=invernadero_iot
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
@@ -53,6 +58,13 @@ BUTTON_AUTO=21
 
 ## Recomendación
 
-- Mantén el backend apuntando a MongoDB Atlas o a una instancia local según la etapa.
+- Mantén el backend apuntando a MongoDB local y revisa las colecciones desde Compass mientras estás en etapa inicial.
 - Cambia `MQTT_HOST` cuando pases del modo local al broker real.
 - Activa `ENABLE_GPIO=true` solo cuando el cableado de la Raspberry esté terminado.
+
+## Verificación rápida
+
+1. Levanta el backend.
+2. Consulta `GET /api/health`.
+3. Confirma que `mongodb` responde `true`.
+4. Si responde `false`, revisa que el servicio local de MongoDB esté corriendo y que Compass abra la URI correcta.

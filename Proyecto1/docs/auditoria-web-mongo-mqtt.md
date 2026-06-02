@@ -15,7 +15,7 @@ Esta auditoría cubre solo la parte web del enunciado y su integración con Mong
 | Riego real con bomba o sistema equivalente | Pendiente | Hay contrato de control, pero no la activación física conectada. |
 | Control automático de ventilación, iluminación, riego y alarmas | Parcial | El backend y la UI exponen los actuadores; falta automatización en la Pi. |
 | MQTT para datos y comandos | Cumple a nivel backend | El backend publica comandos y deja el contrato listo para la Raspberry. |
-| MongoDB Atlas para persistencia | Cumple | El modelo, endpoints y colección están definidos e implementados. |
+| MongoDB para persistencia | Cumple | El modelo, endpoints y colección están definidos e implementados; en esta etapa se usa MongoDB local con Compass. |
 | Dashboard web para monitoreo y control remoto | Cumple | La interfaz React/Tailwind ya está lista y funcional. |
 | Pantalla LCD en el centro de control | Pendiente | Está documentada como parte del hardware, sin implementación física aún. |
 | Botones físicos para control local | Pendiente | Deben implementarse en la Raspberry y cableado físico. |
@@ -26,7 +26,7 @@ Esta auditoría cubre solo la parte web del enunciado y su integración con Mong
 
 - Backend: FastAPI.
 - Frontend: React + Vite + Tailwind.
-- Persistencia: MongoDB Atlas o MongoDB local en desarrollo.
+- Persistencia: MongoDB local en desarrollo, visible desde Compass.
 - Mensajería: MQTT con tópico base configurable.
 
 ## Lectura correcta del alcance

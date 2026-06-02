@@ -6,7 +6,7 @@ Este backend sirve la API del proyecto de invernadero inteligente y concentra la
 
 ## Variables de entorno
 
-- `MONGODB_URI`: cadena de conexión a MongoDB Atlas o Mongo local.
+- `MONGODB_URI`: cadena de conexión a MongoDB local para Compass, por ejemplo `mongodb://localhost:27017`.
 - `MONGODB_DB_NAME`: nombre de la base de datos.
 - `CORS_ORIGINS`: orígenes permitidos para el frontend.
 - `MQTT_HOST`: host del broker MQTT.
@@ -39,6 +39,11 @@ Este backend sirve la API del proyecto de invernadero inteligente y concentra la
 - `GET /api/actuator-logs/latest`
 
 ## Arranque
+
+1. Copia `.env.example` a `.env`.
+2. Verifica que MongoDB esté corriendo localmente y que Compass pueda abrir `mongodb://localhost:27017`.
+3. Ajusta `MONGODB_DB_NAME` si vas a usar otro nombre de base.
+4. Arranca el backend desde esta carpeta.
 
 ```bash
 cd Proyecto1/backend

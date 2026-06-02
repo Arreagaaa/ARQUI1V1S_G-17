@@ -1,6 +1,6 @@
 # Invernadero Inteligente IoT
 
-Base final de la parte web del proyecto: backend en Python con FastAPI, persistencia en MongoDB Atlas y dashboard en React + Vite + Tailwind.
+Base final de la parte web del proyecto: backend en Python con FastAPI, persistencia en MongoDB local para Compass y dashboard en React + Vite + Tailwind.
 
 ## Alcance
 

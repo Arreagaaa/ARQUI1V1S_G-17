@@ -58,6 +58,7 @@ Variables de entorno del frontend:
 - [Guía de variables de entorno](docs/env-config.md)
 - [Guía de backend](backend/README.md)
 - [Guía de frontend](frontend/README.md)
+- [Instructivo físico, Pi 3 y MQTT](docs/flujo-fisico-pi-mqtt.md)
 - [Guía de Raspberry Pi](docs/raspberry-pi.md)
 - [Checklist física de Raspberry Pi](docs/checklist-pi.md)
 - [Pendientes de integración](docs/pendientes.md)

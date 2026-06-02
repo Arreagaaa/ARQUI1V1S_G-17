@@ -2,6 +2,8 @@
 
 Esta lista deja ordenada la parte física que falta para conectar la maqueta real con la Raspberry Pi 3.
 
+Usa este archivo como verificación final de cableado después de seguir el [Instructivo físico, Pi 3 y MQTT](flujo-fisico-pi-mqtt.md).
+
 ## 1. Maqueta física
 
 - [ ] Construir la base del invernadero.
@@ -54,7 +56,17 @@ Esta lista deja ordenada la parte física que falta para conectar la maqueta rea
 - [ ] Validar publicación y suscripción MQTT.
 - [ ] Probar inserción de lecturas en MongoDB.
 
-## 6. Pruebas mínimas
+## 6. Orden recomendado de armado
+
+- [ ] Montar la maqueta física.
+- [ ] Instalar la Raspberry Pi 3 con el imager.
+- [ ] Configurar red y acceso remoto.
+- [ ] Cargar el `.env` de la Raspberry.
+- [ ] Conectar el broker MQTT.
+- [ ] Probar la comunicación sin hardware.
+- [ ] Conectar sensores, actuadores, LCD y botones.
+
+## 7. Pruebas mínimas
 
 - [ ] Enviar un comando desde el dashboard.
 - [ ] Verificar que la Raspberry lo reciba.

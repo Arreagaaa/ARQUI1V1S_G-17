@@ -24,6 +24,16 @@
 6. Probar el envío de lecturas y logs hacia el backend.
 7. Validar el ciclo completo con la Raspberry Pi 3.
 
+## Flujo de trabajo recomendado
+
+1. Completar la maqueta física.
+2. Instalar Raspberry Pi OS con el imager.
+3. Configurar red, SSH y actualizaciones.
+4. Verificar MongoDB local y backend.
+5. Levantar MQTT y probar mensajes.
+6. Conectar hardware real por etapas.
+7. Hacer la validación final end-to-end.
+
 ## Documentación y entrega
 
 1. Grabar el video demostrativo.

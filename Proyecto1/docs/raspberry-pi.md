@@ -1,6 +1,6 @@
 # Guía de Raspberry Pi
 
-Este documento deja lista la parte que correrá en la Raspberry Pi 3 cuando el hardware esté disponible.
+Este documento resume la parte que correrá en la Raspberry Pi 3 cuando el hardware esté disponible.
 
 ## Objetivo
 
@@ -10,6 +10,8 @@ La Raspberry Pi debe hacer dos cosas:
 2. Reportar lecturas, eventos, estado y logs al backend por HTTP.
 
 Además, debe quedar lista para el centro de control físico con LCD y botones.
+
+Si quieres ver el orden completo de trabajo, primero sigue [Instructivo físico, Pi 3 y MQTT](flujo-fisico-pi-mqtt.md) y luego usa esta guía como referencia técnica.
 
 ## Contrato MQTT
 

@@ -1,4 +1,4 @@
-import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus } from '../types';
+import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from '../types';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
@@ -61,3 +61,14 @@ export async function controlActuator(actuator: string, state: string, area?: st
     method: 'POST',
   });
 }
+
+export async function getARM64Results() {
+  return request<Record<string, ARM64Result>>("/api/arm64-results/latest");
+}
+
+export async function generateMockARM64Results() {
+  return request<unknown>("/api/arm64-results/mock", {
+    method: 'POST',
+  });
+}
+

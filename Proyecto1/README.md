@@ -1,85 +1,131 @@
-# Invernadero Inteligente IoT
+# 🌿 Invernadero Inteligente IoT — Proyecto 1 ACYE1
 
-Base final de la parte web del proyecto: backend en Python con FastAPI, persistencia en MongoDB local para Compass y dashboard en React + Vite + Tailwind.
+Sistema de monitoreo y control de un invernadero inteligente con dos áreas de cultivo y un centro de control. Proyecto para **Arquitectura de Computadores y Ensambladores 1 (ACYE1)**, Segundo Semestre 2026.
 
-## Alcance
+---
 
-Este repositorio cubre solo la parte web + MongoDB + MQTT del enunciado. La integración con la Raspberry Pi queda documentada como siguiente paso técnico.
+## Arquitectura general
 
-## Estructura
+```
+┌─────────────┐      MQTT       ┌──────────────┐     HTTP/REST    ┌───────────────┐
+│ Raspberry Pi │ ──────────────▸ │   Backend    │ ◂─────────────▸ │   Frontend    │
+│ (sensores,   │ ◂────────────── │   FastAPI    │                 │ React + Vite  │
+│  actuadores) │                 └──────┬───────┘                 └───────────────┘
+└─────────────┘                        │
+                                 ┌─────▼──────┐
+                                 │  MongoDB    │
+                                 │  (Atlas)    │
+                                 └────────────┘
+```
 
-- `backend/`: API para lecturas, eventos, comandos, estado del sistema y logs de actuadores.
-- `frontend/`: dashboard web para monitoreo y control.
-- `raspberry/`: servicio base para la Raspberry Pi con MQTT y GPIO preparado.
-- `docs/`: auditoría y pendientes de integración.
+## Estructura del repositorio
 
-## MongoDB
+```
+Proyecto1/
+├── backend/              # API REST con FastAPI
+│   ├── app/
+│   │   ├── main.py       # Endpoints y lógica de negocio
+│   │   ├── config.py     # Variables de entorno (pydantic-settings)
+│   │   ├── db.py         # Conexión a MongoDB
+│   │   ├── schemas.py    # Modelos Pydantic (validación)
+│   │   └── mqtt_service.py # Servicio MQTT (desactivado por ahora)
+│   └── requirements.txt
+├── frontend/             # Dashboard web
+│   └── src/
+│       ├── App.tsx       # Componente principal (dashboard completo)
+│       └── types.ts      # Tipos TypeScript
+├── raspberry/            # Servicio Python para la Raspberry Pi 3B+
+│   ├── main.py           # Lectura GPIO, lógica, publicación MQTT
+│   └── requirements.txt
+├── docs/                 # Contrato MQTT (referencia)
+│   └── mqtt-contrato.md
+├── .env.example          # Plantilla de variables de entorno
+├── DEVELOPERS.md         # Guía técnica para el equipo
+└── PENDIENTES.md         # Checklist de lo hecho y lo pendiente
+```
 
-Colecciones previstas por el enunciado:
+## Colecciones en MongoDB
 
-- `sensor_readings`
-- `events`
-- `commands`
-- `system_status`
-- `actuator_logs`
+| Colección | Propósito |
+|---|---|
+| `sensor_readings` | Lecturas de sensores (temperatura, humedad, suelo, luz, gas) |
+| `events` | Eventos del sistema (advertencias, emergencias, restauraciones) |
+| `commands` | Comandos enviados desde el dashboard hacia la Pi |
+| `system_status` | Estado global actual (modo, actuadores, valores) |
+| `actuator_logs` | Log de activaciones/desactivaciones de actuadores |
+| `arm64_results` | Resultados de los 5 módulos ARM64 |
 
-## Backend
+## Endpoints principales del Backend
 
-Framework: FastAPI.
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/health` | Health-check (status + conexión MongoDB) |
+| `GET` | `/api/dashboard` | Resumen completo para el dashboard |
+| `POST` | `/api/readings` | Registrar lectura de sensor |
+| `POST` | `/api/events` | Registrar evento |
+| `POST` | `/api/commands` | Registrar comando |
+| `POST` | `/api/system-status` | Actualizar estado global |
+| `POST` | `/api/actuator-logs` | Registrar log de actuador |
+| `POST` | `/api/control/{actuator}` | Controlar actuador (pump, fan, lights, buzzer, mode) |
+| `GET` | `/api/readings/latest` | Últimas lecturas |
+| `GET` | `/api/events/latest` | Últimos eventos |
+| `GET` | `/api/commands/latest` | Últimos comandos |
+| `GET` | `/api/actuator-logs/latest` | Últimos logs de actuadores |
+| `GET` | `/api/arm64-results/latest` | Últimos resultados ARM64 |
+| `POST` | `/api/arm64-results` | Registrar resultado ARM64 |
+| `POST` | `/api/arm64-results/mock` | Generar datos de prueba ARM64 |
 
-El backend expone endpoints para:
+## Reglas automáticas (modo `auto`)
 
-- recibir lecturas, eventos y comandos,
-- guardar estado del sistema y logs de actuadores,
-- publicar comandos por MQTT,
-- servir un resumen para el dashboard,
-- verificar la conexión a MongoDB.
+El backend evalúa cada lectura y actualiza el estado global:
 
-Variables de entorno del backend:
-
-- `MONGODB_URI`
-- `MONGODB_DB_NAME`
-- `CORS_ORIGINS`
-- `MQTT_HOST`
-- `MQTT_PORT`
-- `MQTT_USERNAME`
-- `MQTT_PASSWORD`
-- `MQTT_BASE_TOPIC`
-
-## Frontend
-
-Variables de entorno del frontend:
-
-- `VITE_API_BASE_URL`
-
-## Documentación
-
-- [Auditoría de cumplimiento](docs/auditoria-web-mongo-mqtt.md)
-- [Guía de variables de entorno](docs/env-config.md)
-- [Guía de backend](backend/README.md)
-- [Guía de frontend](frontend/README.md)
-- [Instructivo físico, Pi 3 y MQTT](docs/flujo-fisico-pi-mqtt.md)
-- [Guía de Raspberry Pi](docs/raspberry-pi.md)
-- [Checklist física de Raspberry Pi](docs/checklist-pi.md)
-- [Pendientes de integración](docs/pendientes.md)
+| Condición | Estado | Acción |
+|---|---|---|
+| Gas > 150 ppm | `EMERGENCIA` | Activa ventilador + alarma |
+| Temperatura > 30 °C | `ADVERTENCIA` | Activa ventilador |
+| Suelo < 30% | `RIEGO_ACTIVO` | Activa bomba de riego |
+| Suelo > 80% | `ADVERTENCIA` | Desactiva bomba |
+| Todo normal | `NORMAL` | Desactiva actuadores de emergencia |
 
 ## Arranque local
 
-Backend:
-
+### Backend
 ```bash
-cd Proyecto1/backend
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Frontend:
-
+### Frontend
 ```bash
-cd Proyecto1/frontend
+cd frontend
 pnpm install
 pnpm dev
 ```
 
+- Dashboard: `http://localhost:5173`
+- API Swagger: `http://localhost:8000/docs`
+
+### Variables de entorno
+
+Copiar `.env.example` → `.env` y rellenar:
+
+```env
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB_NAME=greenhouse
+CORS_ORIGINS=http://localhost:5173
+ENABLE_MQTT=false
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+---
+
+## Documentación relacionada
+
+| Archivo | Contenido |
+|---|---|
+| [DEVELOPERS.md](DEVELOPERS.md) | Guía técnica para el equipo: ramas Git, tareas ARM64, integración |
+| [PENDIENTES.md](PENDIENTES.md) | Checklist detallado: qué está hecho y qué falta |
+| [docs/mqtt-contrato.md](docs/mqtt-contrato.md) | Contrato MQTT: topics, payloads, estados globales |

@@ -55,3 +55,13 @@ export type CommandPayload = {
   payload: Record<string, unknown>;
 };
 
+export type ARM64Result = {
+  _id?: string;
+  module: string;
+  total_values: number;
+  results: Record<string, number | string>;
+  source: string;
+  created_at?: string;
+};
+
+

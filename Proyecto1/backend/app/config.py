@@ -19,6 +19,7 @@ class Settings:
     mqtt_username: str
     mqtt_password: str
     mqtt_base_topic: str
+    enable_mqtt: bool
 
 
 @lru_cache(maxsize=1)
@@ -33,4 +34,6 @@ def get_settings() -> Settings:
         mqtt_username=os.getenv("MQTT_USERNAME", ""),
         mqtt_password=os.getenv("MQTT_PASSWORD", ""),
         mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "invernadero"),
+        enable_mqtt=os.getenv("ENABLE_MQTT", "false").lower() == "true",
     )
+

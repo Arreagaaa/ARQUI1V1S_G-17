@@ -25,9 +25,15 @@ def ping_mongodb() -> bool:
 
 
 def touch_indexes() -> None:
-    database = get_database()
-    database.sensor_readings.create_index([("area", 1), ("recorded_at", -1)])
-    database.events.create_index([("created_at", -1)])
-    database.commands.create_index([("created_at", -1)])
-    database.system_status.create_index([("updated_at", -1)])
-    database.actuator_logs.create_index([("created_at", -1)])
+    try:
+        database = get_database()
+        database.sensor_readings.create_index([("area", 1), ("recorded_at", -1)])
+        database.events.create_index([("created_at", -1)])
+        database.commands.create_index([("created_at", -1)])
+        database.system_status.create_index([("updated_at", -1)])
+        database.actuator_logs.create_index([("created_at", -1)])
+        database.arm64_results.create_index([("created_at", -1)])
+        database.arm64_results.create_index([("module", 1), ("created_at", -1)])
+    except Exception as exc:
+        print(f"[db] Warning: could not create database indexes: {exc}")
+

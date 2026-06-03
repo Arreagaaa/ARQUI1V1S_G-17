@@ -26,6 +26,10 @@ def _client() -> mqtt.Client:
 def publish_control_event(topic_suffix: str, payload: dict) -> MQTTResult:
     settings = get_settings()
     topic = f"{settings.mqtt_base_topic}/{topic_suffix}"
+
+    if not settings.enable_mqtt:
+        return MQTTResult(False, False, f"MQTT is disabled (dry run). Topic: {topic}")
+
     client = _client()
 
     try:

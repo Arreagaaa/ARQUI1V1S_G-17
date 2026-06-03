@@ -80,5 +80,7 @@ def create_event(payload: EventCreate):
     document["created_at"] = document["created_at"] or _now()
     result = db.events.insert_one(document)
 
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
+
     logger.info("Evento registrado: [%s] %s", payload.severity, payload.message[:60])
-    return {"inserted_id": str(result.inserted_id), "document": document}
+    return {"inserted_id": str(result.inserted_id), "document": doc_safe}

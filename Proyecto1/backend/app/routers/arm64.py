@@ -84,8 +84,10 @@ def create_arm64_result(payload: ARM64ResultCreate):
         "created_at": _now()
     })
 
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
+
     logger.info("Resultado ARM64 registrado: %s por %s", payload.module, payload.source)
-    return {"inserted_id": str(result.inserted_id), "document": document}
+    return {"inserted_id": str(result.inserted_id), "document": doc_safe}
 
 
 @router.post("/api/arm64-results/mock")

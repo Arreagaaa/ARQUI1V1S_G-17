@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Query
 
+from bson import ObjectId
 from ..db import get_database
 from ..schemas import CommandCreate
 from ..mqtt_service import publish_control_event
@@ -72,9 +73,11 @@ def create_command(payload: CommandCreate):
     result = db.commands.insert_one(document)
     mqtt_result = publish_control_event("commands", document)
 
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
+
     logger.info("Comando creado: %s -> %s", payload.command, payload.target)
     return {
         "inserted_id": str(result.inserted_id),
-        "document": document,
+        "document": doc_safe,
         "mqtt": mqtt_result.__dict__,
     }

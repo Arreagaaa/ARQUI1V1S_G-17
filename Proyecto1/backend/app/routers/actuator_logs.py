@@ -56,5 +56,6 @@ def create_actuator_log(payload: ActuatorLogCreate):
     document = payload.model_dump()
     document["created_at"] = document["created_at"] or _now()
     result = db.actuator_logs.insert_one(document)
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
     logger.info("Log de actuador registrado: %s -> %s", payload.actuator, payload.action)
-    return {"inserted_id": str(result.inserted_id), "document": document}
+    return {"inserted_id": str(result.inserted_id), "document": doc_safe}

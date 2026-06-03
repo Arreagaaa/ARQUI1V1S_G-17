@@ -107,5 +107,7 @@ def create_reading(payload: SensorReadingCreate):
     # Procesar reglas de automatización
     process_reading(document)
 
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
+
     logger.info("Lectura registrada: %s = %.1f (%s)", payload.sensor_type, payload.value, payload.area)
-    return {"inserted_id": str(result.inserted_id), "document": document}
+    return {"inserted_id": str(result.inserted_id), "document": doc_safe}

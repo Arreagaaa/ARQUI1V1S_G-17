@@ -121,9 +121,10 @@ def upsert_system_status(payload: SystemStatusCreate):
     document = payload.model_dump()
     document["updated_at"] = document["updated_at"] or _now()
     result = db.system_status.insert_one(document)
-    
+    doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
+
     logger.info("Estado del sistema actualizado por %s", payload.source)
-    return {"inserted_id": str(result.inserted_id), "document": document}
+    return {"inserted_id": str(result.inserted_id), "document": doc_safe}
 
 
 @router.post("/api/seed")

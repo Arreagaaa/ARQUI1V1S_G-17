@@ -181,14 +181,16 @@ def run_all():
 
     # 11. ARM64
     print("\n>>> 11. ARM64 <<<")
-    t("GET /api/arm64/results", "GET", "/api/arm64/results", 200, checks=[nonempty])
+    t("GET /api/arm64/results (puede estar vacio sin ARM real)", "GET", "/api/arm64/results", 200)
     t("GET /api/arm64-results/latest", "GET", "/api/arm64-results/latest", 200)
     t("POST /api/arm64-results (registrar resultado)", "POST", "/api/arm64-results", 200,
       body={"module": "WEIGHTED_MEAN", "total_values": 30,
             "results": {"SUM_X": 920, "WEIGHT_SUM": 465, "WEIGHTED_MEAN": 31},
             "source": "test"},
       checks=[has_fields("inserted_id")])
-    t("POST /api/arm64-results/mock (generar mock)", "POST", "/api/arm64-results/mock", 200,
+    t("POST /api/arm64-results/mock (sin ?dev=true -> rechaza)", "POST", "/api/arm64-results/mock", 200,
+      checks=[has_fields("status")])
+    t("POST /api/arm64-results/mock?dev=true (generar mock)", "POST", "/api/arm64-results/mock?dev=true", 200,
       checks=[has_fields("status")])
 
     # 12. SWAGGER / OPENAPI

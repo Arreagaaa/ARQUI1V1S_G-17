@@ -250,74 +250,8 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
     db.actuator_logs.insert_many(actuator_logs)
     results["actuator_logs"] = len(actuator_logs)
     
-    # 6. Generar resultados ARM64
-    arm64_results = [
-        {
-            "module": "WEIGHTED_MEAN",
-            "total_values": 30,
-            "results": {
-                "SUM_X": 920,
-                "WEIGHT_SUM": 465,
-                "WEIGHTED_MEAN": 31
-            },
-            "source": "raspi-01",
-            "created_at": now
-        },
-        {
-            "module": "VARIANCE",
-            "total_values": 30,
-            "results": {
-                "MEAN": 31,
-                "VARIANCE": 18,
-                "STD_DEV": 4
-            },
-            "source": "raspi-01",
-            "created_at": now
-        },
-        {
-            "module": "ANOMALY_DETECTION",
-            "total_values": 30,
-            "results": {
-                "MEAN": 29,
-                "STD_DEV": 3,
-                "ANOMALIES": 4,
-                "SYSTEM_RISK": "HIGH"
-            },
-            "source": "raspi-01",
-            "created_at": now
-        },
-        {
-            "module": "PREDICTION",
-            "total_values": 30,
-            "results": {
-                "INITIAL_VALUE": 28,
-                "FINAL_VALUE": 34,
-                "TOTAL_DIFF": 6,
-                "AVG_CHANGE": 0.20,
-                "NEXT_VALUE": 34.20
-            },
-            "source": "raspi-01",
-            "created_at": now
-        },
-        {
-            "module": "ADVANCED_TREND",
-            "total_values": 30,
-            "results": {
-                "INCREMENTS": 18,
-                "DECREMENTS": 10,
-                "MAX_UP_STREAK": 5,
-                "MAX_DOWN_STREAK": 3,
-                "ACCUM_DIFF": 7,
-                "TREND": "UP"
-            },
-            "source": "raspi-01",
-            "created_at": now
-        }
-    ]
-    db.arm64_results.insert_many(arm64_results)
-    results["arm64_results"] = len(arm64_results)
-    
-    logger.info("Siembra de base de datos completada con éxito.")
+    logger.info("Siembra de base de datos completada con éxito. "
+                "(ARM64: seed no genera resultados — deben venir de ejecucion real)")
     return results
 
 

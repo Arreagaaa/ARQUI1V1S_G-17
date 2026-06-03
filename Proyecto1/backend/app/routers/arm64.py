@@ -91,11 +91,17 @@ def create_arm64_result(payload: ARM64ResultCreate):
 
 
 @router.post("/api/arm64-results/mock")
-def generate_mock_arm64_results():
+def generate_mock_arm64_results(dev: bool = False):
     """
-    Genera datos mock iniciales coherentes para simular el coprocesador ARM64.
-    Útil para la demostración inicial sin hardware físico.
+    [SOLO DESARROLLO] Genera datos mock para simular el coprocesador ARM64.
+    No usar en produccion — los resultados deben venir de ejecucion real ARM64.
+
+    Query parameter ?dev=true requerido para confirmar.
     """
+    if not dev:
+        return {"status": "error",
+                "message": "Endpoint solo para desarrollo. Usa ?dev=true para confirmar. "
+                           "Los resultados ARM64 deben generarse ejecutando los modulos .s"}
     db = get_database()
     now = _now()
 

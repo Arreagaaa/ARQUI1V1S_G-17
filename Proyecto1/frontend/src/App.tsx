@@ -11,6 +11,7 @@ import {
   LineChart,
   Cpu,
   RefreshCw,
+  Sun,
 } from 'lucide-react';
 import {
   createEvent,
@@ -20,6 +21,12 @@ import {
   getHealth,
   getARM64Results,
   generateMockARM64Results,
+  seedDatabase,
+  controlMode,
+  controlIrrigation,
+  controlLights,
+  controlFan,
+  controlAlarm,
 } from './lib/api';
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from './types';
 
@@ -152,11 +159,37 @@ export default function App() {
     setBusy(key);
     setNotice('');
     try {
-      await controlActuator(nextAction.actuator, nextAction.state, nextAction.area || undefined);
+      if (nextAction.actuator === 'mode') {
+        await controlMode(nextAction.state as 'auto' | 'manual');
+      } else if (nextAction.actuator === 'pump') {
+        await controlIrrigation(nextAction.state as 'on' | 'off', nextAction.area);
+      } else if (nextAction.actuator === 'lights') {
+        await controlLights(nextAction.state as 'on' | 'off', nextAction.area);
+      } else if (nextAction.actuator === 'fan') {
+        await controlFan(nextAction.state as 'on' | 'off', nextAction.area);
+      } else if (nextAction.actuator === 'buzzer') {
+        await controlAlarm(nextAction.state as 'on' | 'off' | 'mute', nextAction.area);
+      } else {
+        await controlActuator(nextAction.actuator, nextAction.state, nextAction.area || undefined);
+      }
       setNotice(`Acción enviada: ${nextAction.actuator} -> ${nextAction.state} ${nextAction.area ? `(${nextAction.area})` : ''}`);
       await refresh();
     } catch {
       setNotice('No se pudo enviar la acción.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSeedDatabase() {
+    setBusy('seed');
+    setNotice('');
+    try {
+      const res = await seedDatabase();
+      setNotice(`Base de datos sembrada con éxito.`);
+      await refresh();
+    } catch {
+      setNotice('Error al sembrar la base de datos.');
     } finally {
       setBusy(null);
     }
@@ -260,9 +293,20 @@ export default function App() {
                 Dashboard web para controlar la maqueta, registrar históricos en MongoDB Compass/Atlas y auditar los módulos ARM64.
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />
-              <StatusPill icon={<Cloud className="h-4 w-4" />} label="MongoDB" value={dashboard.mongodb ? 'Activo' : 'Pendiente'} />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => void handleSeedDatabase()}
+                disabled={busy !== null}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-305 hover:scale-102 active:scale-98 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw className={`h-4 w-4 ${busy === 'seed' ? 'animate-spin' : ''}`} />
+                <span>Inicializar DB</span>
+              </button>
+              <div className="grid gap-3 grid-cols-2">
+                <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />
+                <StatusPill icon={<Cloud className="h-4 w-4" />} label="MongoDB" value={dashboard.mongodb ? 'Activo' : 'Pendiente'} />
+              </div>
             </div>
           </div>
           {notice ? (
@@ -338,10 +382,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-5 w-5" />} />
               <ToggleCard title="Bomba de Riego" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-5 w-5" />} />
               <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-5 w-5" />} />
+              <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-5 w-5" />} />
               <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-5 w-5" />} />
             </div>
 

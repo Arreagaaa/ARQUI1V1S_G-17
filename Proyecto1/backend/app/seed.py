@@ -1,0 +1,326 @@
+"""
+Script de inicialización y siembra de base de datos (Seeder).
+
+Pobla MongoDB con datos de prueba realistas para las 6 colecciones principales:
+1. sensor_readings: Lecturas históricas de temperatura, humedad, suelo, luz y gas.
+2. events: Registro histórico de alertas, restauraciones de estado y análisis.
+3. commands: Comandos remotos e internos enviados a los actuadores.
+4. system_status: Historial de estados del sistema para graficar y el estado más reciente.
+5. actuator_logs: Historial de actuación del hardware.
+6. arm64_results: Resultados simulados de cálculos ARM64 (Weighted Mean, Variance, etc.).
+"""
+
+import logging
+import random
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List
+
+from .db import get_database
+from .mqtt.mock_provider import MQTTMockProvider
+
+logger = logging.getLogger(__name__)
+
+
+def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
+    """
+    Pobla la base de datos con un set de datos mock coherentes.
+    
+    Args:
+        clear_existing: Si es True, vacía las colecciones antes de insertar.
+        
+    Returns:
+        Un resumen de los documentos insertados por colección.
+    """
+    db = get_database()
+    now = datetime.now(timezone.utc)
+    
+    if clear_existing:
+        logger.info("Limpiando colecciones existentes...")
+        db.sensor_readings.delete_many({})
+        db.events.delete_many({})
+        db.commands.delete_many({})
+        db.system_status.delete_many({})
+        db.actuator_logs.delete_many({})
+        db.arm64_results.delete_many({})
+    
+    mock_provider = MQTTMockProvider(seed=42)
+    results = {}
+    
+    # 1. Generar lecturas históricas (30 sets de 6 sensores = 180 lecturas)
+    logger.info("Generando lecturas históricas de sensores...")
+    historical_raw = mock_provider.generate_historical_readings(count=30)
+    
+    # Adaptar timestamps a datetime objects para MongoDB
+    sensor_readings = []
+    for raw in historical_raw:
+        dt = datetime.fromisoformat(raw["timestamp"])
+        sensor_readings.append({
+            "sensor_type": raw["sensor_type"],
+            "value": raw["value"],
+            "unit": raw["unit"],
+            "area": raw["area"],
+            "status": raw["status"],
+            "source": raw["source"],
+            "recorded_at": dt
+        })
+    
+    db.sensor_readings.insert_many(sensor_readings)
+    results["sensor_readings"] = len(sensor_readings)
+    
+    # 2. Generar estados del sistema coherentes a lo largo del tiempo
+    logger.info("Generando estados de sistema históricos...")
+    system_status_list = []
+    base_time = now - timedelta(minutes=30 * 5)
+    
+    # Vamos a simular un avance temporal
+    for i in range(30):
+        timestamp = base_time + timedelta(minutes=i * 5)
+        # Extraer lecturas correspondientes a este bloque temporal
+        temp = 22.0 + (i * 0.3) % 15.0
+        hum = 60.0 - (i * 0.5) % 25.0
+        soil1 = 45.0 - (i * 0.8) % 30.0
+        soil2 = 50.0 - (i * 0.6) % 25.0
+        light = 40.0 + (i * 1.5) % 55.0
+        gas = 60.0 + (i * 3.0) % 110.0
+        
+        # Reglas simples para inferir estado
+        pump = soil1 < 30.0 or soil2 < 30.0
+        fan = temp > 30.0 or gas > 150.0
+        lights = light < 30.0
+        buzzer = gas > 150.0
+        
+        if gas > 150.0:
+            state = "EMERGENCIA"
+        elif temp > 30.0 or soil1 < 30.0 or soil2 < 30.0:
+            state = "ADVERTENCIA" if temp > 30.0 else "RIEGO_ACTIVO"
+        else:
+            state = "NORMAL"
+            
+        system_status_list.append({
+            "mode": "auto",
+            "overall_state": state,
+            "temperature": round(temp, 1),
+            "humidity": round(hum, 1),
+            "soil_1": round(soil1, 1),
+            "soil_2": round(soil2, 1),
+            "light": round(light, 1),
+            "gas": round(gas, 1),
+            "pump_active": pump,
+            "fan_active": fan,
+            "lights_active": lights,
+            "buzzer_active": buzzer,
+            "source": "raspi-01",
+            "updated_at": timestamp
+        })
+        
+    db.system_status.insert_many(system_status_list)
+    results["system_status"] = len(system_status_list)
+    
+    # 3. Generar eventos simulados coherentes
+    logger.info("Generando eventos y logs históricos...")
+    events = [
+        {
+            "event_type": "status_restored",
+            "message": "Información: Todos los sensores han retornado a rangos normales.",
+            "severity": "info",
+            "area": "control",
+            "source": "backend_rules",
+            "created_at": now - timedelta(minutes=140)
+        },
+        {
+            "event_type": "soil_warning",
+            "message": "ADVERTENCIA: Humedad de suelo baja en Área 1 (28.4%). Activando bomba.",
+            "severity": "warning",
+            "area": "area_1",
+            "source": "backend_rules",
+            "created_at": now - timedelta(minutes=110)
+        },
+        {
+            "event_type": "temp_warning",
+            "message": "ADVERTENCIA: Temperatura alta detectada (31.2 °C). Activando ventilación.",
+            "severity": "warning",
+            "area": "control",
+            "source": "backend_rules",
+            "created_at": now - timedelta(minutes=70)
+        },
+        {
+            "event_type": "emergency",
+            "message": "EMERGENCIA: Gas detectado por encima del límite seguro (165.0 ppm). Alarma y ventilación activadas.",
+            "severity": "critical",
+            "area": "control",
+            "source": "backend_rules",
+            "created_at": now - timedelta(minutes=30)
+        },
+        {
+            "event_type": "arm64_analysis",
+            "message": "Nuevo análisis ARM64 registrado para el módulo ANOMALY_DETECTION.",
+            "severity": "info",
+            "area": "control",
+            "source": "raspi-01",
+            "created_at": now - timedelta(minutes=10)
+        }
+    ]
+    db.events.insert_many(events)
+    results["events"] = len(events)
+    
+    # 4. Generar comandos remotos e internos simulados
+    commands = [
+        {
+            "command": "set_mode",
+            "target": "mode",
+            "source": "web",
+            "payload": {"state": "auto", "area": None},
+            "created_at": now - timedelta(minutes=180)
+        },
+        {
+            "command": "set_lights",
+            "target": "lights",
+            "source": "web",
+            "payload": {"state": "on", "area": "control"},
+            "created_at": now - timedelta(minutes=120)
+        },
+        {
+            "command": "set_mode",
+            "target": "mode",
+            "source": "web",
+            "payload": {"state": "manual", "area": None},
+            "created_at": now - timedelta(minutes=90)
+        },
+        {
+            "command": "set_pump",
+            "target": "pump",
+            "source": "web",
+            "payload": {"state": "on", "area": "area_1"},
+            "created_at": now - timedelta(minutes=85)
+        },
+        {
+            "command": "set_mode",
+            "target": "mode",
+            "source": "web",
+            "payload": {"state": "auto", "area": None},
+            "created_at": now - timedelta(minutes=45)
+        }
+    ]
+    db.commands.insert_many(commands)
+    results["commands"] = len(commands)
+    
+    # 5. Generar logs de actuación de hardware correspondientes
+    actuator_logs = [
+        {
+            "actuator": "lights",
+            "action": "on",
+            "source": "web",
+            "area": "control",
+            "payload": {"state": "on"},
+            "created_at": now - timedelta(minutes=120)
+        },
+        {
+            "actuator": "pump",
+            "action": "on",
+            "source": "web",
+            "area": "area_1",
+            "payload": {"state": "on"},
+            "created_at": now - timedelta(minutes=85)
+        },
+        {
+            "actuator": "pump",
+            "action": "off",
+            "source": "backend_rules",
+            "area": "area_1",
+            "payload": {"state": "off"},
+            "created_at": now - timedelta(minutes=45)
+        },
+        {
+            "actuator": "fan",
+            "action": "on",
+            "source": "backend_rules",
+            "area": "control",
+            "payload": {"state": "on"},
+            "created_at": now - timedelta(minutes=30)
+        },
+        {
+            "actuator": "buzzer",
+            "action": "on",
+            "source": "backend_rules",
+            "area": "control",
+            "payload": {"state": "on"},
+            "created_at": now - timedelta(minutes=30)
+        }
+    ]
+    db.actuator_logs.insert_many(actuator_logs)
+    results["actuator_logs"] = len(actuator_logs)
+    
+    # 6. Generar resultados ARM64
+    arm64_results = [
+        {
+            "module": "WEIGHTED_MEAN",
+            "total_values": 30,
+            "results": {
+                "SUM_X": 920,
+                "WEIGHT_SUM": 465,
+                "WEIGHTED_MEAN": 31
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "VARIANCE",
+            "total_values": 30,
+            "results": {
+                "MEAN": 31,
+                "VARIANCE": 18,
+                "STD_DEV": 4
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "ANOMALY_DETECTION",
+            "total_values": 30,
+            "results": {
+                "MEAN": 29,
+                "STD_DEV": 3,
+                "ANOMALIES": 4,
+                "SYSTEM_RISK": "HIGH"
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "PREDICTION",
+            "total_values": 30,
+            "results": {
+                "INITIAL_VALUE": 28,
+                "FINAL_VALUE": 34,
+                "TOTAL_DIFF": 6,
+                "AVG_CHANGE": 0.20,
+                "NEXT_VALUE": 34.20
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "ADVANCED_TREND",
+            "total_values": 30,
+            "results": {
+                "INCREMENTS": 18,
+                "DECREMENTS": 10,
+                "MAX_UP_STREAK": 5,
+                "MAX_DOWN_STREAK": 3,
+                "ACCUM_DIFF": 7,
+                "TREND": "UP"
+            },
+            "source": "raspi-01",
+            "created_at": now
+        }
+    ]
+    db.arm64_results.insert_many(arm64_results)
+    results["arm64_results"] = len(arm64_results)
+    
+    logger.info("Siembra de base de datos completada con éxito.")
+    return results
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    seed_database(clear_existing=True)

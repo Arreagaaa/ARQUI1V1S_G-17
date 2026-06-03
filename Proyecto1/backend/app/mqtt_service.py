@@ -1,41 +1,47 @@
+"""
+Servicio MQTT legacy — Wrapper sobre la nueva capa MQTT desacoplada.
+
+Mantiene compatibilidad con el código existente mientras delega
+a la nueva infraestructura MQTT (connection_manager, publisher, etc.).
+"""
+
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 
-import paho.mqtt.client as mqtt
-
 from .config import get_settings
+from .mqtt.publisher import MQTTPublisher, PublishResult
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class MQTTResult:
+    """Resultado de una operación MQTT (legacy API)."""
+
     connected: bool
     published: bool
     message: str
 
 
-def _client() -> mqtt.Client:
-    settings = get_settings()
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    if settings.mqtt_username:
-        client.username_pw_set(settings.mqtt_username, settings.mqtt_password)
-    return client
-
-
 def publish_control_event(topic_suffix: str, payload: dict) -> MQTTResult:
+    """
+    Publica un evento de control vía MQTT (API legacy).
+
+    Delegado a MQTTPublisher de la nueva capa desacoplada.
+    """
     settings = get_settings()
     topic = f"{settings.mqtt_base_topic}/{topic_suffix}"
 
     if not settings.enable_mqtt:
-        return MQTTResult(False, False, f"MQTT is disabled (dry run). Topic: {topic}")
-
-    client = _client()
+        return MQTTResult(False, False, f"MQTT deshabilitado (dry run). Topic: {topic}")
 
     try:
-        client.connect(settings.mqtt_host, settings.mqtt_port, keepalive=30)
-        client.publish(topic, json.dumps(payload, ensure_ascii=False), qos=1)
-        client.disconnect()
-        return MQTTResult(True, True, topic)
+        publisher = MQTTPublisher()
+        result = publisher._publish(topic, payload)
+        return MQTTResult(result.success, result.success, result.message)
     except Exception as exc:
+        logger.error("Error publicando evento MQTT en '%s': %s", topic, exc)
         return MQTTResult(False, False, f"{topic}: {exc}")

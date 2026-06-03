@@ -72,3 +72,50 @@ export async function generateMockARM64Results() {
   });
 }
 
+export async function seedDatabase() {
+  return request<{ status: string; message: string; details: Record<string, number> }>("/api/seed", {
+    method: 'POST',
+  });
+}
+
+export async function controlIrrigation(state: 'on' | 'off', area?: string) {
+  return request<unknown>("/api/control/irrigation", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state, area, source: 'web' }),
+  });
+}
+
+export async function controlLights(state: 'on' | 'off', area?: string) {
+  return request<unknown>("/api/control/lights", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state, area, source: 'web' }),
+  });
+}
+
+export async function controlFan(state: 'on' | 'off', area?: string) {
+  return request<unknown>("/api/control/fan", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state, area, source: 'web' }),
+  });
+}
+
+export async function controlAlarm(state: 'on' | 'off' | 'mute', area?: string) {
+  return request<unknown>("/api/control/alarm", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state, area, source: 'web' }),
+  });
+}
+
+export async function controlMode(mode: 'auto' | 'manual') {
+  return request<unknown>("/api/control/mode", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, source: 'web' }),
+  });
+}
+
+

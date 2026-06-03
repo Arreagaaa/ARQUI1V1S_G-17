@@ -44,7 +44,7 @@ def load_settings() -> Settings:
         mqtt_port=int(os.getenv("MQTT_PORT", "1883")),
         mqtt_username=os.getenv("MQTT_USERNAME", ""),
         mqtt_password=os.getenv("MQTT_PASSWORD", ""),
-        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "invernadero"),
+        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "grupo17/invernadero"),
         device_id=os.getenv("DEVICE_ID", "raspi-01"),
         enable_gpio=os.getenv("ENABLE_GPIO", "false").lower() == "true",
         poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "15")),
@@ -131,7 +131,7 @@ class GreenhouseDevice:
         return f"{self.settings.mqtt_base_topic}/{suffix}"
 
     def on_connect(self, client: mqtt.Client, userdata: Any, flags: Any, reason_code: Any, properties: Any) -> None:
-        client.subscribe([(self.topic("control/#"), 1), (self.topic("commands"), 1)])
+        client.subscribe([(self.topic("control/#"), 1)])
 
     def on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
         try:

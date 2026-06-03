@@ -68,7 +68,7 @@ const metricLabels: Array<{ key: keyof SystemStatus; label: string; unit: string
   { key: 'soil_1', label: 'Suelo área 1', unit: '%' },
   { key: 'soil_2', label: 'Suelo área 2', unit: '%' },
   { key: 'light', label: 'Luz', unit: '%' },
-  { key: 'gas', label: 'Gas', unit: '%' },
+  { key: 'gas', label: 'Gas', unit: 'ppm' },
 ];
 
 const inputClass =

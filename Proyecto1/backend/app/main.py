@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import touch_indexes
 from .mqtt.connection_manager import MQTTConnectionManager
-from .routers import sensors, events, commands, control, status, arm64
+from .routers import sensors, events, commands, control, status, arm64, actuator_logs
 
 # Configurar logging básico
 logging.basicConfig(
@@ -95,3 +95,4 @@ app.include_router(commands.router)
 app.include_router(control.router)
 app.include_router(status.router)
 app.include_router(arm64.router)
+app.include_router(actuator_logs.router)

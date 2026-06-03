@@ -99,10 +99,13 @@ Crear el archivo `arm64/utils.s` con las siguientes funciones compartidas:
 El archivo es generado por Python desde lecturas reales del invernadero. Formato:
 
 ```csv
-timestamp,sensor_type,value,area
-2026-06-03T10:00:00,temperature,28.5,area_1
-2026-06-03T10:00:00,temperature,29.1,area_2
-2026-06-03T10:01:00,temperature,28.8,area_1
+timestamp,sensor_type,value,unit,area
+2026-06-03T10:00:00Z,temperature,28.5,C,area_1
+2026-06-03T10:00:00Z,humidity,55.0,%,control
+2026-06-03T10:00:00Z,soil_1,45.0,%,area_1
+2026-06-03T10:00:00Z,soil_2,50.0,%,area_2
+2026-06-03T10:00:00Z,light,60.0,%,control
+2026-06-03T10:00:00Z,gas,80.0,ppm,control
 ...
 ```
 

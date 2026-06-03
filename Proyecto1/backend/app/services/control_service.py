@@ -65,7 +65,7 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
         update_system_status(updates)
 
     # 4. Publicar vía MQTT
-    mqtt_result = publish_control_event(f"control/{actuator}", command_document)
+    mqtt_result = publish_control_event("control/remoto", command_document)
 
     logger.info("Control ejecutado: %s -> %s (area=%s)", actuator, state, area)
 

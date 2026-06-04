@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Cloud,
   Droplets,
-  Gauge,
   Rocket,
   Wifi,
   Wind,
@@ -282,43 +281,43 @@ export default function App() {
       <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.22),_transparent_60%)]" />
 
       <section className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-glow backdrop-blur">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/90">Invernadero Inteligente IoT</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+        <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 shadow-glow backdrop-blur">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm uppercase tracking-[0.3em] text-emerald-300/90">Invernadero Inteligente IoT</p>
+              <h1 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">
                 Panel de control y monitoreo inteligente
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                 Dashboard web para controlar la maqueta, registrar históricos en MongoDB Compass/Atlas y auditar los módulos ARM64.
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:flex-nowrap">
               <button
                 type="button"
                 onClick={() => void handleSeedDatabase()}
                 disabled={busy !== null}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-305 hover:scale-102 active:scale-98 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${busy === 'seed' ? 'animate-spin' : ''}`} />
                 <span>Inicializar DB</span>
               </button>
-              <div className="grid gap-3 grid-cols-2">
+              <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex">
                 <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />
                 <StatusPill icon={<Cloud className="h-4 w-4" />} label="MongoDB" value={dashboard.mongodb ? 'Activo' : 'Pendiente'} />
               </div>
             </div>
           </div>
           {notice ? (
-            <div className="mt-5 flex items-center justify-between rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-              <span>{notice}</span>
-              <button onClick={() => setNotice('')} className="text-emerald-400 hover:text-emerald-200">✕</button>
+            <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              <span className="break-words">{notice}</span>
+              <button onClick={() => setNotice('')} className="shrink-0 text-emerald-400 hover:text-emerald-200">✕</button>
             </div>
           ) : null}
         </header>
 
         {/* Métricas en Tiempo Real */}
-        <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
           {metricLabels.map((metric) => (
             <MetricCard
               key={metric.key}
@@ -332,14 +331,14 @@ export default function App() {
         </section>
 
         {/* Gráfico Histórico */}
-        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <LineChart className="h-5 w-5 text-emerald-400" />
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <LineChart className="h-5 w-5 text-emerald-400 shrink-0" />
                 <span>Histórico de Sensor</span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-400">
                 Visualización en tiempo real de los datos almacenados en MongoDB.
               </p>
             </div>
@@ -348,7 +347,7 @@ export default function App() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key as string)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition ${
                     activeTab === tab.key
                       ? 'bg-emerald-400 text-slate-950 shadow-glow'
                       : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
@@ -371,28 +370,28 @@ export default function App() {
 
         {/* Estado Operativo, Acciones y Logs */}
         <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <article className="space-y-6 rounded-3xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur">
-            <div className="flex items-center justify-between gap-4">
+          <article className="space-y-6 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-white">Estado operativo actual</h2>
-                <p className="mt-1 text-sm text-slate-400">Resumen del modo, actuadores y estado del sistema.</p>
+                <h2 className="text-lg sm:text-xl font-semibold text-white">Estado operativo actual</h2>
+                <p className="mt-1 text-xs sm:text-sm text-slate-400">Resumen del modo, actuadores y estado del sistema.</p>
               </div>
-              <div className={`rounded-full px-3 py-1 text-xs font-medium ${stateBadge(status?.overall_state)}`}>
+              <div className={`self-start sm:self-auto rounded-full px-3 py-1 text-xs font-medium ${stateBadge(status?.overall_state)}`}>
                 {status?.overall_state ?? 'sin datos'}
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-5 w-5" />} />
-              <ToggleCard title="Bomba de Riego" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-5 w-5" />} />
-              <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-5 w-5" />} />
-              <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-5 w-5" />} />
-              <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-5 w-5" />} />
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
+              <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-4 w-4" />} />
+              <ToggleCard title="Bomba de Riego" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-4 w-4" />} />
+              <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-4 w-4" />} />
+              <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
+              <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />
             </div>
 
             <section className="grid gap-4 lg:grid-cols-2">
               <Panel title="Acciones rápidas (Control manual)">
-                <div className="grid gap-3 sm:grid-cols-2 max-h-[300px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
                   {quickActions.map((item) => {
                     const key = `${item.actuator}-${item.state}-${item.area || ''}`;
                     const isBusy = busy === key;
@@ -402,11 +401,11 @@ export default function App() {
                         type="button"
                         onClick={() => void runAction(item)}
                         disabled={busy !== null}
-                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-medium text-white transition hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-medium text-white transition hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <span className="flex items-center gap-2">
-                          <Rocket className="h-3.5 w-3.5 text-emerald-200" />
-                          {isBusy ? 'Enviando...' : item.label}
+                        <span className="flex items-start gap-2">
+                          <Rocket className="h-3.5 w-3.5 mt-0.5 text-emerald-300 shrink-0" />
+                          <span className="leading-snug break-words">{isBusy ? 'Enviando...' : item.label}</span>
                         </span>
                       </button>
                     );
@@ -518,7 +517,7 @@ export default function App() {
                       type="button"
                       onClick={() => void submitEvent()}
                       disabled={busy !== null}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-emerald-300/30 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-emerald-300/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {busy === 'event' ? 'Registrando...' : 'Registrar evento'}
                     </button>
@@ -558,9 +557,9 @@ export default function App() {
         />
 
         {/* Nota MQTT */}
-        <footer className="rounded-3xl border border-emerald-400/15 bg-emerald-500/10 p-6 backdrop-blur">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-emerald-400 animate-spin-slow" />
+        <footer className="rounded-3xl border border-emerald-400/15 bg-emerald-500/10 p-5 sm:p-6 backdrop-blur">
+          <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-emerald-400 animate-spin-slow shrink-0" />
             <span>Fase Pre-ARM y Pre-Maqueta Completada</span>
           </h2>
           <p className="mt-2 text-sm leading-6 text-emerald-50/80">
@@ -574,11 +573,11 @@ export default function App() {
 
 function StatusPill({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex min-w-[180px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
-      <div className="rounded-xl bg-emerald-400/15 p-2 text-emerald-200">{icon}</div>
-      <div>
-        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
-        <p className="font-medium text-white">{value}</p>
+    <div className="flex flex-1 min-w-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 sm:px-3.5 py-2.5 text-sm">
+      <div className="shrink-0 rounded-lg bg-emerald-400/15 p-1.5 text-emerald-200">{icon}</div>
+      <div className="min-w-0 leading-tight">
+        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.14em] text-slate-400 whitespace-nowrap">{label}</p>
+        <p className="truncate font-semibold text-white text-xs sm:text-sm">{value}</p>
       </div>
     </div>
   );
@@ -588,16 +587,16 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
   return (
     <article
       onClick={onClick}
-      className={`rounded-3xl border p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${
+      className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${
         active
-          ? 'border-emerald-400/50 bg-emerald-500/10 scale-102'
+          ? 'border-emerald-400/50 bg-emerald-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-emerald-400/30'
       }`}
     >
-      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
-      <p className="mt-4 text-3xl font-semibold text-white">
+      <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.22em] text-slate-400">{label}</p>
+      <p className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-semibold text-white break-words">
         {value !== undefined ? (typeof value === 'number' ? value.toFixed(1).replace('.0', '') : value) : '0'}
-        <span className="ml-1 text-sm font-medium text-slate-400">{unit}</span>
+        <span className="ml-1 text-xs sm:text-sm font-medium text-slate-400">{unit}</span>
       </p>
     </article>
   );
@@ -605,13 +604,11 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
 
 function ToggleCard({ title, value, icon }: { title: string; value: string; icon: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/4 p-4">
-      <div className="flex items-center gap-3 text-slate-300">
-        <span className="rounded-xl bg-emerald-400/15 p-2 text-emerald-200">{icon}</span>
-        <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{title}</p>
-          <p className="mt-1 text-base font-medium text-white">{value}</p>
-        </div>
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:p-4 flex flex-col items-center text-center gap-2">
+      <span className="rounded-lg bg-emerald-400/15 p-1.5 text-emerald-300">{icon}</span>
+      <div className="min-w-0 w-full">
+        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.16em] sm:tracking-[0.2em] text-slate-400 leading-tight break-words">{title}</p>
+        <p className="mt-1 text-xs sm:text-sm font-semibold text-white break-words leading-tight">{value}</p>
       </div>
     </div>
   );
@@ -619,8 +616,8 @@ function ToggleCard({ title, value, icon }: { title: string; value: string; icon
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/4 p-5">
-      <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-200/90">{title}</h3>
+    <section className="rounded-2xl sm:rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
+      <h3 className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-emerald-200/90">{title}</h3>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -632,9 +629,9 @@ function Timeline({ items, emptyText }: { items: string[]; emptyText: string }) 
   }
 
   return (
-    <ul className="space-y-2 text-[11px] text-slate-200">
+    <ul className="space-y-2 text-[11px] sm:text-xs text-slate-200">
       {items.slice(0, 6).map((item, index) => (
-        <li key={`${item}-${index}`} className="rounded-2xl border border-white/8 bg-white/3 px-3 py-2 leading-relaxed">
+        <li key={`${item}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 leading-relaxed break-words">
           {item}
         </li>
       ))}
@@ -644,9 +641,8 @@ function Timeline({ items, emptyText }: { items: string[]; emptyText: string }) 
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="space-y-1 text-sm text-slate-300">
-      <span className="flex items-center gap-1.5 text-xs uppercase tracking-[0.22em] text-slate-400">
-        <Gauge className="h-3 w-3 text-emerald-200" />
+    <label className="block text-sm text-slate-300">
+      <span className="block text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] sm:tracking-[0.22em] text-emerald-300/80 mb-1.5">
         {label}
       </span>
       {children}
@@ -757,9 +753,13 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
   const chartColor = colors[metricKey] || { stroke: 'stroke-emerald-400', fill: 'url(#gradient-soil)' };
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="min-w-[600px] h-[160px] relative">
-        <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${width} ${height}`}>
+    <div className="w-full">
+      <div className="w-full" style={{ aspectRatio: '600 / 160' }}>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full overflow-visible"
+        >
           <defs>
             <linearGradient id="gradient-temp" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#fb7185" stopOpacity="0.25"/>
@@ -917,11 +917,11 @@ function ARM64ResultsSection({
   const hasData = results && Object.keys(results).length > 0;
 
   return (
-    <article className="space-y-6 rounded-3xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur">
+    <article className="space-y-6 rounded-2xl sm:rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-            <Cpu className="h-5 w-5 text-emerald-400" />
+          <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+            <Cpu className="h-5 w-5 text-emerald-400 shrink-0" />
             <span>Análisis Estadístico ARM64</span>
           </h2>
           <p className="mt-1 text-xs text-slate-400">
@@ -932,7 +932,7 @@ function ARM64ResultsSection({
           type="button"
           onClick={onGenerateMock}
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? 'Generando...' : 'Generar datos de prueba ARM64'}
         </button>
@@ -945,7 +945,7 @@ function ARM64ResultsSection({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {modulesList.map((mod) => {
             const modData = results?.[mod.key];
             return (

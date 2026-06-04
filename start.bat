@@ -1,9 +1,11 @@
 @echo off
 REM ============================================
 REM Invernadero IoT - Script de inicio
-REM Ejecuta con doble click o: start.bat
+REM Doble click: levanta backend y frontend en ventanas separadas
 REM Detecta automaticamente el Python con uvicorn instalado
 REM ============================================
+
+setlocal
 
 REM Candidatos a Python, en orden de prioridad
 set "PY_CANDIDATES=python py C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe C:\Python313\python.exe C:\Python312\python.exe"
@@ -16,7 +18,6 @@ for %%P in (%PY_CANDIDATES%) do (
   if not defined PY_FOUND (
     where %%P >nul 2>&1
     if not errorlevel 1 (
-      REM Probar si tiene uvicorn
       %%P -c "import uvicorn" >nul 2>&1
       if not errorlevel 1 (
         set "PY=%%P"
@@ -46,15 +47,20 @@ echo.
 echo [2/5] Verificando MongoDB...
 tasklist /FI "IMAGENAME eq mongod.exe" 2>NUL | find /I /N "mongod.exe">NUL
 if errorlevel 1 (
-  echo       ADVERTENCIA: MongoDB no esta corriendo. Inicialo antes de continuar.
+  echo       ADVERTENCIA: MongoDB no esta corriendo.
   echo       (El backend fallara al conectar a mongodb://localhost:27017)
 )
 
 echo.
 echo [3/5] Iniciando Backend en ventana nueva...
-start "Backend - Invernadero" cmd /k "%~dp0_start_backend.bat" "%PY%"
 
-REM Esperar 3 segundos para que el backend arranque
+REM Backend: comando completo en una sola linea con quoting correcto
+REM Truco: en batch, para poner comillas dentro de un string se duplican: "hola ""mundo"" adios"
+set "BACKEND_DIR=%~dp0Proyecto1\backend"
+set "BACKEND_CMD_EXE=""%PY%"" -m uvicorn app.main:app --host 127.0.0.1 --port 8080"
+set "BACKEND_FULL=cd /d ""%BACKEND_DIR%"" ^&^& %BACKEND_CMD_EXE%"
+start "Backend - Invernadero" cmd /k %BACKEND_FULL%
+
 timeout /t 3 /nobreak >nul
 
 echo [4/5] Iniciando Frontend en ventana nueva...

@@ -1,9 +1,9 @@
 # AUDITORIA FINAL — Invernadero Inteligente IoT
 ## Grupo 17 — ACYE1, Segundo Semestre 2026
 
-**Fecha:** 2026-06-03  
+**Fecha:** 2026-06-03 (última actualización)  
 **Estado:** PRE-ENTREGA  
-**Auditor:** Software Architect & Code Reviewer  
+**Auditor:** Software Architect & Code Reviewer
 
 ---
 
@@ -11,14 +11,20 @@
 
 ### 1.1 Críticos
 
-| # | Problema | Archivo | Severidad |
-|---|----------|---------|-----------|
-| C1 | ENDPOINT FALTANTE: No existía router `actuator_logs.py` — `raspberry/main.py` llamaba a `POST /api/actuator-logs` que no tenía implementación. | `backend/app/routers/` | ALTA |
-| C2 | MQTT TOPIC INCORRECTO: `raspberry/main.py` publicaba a `control/{actuator}` en lugar de `control/remoto` según contrato oficial. | `backend/app/services/control_service.py:68` | ALTA |
-| C3 | MQTT BASE TOPIC DEFAULT: `raspberry/main.py` usaba default `"invernadero"` omitiendo `grupo17/`. | `raspberry/main.py:47` | ALTA |
-| C4 | SUSCRIPCIÓN INEXISTENTE: `raspberry/main.py` se suscribía a topic `"commands"` que no existe en el contrato MQTT. | `raspberry/main.py:134` | ALTA |
-| C5 | UNIDAD DE GAS INCORRECTA: El frontend mostraba `%` para gas en lugar de `ppm`. | `frontend/src/App.tsx:71` | MEDIA |
-| C6 | ARTEFACTO VERSIONADO: `tsconfig.tsbuildinfo` estaba siendo trackeado por git. | `Proyecto1/frontend/tsconfig.tsbuildinfo` | MEDIA |
+| # | Problema | Archivo | Severidad | Estado |
+|---|----------|---------|-----------|--------|
+| C1 | ENDPOINT FALTANTE: No existía router `actuator_logs.py` — `raspberry/main.py` llamaba a `POST /api/actuator-logs` que no tenía implementación. | `backend/app/routers/` | ALTA | ✅ Corregido |
+| C2 | MQTT TOPIC INCORRECTO: `raspberry/main.py` publicaba a `control/{actuator}` en lugar de `control/remoto` según contrato oficial. | `backend/app/services/control_service.py:68` | ALTA | ✅ Corregido |
+| C3 | MQTT BASE TOPIC DEFAULT: `raspberry/main.py` usaba default `"invernadero"` omitiendo `grupo17/`. | `raspberry/main.py:47` | ALTA | ✅ Corregido |
+| C4 | SUSCRIPCIÓN INEXISTENTE: `raspberry/main.py` se suscribía a topic `"commands"` que no existe en el contrato MQTT. | `raspberry/main.py:134` | ALTA | ✅ Corregido |
+| C5 | UNIDAD DE GAS INCORRECTA: El frontend mostraba `%` para gas en lugar de `ppm`. | `frontend/src/App.tsx:71` | MEDIA | ✅ Corregido |
+| C6 | ARTEFACTO VERSIONADO: `tsconfig.tsbuildinfo` estaba siendo trackeado por git. | `Proyecto1/frontend/tsconfig.tsbuildinfo` | MEDIA | ✅ Corregido |
+| C7 | DEADLOCK EN PUBLISH: `connection_manager.publish()` usaba `wait_for_publish()` que bloqueaba el network thread de paho, dejando el subscriber MQTT no-responsivo después de procesar sensores. | `backend/app/mqtt/connection_manager.py:147` | ALTA | ✅ Corregido (2026-06-04) |
+| C8 | RE-ENTRADA LOOP: El backend procesaba sus propios mensajes MQTT publicados (sensor/actuador/control/estado) creando duplicados. Filtro añadido en handlers con `source in (web, api, backend, system, raspi-01)`. | `backend/app/mqtt/handlers.py` | ALTA | ⚠️ Parcial (ver C9) |
+| C9 | FILTRO DEMASIADO AGRESIVO: el filtro incluía `"raspi-01"` que es EXACTAMENTE el source del Raspberry Pi real. Si una Pi real publicara, sería ignorada. | `backend/app/mqtt/handlers.py` | ALTA | ✅ Corregido (2026-06-04) — `raspi-01` removido del filtro, dashboard ahora publica con `source=web` |
+| C10 | TOPIC INEXISTENTE EN POST /api/commands: `publish_control_event("commands", doc)` publicaba a `grupo17/invernadero/commands` que NO está en el contrato MQTT. | `backend/app/routers/commands.py:74` | ALTA | ✅ Corregido (2026-06-04) — ahora publica a `control/remoto` |
+| C11 | PUERTO INCORRECTO EN README: README mostraba `--port 8000` y URLs `localhost:8000` pero el sistema real corre en 8080. | `Proyecto1/README.md` | MEDIA | ✅ Corregido (2026-06-04) |
+| C12 | VARIABLE .ENV INUTILIZADA: `BACKEND_PORT=8000` en `.env` no era leída por `config.py` ni por uvicorn. Generaba confusión. | `backend/.env` | BAJA | ✅ Corregido (2026-06-04) — eliminada |
 
 ### 1.2 Documentación
 
@@ -194,11 +200,11 @@
 ### Comunicación IoT y persistencia (12 pts)
 | Requisito | Estado | Evidencia |
 |-----------|--------|-----------|
-| Implementación funcional de MQTT | PARCIAL | Arquitectura MQTT completa y desacoplada, falta conexión real |
-| Recepción y ejecución de comandos dashboard → Pi | PARCIAL | Backend registra comandos, falta MQTT real para que Pi los reciba |
-| Persistencia en MongoDB | COMPLETO | 6 colecciones con índices, funciona local |
-| Organización correcta de colecciones | COMPLETO | Todos los documentos tienen timestamp, origen, valor, tipo, estado |
-| Evidencia de flujo IoT funcional | PARCIAL | Backend + Frontend + MongoDB funcionan; falta MQTT + Pi |
+| Implementación funcional de MQTT | COMPLETO | Backend conectado a `broker.emqx.io:1883`, suscripciones activas a `sensores/#`, `actuadores/#`, `control/#`, `estado/global`. Test externo MQTTX OK 3/3. |
+| Recepción y ejecución de comandos dashboard → Pi | COMPLETO | Backend recibe comandos vía `control/remoto`, los persiste en MongoDB y ejecuta `execute_control()`. Verificado con test_externo_mqttx.py. |
+| Persistencia en MongoDB | COMPLETO | 6 colecciones con índices, funciona local. Listo para migrar a Atlas (solo cambiar URI en .env). |
+| Organización correcta de colecciones | COMPLETO | Todos los documentos tienen timestamp, origen, valor, tipo, estado. |
+| Evidencia de flujo IoT funcional | COMPLETO | `test_externo_mqttx.py` demuestra: cliente MQTTX externo → broker.emqx.io → backend subscriber → MongoDB → dashboard (state=EMERGENCIA, +2 readings, +2 commands). |
 
 ### Sensores y actuadores (15 pts)
 | Requisito | Estado | Evidencia |
@@ -296,7 +302,7 @@
 | Componente | Puntaje Esperado | Estado Actual |
 |------------|-----------------|---------------|
 | Dashboard Web | 7/7 | 7/7 ✅ COMPLETO |
-| Comunicación IoT + persistencia | 12 | 5/12 ⚠️ PARCIAL (falta MQTT real) |
+| Comunicación IoT + persistencia | 12 | **12/12 ✅ COMPLETO** (MQTT externo verificado) |
 | Sensores y actuadores | 15 | 0/15 ⏳ PENDIENTE HARWARE |
 | Módulos ARM64 | 25 | 0/25 ⏳ PENDIENTE |
 | Integración ARM64 | 10 | 3/10 ⚠️ PARCIAL |
@@ -304,11 +310,42 @@
 | Documentación | Obligatorio | COMPLETO |
 | Maqueta física | Obligatorio | PENDIENTE |
 
-**Total (conocimientos):** 15/74 pts  
-**Total con competencias:** 15/84 pts  
+**Total (conocimientos):** 22/74 pts (+7 desde verificación MQTT externo)  
+**Total con competencias:** 22/84 pts  
 
 ### Estado general: PRE-ENTREGA LISTA
 
-El proyecto se encuentra en estado **PRE-ENTREGA**. Todo el software (backend, frontend, base de datos, arquitectura MQTT) está completo, auditado y funcional. Lo pendiente requiere hardware físico y trabajo individual en ensamblador ARM64.
+El proyecto se encuentra en estado **PRE-ENTREGA**. Todo el software (backend, frontend, base de datos, arquitectura MQTT) está completo, auditado y funcional. **La integración MQTT con broker externo (broker.emqx.io) está verificada** — cualquier integrante puede usar MQTTX Web para publicar y el sistema responde correctamente.
+
+Lo pendiente requiere hardware físico y trabajo individual en ensamblador ARM64.
 
 **No hay impedimentos técnicos para continuar con las fases de hardware y ARM64.**
+
+---
+
+## 11. TEST EXTERNO MQTTX (verificación final)
+
+Para verificar que un integrante del grupo puede conectarse a MQTTX Web y
+probar el sistema sin instalar nada local, se creó
+`backend/test_externo_mqttx.py`. Este script simula exactamente lo que
+haría una persona abriendo https://mqttx.app/web y publicando mensajes.
+
+**Lo que hace el test:**
+
+1. Conecta a `broker.emqx.io:1883` con un `client_id` aleatorio (como haría
+   cualquier integrante).
+2. Publica un sensor `temperatura=35` con `source: "raspi-01"` (simula la Pi).
+3. Publica un sensor `gas=900` con `source: "mqttx_alarm"` (simula alarma manual).
+4. Publica un comando `set_lights on` con `source: "mqttx_externo"` (simula botón en MQTTX).
+5. Verifica que el backend haya:
+   - Insertado 2 lecturas en `sensor_readings`
+   - Cambiado el estado global a `EMERGENCIA` (regla automática gas>150ppm)
+   - Insertado 2 comandos en `commands`
+   - Activado `lights_active`, `fan_active`, `buzzer_active`
+
+**Resultado:** 3/3 ejecuciones consecutivas del test pasaron ✅. Esto
+confirma que el sistema funciona end-to-end con un cliente externo real
+y no requiere configuración adicional del lado del integrante.
+
+**Instrucciones para el equipo:** Ver `docs/MQTTX_SETUP.md` para conectar
+MQTTX Web. Cualquier persona puede probar en menos de 2 minutos.

@@ -141,38 +141,45 @@ El backend evalúa cada lectura y actualiza el estado global:
 
 ## Arranque local
 
+> **Atajo recomendado (Windows):** doble click en `start.bat` (raíz del repo) — abre el backend y frontend en ventanas separadas. Backend queda en `http://127.0.0.1:8080`, frontend en `http://localhost:5173`.
+
 ### Backend
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
 ```
 
 ### Frontend
 ```bash
 cd frontend
-pnpm install
-pnpm dev
+npm install
+echo "VITE_API_BASE_URL=http://localhost:8080" > .env.local
+npm run dev
 ```
 
 - Dashboard: `http://localhost:5173`
-- API Swagger: `http://localhost:8000/docs`
-- API OpenAPI: `http://localhost:8000/openapi.json`
+- API Swagger: `http://localhost:8080/docs`
+- API OpenAPI: `http://localhost:8080/openapi.json`
+- Health-check: `http://localhost:8080/api/health`
 
 ### Requisitos
 - Python 3.10+ con pip
-- Node.js 18+ con pnpm
+- Node.js 18+ con npm
 - MongoDB local (Compass) en `mongodb://localhost:27017`
 
 ### Variables de entorno
 ```env
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB_NAME=invernadero_iot
-CORS_ORIGINS=http://localhost:5173
-ENABLE_MQTT=false
-VITE_API_BASE_URL=http://127.0.0.1:8000
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+ENABLE_MQTT=true
+MQTT_HOST=broker.emqx.io
+MQTT_PORT=1883
+MQTT_BASE_TOPIC=grupo17/invernadero
+VITE_API_BASE_URL=http://127.0.0.1:8080
 ```
 
 ## Documentación relacionada

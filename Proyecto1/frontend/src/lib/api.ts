@@ -40,7 +40,7 @@ export async function createReading(payload: SensorReading) {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, source: 'web' }),
   });
 }
 

@@ -73,7 +73,7 @@ def main() -> int:
     # Sin esto, un run previo que haya dejado mode=manual haría que
     # el estado quede en MODO_MANUAL en vez de EMERGENCIA.
     try:
-        requests.post(f"{API}/api/control/mode", json={"state": "auto"}, timeout=5)
+        requests.post(f"{API}/api/control/mode", json={"mode": "auto"}, timeout=5)
     except Exception as exc:
         logger.warning("No se pudo resetear modo a auto: %s", exc)
 

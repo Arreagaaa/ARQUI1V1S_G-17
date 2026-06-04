@@ -12,10 +12,9 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Query
 
-from bson import ObjectId
 from ..db import get_database
 from ..schemas import CommandCreate
-from ..mqtt_service import publish_control_event
+from ..mqtt.publisher import MQTTPublisher
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Comandos"])
@@ -66,12 +65,28 @@ def legacy_latest_commands(limit: int = Query(default=12, ge=1, le=100)):
 
 @router.post("/api/commands")
 def create_command(payload: CommandCreate):
-    """Crea un nuevo comando."""
+    """
+    Crea un nuevo comando y lo publica a MQTT (topic control/remoto
+    según contrato oficial grupo17/invernadero/control/remoto).
+
+    Importante: este endpoint registra comandos genéricos (no solo de
+    actuadores específicos). Para controlar riego/luces/ventilador/
+    alarma/modo se recomiendan los endpoints dedicados en /api/control/*.
+    """
     db = get_database()
     document = payload.model_dump()
     document["created_at"] = document["created_at"] or _now()
     result = db.commands.insert_one(document)
-    mqtt_result = publish_control_event("commands", document)
+
+    # Publicar al topic correcto del contrato MQTT (no a "commands"
+    # que no existe en el contrato)
+    mqtt_result = MQTTPublisher().publish_control_command(
+        command=document["command"],
+        target=document["target"],
+        state=(document.get("payload") or {}).get("state", "on"),
+        area=(document.get("payload") or {}).get("area"),
+        source=document.get("source", "web"),
+    )
 
     doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
 

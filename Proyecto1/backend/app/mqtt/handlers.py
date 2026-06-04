@@ -41,11 +41,11 @@ def handle_sensor_message(topic: str, payload: dict) -> None:
             logger.warning("MQTT sensor message sin sensor_type/value: %s", payload)
             return
 
-        # Evitar re-entrada: cuando el backend inserta una lectura vía API
-        # (POST /api/readings) publica automáticamente con source "raspi-01".
-        # El subscriber la recibiría y duplicaría. Sólo permitimos
-        # procesar mensajes publicados desde fuera del backend.
-        if source in ("web", "api", "backend", "system", "raspi-01"):
+        # Evitar re-entrada: cuando el dashboard inserta una lectura vía API
+        # (POST /api/readings) el backend la publica con source "web" y el
+        # subscriber la recibe. NO filtramos "raspi-01" porque ese source
+        # es el del Raspberry Pi real, que sí debe procesarse.
+        if source in ("web", "api", "dashboard", "backend", "system"):
             logger.debug("MQTT sensor ignorado (source=self): %s = %s", sensor_type, value)
             return
 
@@ -81,10 +81,10 @@ def handle_actuator_message(topic: str, payload: dict) -> None:
             logger.warning("MQTT actuator message sin actuator/action: %s", payload)
             return
 
-        # Evitar re-entrada: el backend publica eventos de actuador con
-        # source "raspi-01" desde control_service. El subscriber los
-        # recibe y duplicaría el log.
-        if source in ("web", "api", "backend", "system", "raspi-01"):
+        # Evitar re-entrada: el backend publica eventos de actuador desde
+        # control_service. NO filtramos "raspi-01" porque ese source es
+        # del Raspberry Pi real, que sí debe procesarse.
+        if source in ("web", "api", "dashboard", "backend", "system"):
             logger.debug("MQTT actuator ignorado (source=self): %s -> %s", actuator, action)
             return
 

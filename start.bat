@@ -53,13 +53,9 @@ if errorlevel 1 (
 
 echo.
 echo [3/5] Iniciando Backend en ventana nueva...
-
-REM Backend: comando completo en una sola linea con quoting correcto
-REM Truco: en batch, para poner comillas dentro de un string se duplican: "hola ""mundo"" adios"
-set "BACKEND_DIR=%~dp0Proyecto1\backend"
-set "BACKEND_CMD_EXE=""%PY%"" -m uvicorn app.main:app --host 127.0.0.1 --port 8080"
-set "BACKEND_FULL=cd /d ""%BACKEND_DIR%"" ^&^& %BACKEND_CMD_EXE%"
-start "Backend - Invernadero" cmd /k %BACKEND_FULL%
+REM Truco batch: ^& escapa el caracter para que no lo interprete como operador
+REM y el cd, el path, el ^&^& y el comando python van todos al cmd /k
+start "Backend - Invernadero" cmd /k cd /d "%~dp0Proyecto1\backend" ^&^& "%PY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8080
 
 timeout /t 3 /nobreak >nul
 
@@ -67,8 +63,8 @@ echo [4/5] Iniciando Frontend en ventana nueva...
 start "Frontend - Dashboard" cmd /k "%~dp0_start_frontend.bat"
 
 echo.
-echo [5/5] Esperando 8s y verificando...
-timeout /t 8 /nobreak >nul
+echo [5/5] Esperando 10s y verificando...
+timeout /t 10 /nobreak >nul
 %PY% -c "import urllib.request,json; r=urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=3); d=json.loads(r.read()); print('      health:', d.get('status'), '| mongodb:', d.get('mongodb'), '| mqtt_connected:', d.get('mqtt_connected'))" 2>nul || echo       ^(backend aun levantando, esperá unos segundos^)
 
 echo.

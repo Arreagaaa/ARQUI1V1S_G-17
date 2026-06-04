@@ -30,6 +30,7 @@ Monitoreo y control de un invernadero con dos áreas de cultivo y un centro de c
 ```
 ARQUI1V1S_G-17/
 ├── README.md                  # Este archivo (intro + setup rápido)
+├── DEVELOPER_ONBOARDING.md    # Guía para un developer nuevo (clonar + tests + prompt IA)
 ├── start.bat                  # Doble click en Windows: backend + frontend
 └── Proyecto1/
     ├── ESTADO.md              # Cómo vamos, qué falta, roles, hitos
@@ -44,10 +45,7 @@ ARQUI1V1S_G-17/
     │   ├── FRONTEND.md        # Dashboard, componentes, polling
     │   └── src/               # React + Vite + Tailwind
     ├── raspberry/             # Cliente Python para la Pi (GPIO + MQTT)
-    ├── arm64/                 # utils.s + 5 módulos por integrante + lecturas.csv
-    └── docs/
-        ├── mqtt-contrato.md   # Contrato MQTT: 15 topics + JSON payloads
-        └── MQTTX_SETUP.md     # Conexión MQTTX Web (WSS :8084) paso a paso
+    └── arm64/                 # utils.s + 5 módulos por integrante + lecturas.csv
 ```
 
 ## Inicio rápido (Windows)
@@ -102,11 +100,9 @@ Health-check: `curl http://127.0.0.1:8080/api/health` debe devolver `mongodb: tr
 
 | Archivo | Contenido |
 |---|---|
+| [DEVELOPER_ONBOARDING.md](DEVELOPER_ONBOARDING.md) | **Onboarding de un developer nuevo**: clonar, requisitos, 9 tests paso a paso, prompt para IA agent |
 | [Proyecto1/ESTADO.md](Proyecto1/ESTADO.md) | Cómo vamos, qué falta, roles, hitos, flujo de trabajo |
-| [Proyecto1/backend/BACKEND.md](Proyecto1/backend/BACKEND.md) | Endpoints REST, contrato MQTT, servicios, reglas |
-| [Proyecto1/frontend/FRONTEND.md](Proyecto1/frontend/FRONTEND.md) | Dashboard, componentes, polling, variables de entorno |
-| [Proyecto1/docs/mqtt-contrato.md](Proyecto1/docs/mqtt-contrato.md) | 15 topics MQTT + payloads JSON |
-| [Proyecto1/docs/MQTTX_SETUP.md](Proyecto1/docs/MQTTX_SETUP.md) | Conexión MQTTX Web paso a paso |
+| [Proyecto1/backend/BACKEND.md](Proyecto1/backend/BACKEND.md) | Endpoints REST, contrato MQTT, MQTTX Web, servicios, reglas |
 
 ## Repositorios de referencia
 

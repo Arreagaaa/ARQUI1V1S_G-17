@@ -14,6 +14,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Query
 
 from ..db import get_database
+from ..mqtt.publisher import MQTTPublisher
 from ..schemas import SensorReadingCreate
 from ..services.sensor_service import process_reading
 
@@ -98,16 +99,35 @@ def create_reading(payload: SensorReadingCreate):
     1. Se inserta en la colección sensor_readings
     2. Se procesan las reglas de automatización
     3. Se actualiza el estado global del sistema
+    4. Se publica vía MQTT (si habilitado)
     """
     db = get_database()
     document = payload.model_dump()
     document["recorded_at"] = document["recorded_at"] or _now()
     result = db.sensor_readings.insert_one(document)
 
-    # Procesar reglas de automatización
+    # Procesar reglas de automatización (actualiza system_status y emite eventos)
     process_reading(document)
+
+    # Publicar vía MQTT (no-op si ENABLE_MQTT=false)
+    mqtt_result = MQTTPublisher().publish_sensor_reading(
+        sensor_type=payload.sensor_type,
+        value=payload.value,
+        unit=payload.unit,
+        area=payload.area,
+        status=payload.status,
+        source=payload.source,
+    )
 
     doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
 
     logger.info("Lectura registrada: %s = %.1f (%s)", payload.sensor_type, payload.value, payload.area)
-    return {"inserted_id": str(result.inserted_id), "document": doc_safe}
+    return {
+        "inserted_id": str(result.inserted_id),
+        "document": doc_safe,
+        "mqtt": {
+            "published": mqtt_result.success,
+            "topic": mqtt_result.topic,
+            "message": mqtt_result.message,
+        },
+    }

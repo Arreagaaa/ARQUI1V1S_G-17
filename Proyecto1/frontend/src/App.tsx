@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Cloud,
   Droplets,
+  Radio,
   Rocket,
   Wifi,
   Wind,
@@ -84,6 +85,10 @@ export default function App() {
     apiStatus: 'Cargando...',
     arm64_results: null,
   });
+  const [mqttStatus, setMqttStatus] = useState<{ enabled: boolean; connected: boolean }>({
+    enabled: false,
+    connected: false,
+  });
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [activeTab, setActiveTab] = useState<string>('temperature');
@@ -119,6 +124,10 @@ export default function App() {
           apiStatus: health.status,
           arm64_results: arm64,
         });
+        setMqttStatus({
+          enabled: health.mqtt_enabled,
+          connected: health.mqtt_connected,
+        });
       } catch {
         if (!active) return;
         setDashboard((current) => ({ ...current, apiStatus: 'Sin conexión' }));
@@ -147,6 +156,10 @@ export default function App() {
         mongodb: health.mongodb,
         apiStatus: health.status,
         arm64_results: arm64,
+      });
+      setMqttStatus({
+        enabled: health.mqtt_enabled,
+        connected: health.mqtt_connected,
       });
     } catch {
       setDashboard((current) => ({ ...current, apiStatus: 'Sin conexión' }));
@@ -302,9 +315,14 @@ export default function App() {
                 <RefreshCw className={`h-4 w-4 ${busy === 'seed' ? 'animate-spin' : ''}`} />
                 <span>Inicializar DB</span>
               </button>
-              <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full sm:w-auto sm:flex">
                 <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />
                 <StatusPill icon={<Cloud className="h-4 w-4" />} label="MongoDB" value={dashboard.mongodb ? 'Activo' : 'Pendiente'} />
+                <StatusPill
+                  icon={<Radio className="h-4 w-4" />}
+                  label="MQTT"
+                  value={!mqttStatus.enabled ? 'Apagado' : mqttStatus.connected ? 'Conectado' : 'Reconectando'}
+                />
               </div>
             </div>
           </div>

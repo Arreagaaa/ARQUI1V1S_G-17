@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 from ..db import get_database
+from ..mqtt.publisher import MQTTPublisher
 from ..mqtt_service import publish_control_event
 from .sensor_service import update_system_status
 
@@ -26,7 +27,7 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     1. Registra el comando en la colección `commands`
     2. Registra un log en la colección `actuator_logs`
     3. Actualiza el estado global del sistema
-    4. Publica vía MQTT (si habilitado)
+    4. Publica vía MQTT (control/remoto + actuador específico)
 
     Args:
         actuator: Identificador del actuador (pump, fan, lights, buzzer, mode)
@@ -64,15 +65,35 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     if updates:
         update_system_status(updates)
 
-    # 4. Publicar vía MQTT
-    mqtt_result = publish_control_event("control/remoto", command_document)
+    # 4. Publicar vía MQTT: topic de control remoto + topic de actuador
+    mqtt_control_result = publish_control_event("control/remoto", command_document)
+
+    mqtt_actuator_result = None
+    if actuator != "mode":
+        mqtt_actuator_result = MQTTPublisher().publish_actuator_event(
+            actuator=actuator,
+            action=state,
+            area=area,
+            source="web",
+        )
 
     logger.info("Control ejecutado: %s -> %s (area=%s)", actuator, state, area)
 
     return {
         "command_id": str(command_result.inserted_id),
         "log_id": str(log_result.inserted_id),
-        "mqtt": mqtt_result.__dict__,
+        "mqtt": {
+            "control": mqtt_control_result.__dict__,
+            "actuator": (
+                {
+                    "published": mqtt_actuator_result.success,
+                    "topic": mqtt_actuator_result.topic,
+                    "message": mqtt_actuator_result.message,
+                }
+                if mqtt_actuator_result
+                else None
+            ),
+        },
     }
 
 

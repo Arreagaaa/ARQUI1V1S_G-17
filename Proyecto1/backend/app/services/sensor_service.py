@@ -5,12 +5,14 @@ Incluye:
 - Procesamiento de lecturas con reglas de automatización
 - Actualización del estado global basado en umbrales
 - Generación automática de eventos ante condiciones anómalas
+- Publicación del estado global vía MQTT
 """
 
 import logging
 from datetime import datetime, timezone
 
 from ..db import get_database
+from ..mqtt.publisher import MQTTPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ def update_system_status(updates: dict) -> dict:
 
     Si ya existe un estado previo, lo toma como base y aplica las
     actualizaciones. Si no existe, crea uno con valores por defecto.
+    Adicionalmente publica el nuevo estado global vía MQTT.
     """
     db = get_database()
     latest = db.system_status.find_one(sort=[("updated_at", -1)])
@@ -72,7 +75,18 @@ def update_system_status(updates: dict) -> dict:
         }
         new_status.update(updates)
 
+    # Forzar source a "api" para que el subscriber reconozca el mensaje
+    # como propio y no lo re-procese (evita duplicados en system_status).
+    new_status["source"] = "api"
+
     db.system_status.insert_one(new_status)
+
+    # Publicar el estado global consolidado vía MQTT (no-op si dry-run)
+    try:
+        MQTTPublisher().publish_global_state(new_status)
+    except Exception as exc:
+        logger.debug("Publicación de estado global MQTT omitida: %s", exc)
+
     return new_status
 
 

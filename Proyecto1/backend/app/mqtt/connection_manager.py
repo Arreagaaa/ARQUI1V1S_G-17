@@ -165,10 +165,15 @@ class MQTTConnectionManager:
             return False
 
         try:
-            result = self._client.publish(topic, payload, qos=qos)
-            result.wait_for_publish(timeout=5)
-            logger.debug("Publicado en '%s'", topic)
-            return True
+            info = self._client.publish(topic, payload, qos=qos)
+            if info.rc == mqtt.MQTT_ERR_SUCCESS:
+                # NO usar wait_for_publish() desde un message handler: el
+                # network thread de paho estaría bloqueado por su propio
+                # callback y no podría procesar más mensajes (deadlock).
+                logger.debug("Encolado para publicación en '%s'", topic)
+                return True
+            logger.error("Error publicando en '%s': rc=%s", topic, info.rc)
+            return False
         except Exception as exc:
             logger.error("Error publicando en '%s': %s", topic, exc)
             return False

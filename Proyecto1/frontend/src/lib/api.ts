@@ -21,7 +21,7 @@ export async function getDashboard() {
 }
 
 export async function getHealth() {
-  return request<{ status: string; mongodb: boolean; timestamp: string }>("/api/health");
+  return request<{ status: string; mongodb: boolean; mqtt_enabled: boolean; mqtt_connected: boolean; timestamp: string }>("/api/health");
 }
 
 export async function createCommand(payload: CommandItem) {

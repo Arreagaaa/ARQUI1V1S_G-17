@@ -321,7 +321,7 @@ export default function App() {
                 <StatusPill
                   icon={<Radio className="h-4 w-4" />}
                   label="MQTT"
-                  value={!mqttStatus.enabled ? 'Apagado' : mqttStatus.connected ? 'Conectado' : 'Reconectando'}
+                  value={!mqttStatus.enabled ? 'Off' : mqttStatus.connected ? 'OK' : 'Sync'}
                 />
               </div>
             </div>
@@ -591,11 +591,11 @@ export default function App() {
 
 function StatusPill({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="flex flex-1 min-w-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 sm:px-3.5 py-2.5 text-sm">
+    <div className="flex flex-1 min-w-[100px] items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 sm:px-3.5 py-2.5 text-sm">
       <div className="shrink-0 rounded-lg bg-emerald-400/15 p-1.5 text-emerald-200">{icon}</div>
       <div className="min-w-0 leading-tight">
         <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.14em] text-slate-400 whitespace-nowrap">{label}</p>
-        <p className="truncate font-semibold text-white text-xs sm:text-sm">{value}</p>
+        <p className="font-semibold text-white text-xs sm:text-sm whitespace-nowrap">{value}</p>
       </div>
     </div>
   );

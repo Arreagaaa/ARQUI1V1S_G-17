@@ -35,6 +35,7 @@ def _serialize(doc: dict | None) -> dict | None:
 
 @router.get("/api/commands")
 def get_commands(
+    source: str | None = Query(default=None, description="Filtrar por origen"),
     limit: int = Query(default=20, ge=1, le=200),
     skip: int = Query(default=0, ge=0),
 ):
@@ -44,8 +45,12 @@ def get_commands(
     Incluye comandos de control remoto, cambios de modo, y comandos MQTT.
     """
     db = get_database()
-    cursor = db.commands.find().sort("created_at", -1).skip(skip).limit(limit)
-    total = db.commands.count_documents({})
+    query: dict = {}
+    if source:
+        query["source"] = {"$regex": f"^{source}$", "$options": "i"}
+
+    cursor = db.commands.find(query).sort("created_at", -1).skip(skip).limit(limit)
+    total = db.commands.count_documents(query)
 
     return {
         "data": [_serialize(item) for item in cursor],

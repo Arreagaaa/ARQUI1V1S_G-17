@@ -52,6 +52,7 @@ def get_sensors_latest(limit: int = Query(default=12, ge=1, le=100)):
 def get_sensors_history(
     sensor_type: str | None = Query(default=None, description="Filtrar por tipo de sensor"),
     area: str | None = Query(default=None, description="Filtrar por área"),
+    source: str | None = Query(default=None, description="Filtrar por origen (raspi-01, mqttx_*, web, api, etc)"),
     limit: int = Query(default=50, ge=1, le=500),
     skip: int = Query(default=0, ge=0),
 ):
@@ -61,6 +62,7 @@ def get_sensors_history(
     Parámetros:
       - sensor_type: temperature, humidity, soil_1, soil_2, light, gas
       - area: area_1, area_2, control
+      - source: origen del dato (raspi-01, mqttx_*, web, api, etc)
       - limit: máximo de resultados (1-500)
       - skip: offset para paginación
     """
@@ -71,6 +73,8 @@ def get_sensors_history(
         query["sensor_type"] = {"$regex": sensor_type, "$options": "i"}
     if area:
         query["area"] = area
+    if source:
+        query["source"] = {"$regex": f"^{source}$", "$options": "i"}
 
     cursor = db.sensor_readings.find(query).sort("recorded_at", -1).skip(skip).limit(limit)
     total = db.sensor_readings.count_documents(query)

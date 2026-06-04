@@ -128,12 +128,22 @@ def upsert_system_status(payload: SystemStatusCreate):
 
 
 @router.post("/api/seed")
-def trigger_database_seed():
+def trigger_database_seed(clear: bool = False):
     """
-    Vacia las colecciones e inicializa la base de datos con datos mock
-    coherentes de prueba.
+    Inicializa/Siembra la base de datos con datos mock coherentes de prueba.
+
+    - clear=false (default): solo siembra las colecciones que estén VACÍAS.
+      No destruye comandos, eventos o logs generados por el usuario vía MQTTX.
+    - clear=true: VACÍA las 6 colecciones y siembra desde cero. Usar solo
+      si querés reiniciar la BD completa (botón rojo del dashboard).
+
+    El frontend debe pedir confirmación al usuario cuando clear=true.
     """
     from ..seed import seed_database
-    res = seed_database(clear_existing=True)
-    return {"status": "ok", "message": "Base de datos inicializada exitosamente.", "details": res}
+    res = seed_database(clear_existing=clear)
+    if clear:
+        msg = "Base de datos VACIADA y re-sembrada con datos de prueba."
+    else:
+        msg = "Base de datos sembrada (modo seguro: no se borraron datos existentes)."
+    return {"status": "ok", "cleared": clear, "message": msg, "details": res}
 

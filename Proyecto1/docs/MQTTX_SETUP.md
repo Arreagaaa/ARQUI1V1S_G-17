@@ -3,8 +3,8 @@
 Guía paso a paso para conectar cualquier integrante del grupo a MQTTX Web
 y monitorear / controlar el sistema en tiempo real.
 
-> **Broker público utilizado:** `broker.emqx.io:1883` (sin SSL)
-> **Broker alternativo:** `test.mosquitto.org:1883` o `broker.hivemq.com:1883`
+> **Broker público utilizado:** `broker.emqx.io`
+> **Puertos:** `1883` (Python/CLI, sin SSL) y `8084` (MQTTX Web, **WSS+SSL obligatorio**)
 > **Tópico base del grupo:** `grupo17/invernadero`
 
 ---
@@ -16,22 +16,42 @@ y monitorear / controlar el sistema en tiempo real.
 
 ---
 
-## 2. Crear la conexión
+## 2. Crear la conexión (WSS+SSL OBLIGATORIO)
+
+> **IMPORTANTE:** MQTTX Web (la versión navegador) **YA NO SOPORTA conexiones
+> sin SSL** por seguridad. Si usás `ws://` con puerto 1883, la conexión
+> fallará. **DEBÉS usar `wss://` con SSL/TLS activado en puerto 8084.**
 
 | Campo            | Valor a ingresar                                |
 |------------------|-------------------------------------------------|
-| **Name**         | `Invernadero Grupo 17` (o el nombre que prefieras) |
-| **Client ID**    | `mqttx_invernadero_G17_<tu-inicial>` (ej. `mqttx_invernadero_G17_jp`) — **cada integrante debe usar un Client ID único** |
+| **Name**         | `Invernadero G17 <tu-inicial>` (ej. `Invernadero G17 J`) |
+| **Client ID**    | `mqttx_invernadero_G17_<tu-inicial>_v<N>` — **DEBE ser único** (ver sección 2.1) |
 | **Host**         | `broker.emqx.io`                                |
-| **Port**         | `1883` (MQTT estándar, sin TLS)                 |
-| **Protocol**     | `mqtt://`                                       |
+| **Port**         | `8084`                                          |
+| **Protocol**     | `wss://`                                        |
+| **Path**         | `/mqtt`                                         |
 | **Username**     | *(vacío)*                                       |
 | **Password**     | *(vacío)*                                       |
+| **SSL/TLS**      | ✅ **ACTIVADO (toggle azul encendido)**         |
 | **Clean Session**| ✅ Activado                                     |
 | **Keep Alive**   | `60` segundos                                   |
-| **SSL/TLS**      | ❌ Desactivado (1883 sin TLS)                   |
 
 Click **Connect**. Verás el punto verde arriba indicando que estás conectado.
+
+### 2.1 Client ID único (evita problemas de sesión pegada)
+
+Si ves que tus mensajes se publican en MQTTX pero el backend NO los recibe,
+es porque el broker público está guardando sesiones de clientes "muertos"
+con el mismo Client ID. **Solución:** usar un Client ID único por sesión.
+
+- Primera conexión: `mqttx_invernadero_G17_jp`
+- Si la sesión se pega: cerrar la conexión → F5 (recargar) → crear nueva
+  conexión con `mqttx_invernadero_G17_jp_v2` (incrementar la versión)
+- Cada integrante del grupo usa su propia inicial: `_jp`, _cr, _mj, etc.
+
+> **Síntoma de sesión pegada:** MQTTX muestra el mensaje publicado con
+> el ícono verde (OK), el broker lo confirma, pero en la BD del backend
+> el comando no aparece y el log no muestra "MQTT IN". Solución: ver arriba.
 
 ---
 
@@ -211,12 +231,61 @@ Para activar:
 
 | Problema                                          | Solución                                                        |
 |---------------------------------------------------|-----------------------------------------------------------------|
+| MQTTX Web no se conecta al broker                 | **Usá `wss://` con SSL/TLS en puerto 8084**. `ws://` fue deshabilitado por MQTTX |
 | No llegan mensajes en MQTTX                       | Verifica Client ID único, suscripción a `grupo17/invernadero/#` con QoS 0 |
-| `mqtt_connected: false` en /api/health           | Cambiar a `MQTT_HOST=test.mosquitto.org` o `broker.hivemq.com`  |
+| Publico en MQTTX pero backend no procesa (sesión pegada) | Cerrar conexión → F5 → reconectar con `_v2`, `_v3`, etc.    |
+| `mqtt_connected: false` en /api/health           | `curl http://localhost:8080/api/mqtt/reconnect -X POST`        |
 | Dashboard no actualiza                            | Refresca con Ctrl+F5; revisa consola del navegador              |
 | Error "Address already in use" al iniciar backend | Hay otro proceso en puerto 8080: `netstat -ano | findstr 8080`  |
 | MongoDB no conecta                                | Verifica que Compass esté corriendo: `mongosh mongodb://localhost:27017` |
-| MQTTX no se conecta al broker                    | El navegador bloquea WSS: usa `mqtt://` en puerto `1883` (no WSS 8884) |
+| Comando `set_lights` no enciende las luces        | Verifica en `backend.err` que aparece `MQTT IN` y `MQTT command persistido` |
+| `Sembrar BD` del dashboard borró mis pruebas      | Usar siempre el botón **verde** "Sembrar BD" (no destructivo). El botón **rojo** "Borrar y sembrar" pide confirmación antes de borrar |
+
+---
+
+## 9.1. Diagnóstico: ¿el backend está recibiendo mis mensajes?
+
+Para ver EN TIEMPO REAL si el backend recibe tus publishes, abrí la
+consola del backend (PowerShell que corre `uvicorn`) y verificá que
+aparezca esta línea por cada mensaje que publiques:
+
+```
+2026-06-04 00:29:21,305 [INFO] app.mqtt.connection_manager: MQTT IN topic=grupo17/invernadero/control/remoto qos=1 payload={...}
+```
+
+**Si NO aparece esta línea, el backend no está recibiendo el mensaje.**
+Las causas más comunes son:
+
+1. **Sesión de MQTTX pegada** (más común): ver sección 2.1
+2. **Topic incorrecto**: el topic debe empezar con `grupo17/invernadero/...`
+3. **JSON malformado**: revisá comillas, comas y estructura
+4. **QoS del broker**: usar QoS 1 (no QoS 2) en el panel de Publish
+
+**Si aparece "MQTT IN" pero no "MQTT command persistido"**, el
+backend recibió el mensaje pero lo filtró por `source` (por ejemplo,
+si publicás con `source: "web"` o `source: "api"` se ignora para
+evitar loops). Usá `source: "mqttx_javier"` u otro nombre único.
+
+---
+
+## 9.2. Alternativa 100% garantizada: `test_mqttx_simulator.py`
+
+Si MQTTX Web te da problemas, **usá este script Python** que simula
+exactamente lo mismo que MQTTX (mismo broker, mismos topics, mismo
+formato JSON, QoS 1) y es 100% confiable:
+
+```powershell
+cd Proyecto1\backend
+& "C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe" test_mqttx_simulator.py
+```
+
+El script publica 12 mensajes (sensores, controles, apagado, emergencia)
+y verifica en el dashboard que cada cambio se reflejó. Útil para:
+- Demostraciones a la defensora
+- Tests automatizados
+- Verificar que el sistema funciona antes de una defensa
+
+---
 
 ---
 

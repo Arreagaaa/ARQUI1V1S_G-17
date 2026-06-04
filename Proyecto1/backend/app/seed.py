@@ -8,6 +8,11 @@ Pobla MongoDB con datos de prueba realistas para las 6 colecciones principales:
 4. system_status: Historial de estados del sistema para graficar y el estado más reciente.
 5. actuator_logs: Historial de actuación del hardware.
 6. arm64_results: Resultados simulados de cálculos ARM64 (Weighted Mean, Variance, etc.).
+
+IMPORTANTE: Por defecto `clear_existing=False` para NO destruir comandos,
+eventos o logs de actuadores generados por el usuario vía MQTTX.
+Solo sembrar al inicio (cuando la BD está vacía). Para reiniciar la BD completa,
+usar `?clear=true` en el endpoint o llamar a seed_database(clear_existing=True).
 """
 
 import logging
@@ -21,30 +26,43 @@ from .mqtt.mock_provider import MQTTMockProvider
 logger = logging.getLogger(__name__)
 
 
-def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
+def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
     """
     Pobla la base de datos con un set de datos mock coherentes.
-    
+
     Args:
-        clear_existing: Si es True, vacía las colecciones antes de insertar.
-        
+        clear_existing: Si es True, vacía TODAS las colecciones antes de
+            insertar. Usar con cuidado: borra también los comandos y logs
+            que el usuario haya enviado vía MQTTX. Default: False
+            (solo siembra si la colección está vacía).
+
     Returns:
         Un resumen de los documentos insertados por colección.
     """
     db = get_database()
     now = datetime.now(timezone.utc)
-    
+
     if clear_existing:
-        logger.info("Limpiando colecciones existentes...")
+        logger.warning("ATENCIÓN: Limpiando TODAS las colecciones (incluyendo comandos del usuario)")
         db.sensor_readings.delete_many({})
         db.events.delete_many({})
         db.commands.delete_many({})
         db.system_status.delete_many({})
         db.actuator_logs.delete_many({})
         db.arm64_results.delete_many({})
-    
+
     mock_provider = MQTTMockProvider(seed=42)
     results = {}
+
+    def _seed_if_empty(coll_name: str, docs: List[dict]) -> int:
+        """Inserta docs solo si la colección está vacía. Devuelve n insertados."""
+        if not clear_existing and db[coll_name].count_documents({}) > 0:
+            logger.info("Colección '%s' ya tiene datos: omitiendo siembra", coll_name)
+            return 0
+        if not docs:
+            return 0
+        db[coll_name].insert_many(docs)
+        return len(docs)
     
     # 1. Generar lecturas históricas (30 sets de 6 sensores = 180 lecturas)
     logger.info("Generando lecturas históricas de sensores...")
@@ -65,7 +83,7 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
         })
     
     db.sensor_readings.insert_many(sensor_readings)
-    results["sensor_readings"] = len(sensor_readings)
+    results["sensor_readings"] = _seed_if_empty("sensor_readings", sensor_readings)
     
     # 2. Generar estados del sistema coherentes a lo largo del tiempo
     logger.info("Generando estados de sistema históricos...")
@@ -114,7 +132,7 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
         })
         
     db.system_status.insert_many(system_status_list)
-    results["system_status"] = len(system_status_list)
+    results["system_status"] = _seed_if_empty("system_status", system_status_list)
     
     # 3. Generar eventos simulados coherentes
     logger.info("Generando eventos y logs históricos...")
@@ -161,7 +179,7 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
         }
     ]
     db.events.insert_many(events)
-    results["events"] = len(events)
+    results["events"] = _seed_if_empty("events", events)
     
     # 4. Generar comandos remotos e internos simulados
     commands = [
@@ -202,7 +220,7 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
         }
     ]
     db.commands.insert_many(commands)
-    results["commands"] = len(commands)
+    results["commands"] = _seed_if_empty("commands", commands)
     
     # 5. Generar logs de actuación de hardware correspondientes
     actuator_logs = [
@@ -248,7 +266,7 @@ def seed_database(clear_existing: bool = True) -> Dict[str, Any]:
         }
     ]
     db.actuator_logs.insert_many(actuator_logs)
-    results["actuator_logs"] = len(actuator_logs)
+    results["actuator_logs"] = _seed_if_empty("actuator_logs", actuator_logs)
     
     logger.info("Siembra de base de datos completada con éxito. "
                 "(ARM64: seed no genera resultados — deben venir de ejecucion real)")

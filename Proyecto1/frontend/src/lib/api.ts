@@ -72,10 +72,14 @@ export async function generateMockARM64Results() {
   });
 }
 
-export async function seedDatabase() {
-  return request<{ status: string; message: string; details: Record<string, number> }>("/api/seed", {
-    method: 'POST',
-  });
+export async function seedDatabase(clear: boolean = false) {
+  const params = new URLSearchParams();
+  if (clear) params.set('clear', 'true');
+  const qs = params.toString();
+  return request<{ status: string; cleared: boolean; message: string; details: Record<string, number> }>(
+    `/api/seed${qs ? `?${qs}` : ''}`,
+    { method: 'POST' }
+  );
 }
 
 export async function controlIrrigation(state: 'on' | 'off', area?: string) {

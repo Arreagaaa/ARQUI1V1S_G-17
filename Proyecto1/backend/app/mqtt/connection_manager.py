@@ -89,7 +89,12 @@ class MQTTConnectionManager:
     def _on_message(self, client: mqtt.Client, userdata: Any,
                     message: mqtt.MQTTMessage) -> None:
         topic = message.topic
-        logger.debug("Mensaje recibido en topic: %s", topic)
+        try:
+            payload_preview = message.payload.decode("utf-8", errors="replace")[:200]
+        except Exception:
+            payload_preview = "<binario>"
+        logger.info("MQTT IN topic=%s qos=%s retain=%s payload=%s",
+                    topic, message.qos, message.retain, payload_preview)
 
         for registered_topic, callbacks in self._callbacks.items():
             if mqtt.topic_matches_sub(registered_topic, topic):

@@ -193,12 +193,12 @@ export default function App() {
     }
   }
 
-  async function handleSeedDatabase() {
+  async function handleSeedDatabase(force: boolean = false) {
     setBusy('seed');
     setNotice('');
     try {
-      const res = await seedDatabase();
-      setNotice(`Base de datos sembrada con éxito.`);
+      const res = await seedDatabase(force);
+      setNotice(res.message);
       await refresh();
     } catch {
       setNotice('Error al sembrar la base de datos.');
@@ -308,12 +308,27 @@ export default function App() {
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:flex-nowrap">
               <button
                 type="button"
-                onClick={() => void handleSeedDatabase()}
+                onClick={() => void handleSeedDatabase(false)}
                 disabled={busy !== null}
+                title="Sembrar colecciones vacías (no destruye comandos del usuario)"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${busy === 'seed' ? 'animate-spin' : ''}`} />
-                <span>Inicializar DB</span>
+                <span>Sembrar BD</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Borrar TODOS los datos (incluidos comandos y logs de MQTTX) y re-sembrar? Esta acción NO se puede deshacer.')) {
+                    void handleSeedDatabase(true);
+                  }
+                }}
+                disabled={busy !== null}
+                title="Borrar todas las colecciones y re-sembrar (DESTRUCTIVO)"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/60 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw className={`h-4 w-4 ${busy === 'seed-clear' ? 'animate-spin' : ''}`} />
+                <span>Borrar y sembrar</span>
               </button>
               <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full sm:w-auto sm:flex">
                 <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />

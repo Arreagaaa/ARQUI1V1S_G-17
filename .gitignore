@@ -1,2 +1,42 @@
+# Logs
 *.log
 *.err
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+.eslintcache
+.parcel-cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Uploads
+uploads/
+*.csv.bak

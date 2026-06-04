@@ -27,13 +27,15 @@ echo [3/3] Iniciando Backend y Frontend...
 echo.
 
 REM Lanzar backend en ventana nueva
-start "Backend - Invernadero" cmd /k "cd /d %~dp0Proyecto1\backend && %PY% -m uvicorn app.main:app --reload --port 8080"
+REM IMPORTANTE: NO usar --reload. Cada reload mata la conexion MQTT singleton
+REM y rompe la suscripcion del backend al broker.emqx.io.
+start "Backend - Invernadero" cmd /k "cd /d %~dp0Proyecto1\backend && %PY% -m uvicorn app.main:app --host 127.0.0.1 --port 8080"
 
 REM Esperar 3 segundos
 timeout /t 3 /nobreak >nul
 
 REM Lanzar frontend en ventana nueva
-start "Frontend - Dashboard" cmd /k "cd /d %~dp0Proyecto1\frontend && echo VITE_API_BASE_URL=http://localhost:8080> .env.local && call npm run dev"
+start "Frontend - Dashboard" cmd /k "cd /d %~dp0Proyecto1\frontend && if not exist .env.local (echo VITE_API_BASE_URL=http://localhost:8080> .env.local) && call npm run dev"
 
 echo.
 echo ============================================

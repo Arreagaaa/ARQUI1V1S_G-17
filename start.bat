@@ -4,12 +4,14 @@ REM Invernadero IoT - Script de inicio
 REM Ejecuta con doble click o: start.bat
 REM ============================================
 
-set PY=C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe
+set PY=python
+where python >nul 2>&1
+if errorlevel 1 set PY=py
 
 echo [1/3] Verificando Python...
 %PY% --version
 if errorlevel 1 (
-  echo ERROR: Python no encontrado en %PY%
+  echo ERROR: Python no encontrado. Instala Python 3.10+ y agrega al PATH.
   pause
   exit /b 1
 )

@@ -18,18 +18,22 @@ Sistema de monitoreo y control de un invernadero inteligente con dos áreas de c
                                   └────────────┘
 ```
 
-## Estado actual del proyecto
+## Estado actual del proyecto (fase pre-Atlas / pre-maqueta / pre-ARM)
 
 | Componente | Estado |
 |---|---|
 | Backend FastAPI (todos los endpoints) | COMPLETO |
 | Frontend React (dashboard, gráficos, controles) | COMPLETO |
 | MongoDB local (6 colecciones, índices, seed) | COMPLETO |
-| Arquitectura MQTT (desacoplada, preparada) | COMPLETO |
-| ARM64 estructura (módulos, utils, resultados) | PREPARADO |
-| Conexión MQTT real vía MQTTX Web | PENDIENTE |
-| MongoDB Atlas | PENDIENTE |
-| Hardware físico (Raspberry Pi, sensores, actuadores) | PENDIENTE |
+| MQTT con broker público `broker.emqx.io` + MQTTX Web (WSS :8084) | COMPLETO |
+| Simulador de sensores (`backend/simulador.py`) | COMPLETO |
+| Suite de validación (`test_regresion.py`, `test_mqttx_simulator.py`) | COMPLETO (45/45 + 12/12) |
+| ARM64 estructura (`lecturas.csv`, carpetas por módulo) | PREPARADO — código `.s` pendiente |
+| MongoDB Atlas | PENDIENTE (siguiente hito) |
+| Maqueta física + GPIO en Raspberry Pi | PENDIENTE |
+| Módulos ARM64 compilables + GDB | PENDIENTE (cada integrante) |
+
+> Material de referencia del curso: repositorio hermano `ARQUI1_1S2026` (`01_PYTHON`, `02_ARM64`).
 
 ## Estructura del repositorio
 
@@ -82,7 +86,12 @@ Proyecto1/
 │   │   └── modulo_5_tendencia/
 │   └── results/              # Salidas de los módulos (.txt)
 ├── docs/
-│   └── mqtt-contrato.md      # Contrato MQTT oficial
+│   ├── mqtt-contrato.md      # Contrato MQTT oficial (topics + JSON)
+│   └── MQTTX_SETUP.md        # Conexión MQTTX Web paso a paso
+├── backend/
+│   ├── simulador.py          # Publica lecturas al broker (simula la Pi)
+│   ├── test_regresion.py     # Suite 45 pruebas (API + Mongo + MQTT)
+│   └── test_mqttx_simulator.py  # Simula publicaciones MQTTX (12 mensajes)
 ├── .env.example              # Plantilla de variables de entorno
 ├── DEVELOPERS.md             # Guía técnica para el equipo
 └── PENDIENTES.md             # Checklist de avance
@@ -189,3 +198,18 @@ VITE_API_BASE_URL=http://127.0.0.1:8080
 | [DEVELOPERS.md](DEVELOPERS.md) | Guía técnica para el equipo |
 | [PENDIENTES.md](PENDIENTES.md) | Checklist detallado del avance |
 | [docs/mqtt-contrato.md](docs/mqtt-contrato.md) | Contrato MQTT: topics, payloads, estados |
+| [docs/MQTTX_SETUP.md](docs/MQTTX_SETUP.md) | MQTTX Web: conexión WSS, suscripciones, comandos JSON |
+
+## Validar que todo funciona (local)
+
+Requisitos: MongoDB local en `27017`, backend en `8080` con `ENABLE_MQTT=true`.
+
+```powershell
+cd backend
+pip install -r requirements.txt
+python test_regresion.py          # esperado: 45 OK, 0 FAIL
+python test_mqttx_simulator.py    # esperado: 12/12 publicados
+python simulador.py --once        # publica 6 sensores al broker
+```
+
+MQTTX Web: ver [docs/MQTTX_SETUP.md](docs/MQTTX_SETUP.md). Publicar en `grupo17/invernadero/control/remoto` con `source` distinto de `web`, `api` o `backend` (ej. `mqttx_tu_inicial`).

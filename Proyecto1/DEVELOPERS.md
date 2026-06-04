@@ -27,18 +27,28 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp ../.env.example .env   # Editar si es necesario
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
 
 # Frontend (otra terminal)
 cd frontend
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 Verificar que todo funcione:
 - Dashboard: `http://localhost:5173`
-- API docs: `http://localhost:8000/docs`
-- Health check: `curl http://localhost:8000/api/health` → debe retornar `"mongodb": true`
+- API docs: `http://localhost:8080/docs`
+- Health check: `curl http://localhost:8080/api/health` → `"mongodb": true` y `"mqtt_connected": true` si `ENABLE_MQTT=true`
+
+### Pruebas automatizadas (obligatorio antes de PR)
+
+```powershell
+cd backend
+python test_regresion.py        # 45 OK
+python test_mqttx_simulator.py  # 12/12 (mismo contrato que MQTTX Web)
+```
+
+MQTTX Web manual: `docs/MQTTX_SETUP.md`. Usar `source` propio (ej. `mqttx_jp`), no `web` ni `api`.
 
 ---
 

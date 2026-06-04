@@ -174,7 +174,7 @@ http://localhost:8080/api/health
 ### 6.2 Simulador publicando
 ```powershell
 cd Proyecto1\backend
-"C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe" simulador.py
+python simulador.py
 ```
 
 Verás en consola algo como:
@@ -276,7 +276,8 @@ formato JSON, QoS 1) y es 100% confiable:
 
 ```powershell
 cd Proyecto1\backend
-& "C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe" test_mqttx_simulator.py
+python test_mqttx_simulator.py
+python test_regresion.py
 ```
 
 El script publica 12 mensajes (sensores, controles, apagado, emergencia)
@@ -293,7 +294,7 @@ y verifica en el dashboard que cada cambio se reflejó. Útil para:
 
 **Cada integrante del grupo debe:**
 
-1. ✅ Abrir https://mqttx.app/web y conectar con `broker.emqx.io:1883` (mqtt://).
+1. ✅ Abrir https://mqttx.app/web y conectar con `wss://broker.emqx.io:8084/mqtt` (SSL activado).
 2. ✅ Usar un Client ID único basado en su inicial.
 3. ✅ Suscribirse a `grupo17/invernadero/#` (wildcard).
 4. ✅ Publicar al menos un comando de prueba (`set_pump` ON / OFF) y verificar

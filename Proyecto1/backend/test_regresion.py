@@ -8,9 +8,9 @@ test_regresion.py — Suite de regresion completa que valida:
   6. Filtro anti-loop (el backend no procesa sus propios mensajes)
   7. Contrato MQTT (topics y payloads validados)
 
-Uso:
-    C:\\Users\\crjav\\AppData\\Local\\Programs\\Python\\Python313\\python.exe ^
-        D:\\Projects\\USAC\\ARQUI1V1S_G-17\\Proyecto1\\backend\\test_regresion.py
+Uso (backend en :8080, ENABLE_MQTT=true, MongoDB local):
+    cd backend
+    python test_regresion.py
 """
 import json
 import sys

@@ -62,7 +62,8 @@ REM Esperar 3 segundos
 timeout /t 3 /nobreak >nul
 
 REM Lanzar frontend en ventana nueva
-start "Frontend - Dashboard" cmd /k "cd /d %~dp0Proyecto1\frontend && if not exist .env.local (echo VITE_API_BASE_URL=http://localhost:8080> .env.local) && call npm run dev"
+REM IMPORTANTE: usar npm.cmd (no npm) porque PowerShell bloquea npm.ps1 por ExecutionPolicy
+start "Frontend - Dashboard" cmd /k "cd /d %~dp0Proyecto1\frontend && if not exist .env.local (echo VITE_API_BASE_URL=http://localhost:8080> .env.local) && call npm.cmd run dev"
 
 echo.
 echo [4/4] Verificando backend...

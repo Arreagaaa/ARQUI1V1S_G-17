@@ -218,73 +218,145 @@ python test_mqttx_simulator.py
 
 ---
 
-### TEST 6 — MQTTX Web oficial (lo que cualquier developer haría)
-**Objetivo:** confirmar que CUALQUIER persona con un navegador puede participar.
+### TEST 6 — MQTTX Web oficial (cualquier persona con navegador puede participar)
+**Objetivo:** confirmar que CUALQUIER developer con un navegador puede monitorear y controlar el sistema. El test "estrella" es publicar `gas=400` desde MQTTX y ver el dashboard pasar a **EMERGENCIA ROJA** en ≤15s.
 
-1. Abrí **https://mqttx.app/web** en el navegador (Chrome/Edge).
-2. Click en **+** (New Connection).
-3. Configurá:
-   - Name: `Invernadero G17 Dev`
-   - Client ID: `mqttx_dev_test_v1` (único, importante — ver nota abajo)
-   - Host: `broker.emqx.io`
-   - Port: `8084`
-   - Protocol: `wss://`
-   - Path: `/mqtt`
-   - SSL/TLS: **ACTIVADO** (toggle azul)
-   - Username/Password: vacío
-4. Click **Connect**. Punto verde arriba = conectado.
-5. Click en **+ New Subscription**:
-   - Topic: `grupo17/invernadero/#`
-   - QoS: 0
-   - Confirm.
-6. **Vas a ver pasar mensajes** del simulador (cada 5s si `simulador.py` está corriendo).
+#### Paso 0: parar el simulador (CRÍTICO para ver el cambio limpio)
 
-**Publicar un comando:**
-7. En el panel **Publish** (a la derecha):
-   - Topic: `grupo17/invernadero/control/remoto`
-   - QoS: 1
-   - Payload (copiá y pegá literal):
-     ```json
-     {
-       "command": "set_pump",
-       "target": "pump",
-       "source": "mqttx_dev",
-       "payload": {"state": "on", "area": "area_1"},
-       "timestamp": "2026-06-04T18:30:00Z"
-     }
-     ```
-8. Click **Publish**.
-9. **Verificá:**
-   - En la suscripción, aparece un mensaje en `grupo17/invernadero/control/remoto`.
-   - En MongoDB Compass → `commands` → nuevo doc con `source: mqttx_dev`.
-   - En el dashboard → indicador `RIEGO_ACTIVO` o `pump_active: true` (en ≤15s).
-   - En la ventana del backend → log `MQTT IN topic=grupo17/invernadero/control/remoto ...` y `MQTT command persistido`.
+El simulador publica cada 5s y **pisa** el estado de EMERGENCIA antes de que se vea en pantalla.
+- Si lo corriste vos mismo: andá a la terminal donde corre y hacé **Ctrl+C**.
+- Si no lo estás corriendo: salteá este paso.
+- Esperá **20 segundos** para que el sistema se asiente.
 
-**Probar otros comandos** (mismo topic, mismo formato, cambiar `command` y `state`):
-- `set_lights` con `state: on/off`
-- `set_fan` con `state: on/off`
-- `set_buzzer` con `state: on/off/mute`
-- `set_mode` con `state: auto/manual`
+> El simulador usa `source: raspi-sim-01`. En Compass, filtrá `sensor_readings` por ese source y verificá que no haya docs nuevos después de los 20s.
 
-**Probar filtro anti-loop:**
-10. Publicá con `source: web` (en el mismo payload). El backend **debe ignorarlo** y NO aparecer en Compass. Esto es intencional: evita que un POST REST que publica por MQTT se re-procese.
+#### Paso 1: abrir MQTTX Web
 
-**Publicar un sensor simulado (lo que publicaría la Pi):**
-11. Topic: `grupo17/invernadero/sensores/gas`. Payload:
-    ```json
-    {
-      "sensor_type": "gas",
-      "value": 250.0,
-      "unit": "ppm",
-      "area": "control",
-      "status": "critical",
-      "source": "mqttx_dev",
-      "timestamp": "2026-06-04T18:30:00Z"
-    }
-    ```
-12. **Verificá:** en ≤15s, el dashboard debe mostrar `EMERGENCIA` (rojo), y en `events` debe haber un evento nuevo.
+Andá a **https://mqttx.app/web** en Chrome/Edge (Firefox también sirve).
 
-❌ **Problema común — sesión pegada:** si publicás y MQTTX dice "OK" pero el backend no recibe, el broker público está guardando tu sesión vieja. Solución: cerrar la conexión → F5 → nueva conexión con Client ID `_v2` (ej. `mqttx_dev_test_v2`).
+#### Paso 2: crear la conexión (WSS+SSL OBLIGATORIO)
+
+> MQTTX Web **ya no acepta conexiones sin SSL**. Usá `wss://` con SSL/TLS activado, puerto 8084.
+
+Click en el `+` (New Connection) y llená EXACTAMENTE así:
+
+| Campo | Valor |
+|---|---|
+| Name | `Invernadero G17 Dev` |
+| Client ID | `mqttx_dev_<tu-inicial>_v1` (ej. `mqttx_dev_jp_v1`) — **único** |
+| Host | `broker.emqx.io` |
+| Port | `8084` |
+| Protocol | `wss://` |
+| Path | `/mqtt` |
+| Username | (vacío) |
+| Password | (vacío) |
+| **SSL/TLS** | **ACTIVADO** ✅ (toggle azul) |
+| Clean Session | ✅ |
+| Keep Alive | `60` |
+
+Click **Connect**. **Punto verde arriba** = conectado.
+
+#### Paso 3: suscribirse para ver el tráfico
+
+Click **+ New Subscription**:
+- Topic: `grupo17/invernadero/#`
+- QoS: `0`
+- Confirm
+
+Si el simulador estuviera activo, verías mensajes cada 5s. Como lo paraste, está vacío (bien).
+
+#### Paso 4: test dramático — publicar `gas=400` → EMERGENCIA ROJA
+
+Este es el test más visible: el dashboard pasa de `NORMAL/ADVERTENCIA` (verde/amarillo) a **`EMERGENCIA` (rojo)** y la alarma se activa.
+
+En el panel **Publish** (a la derecha):
+
+- **Topic:** `grupo17/invernadero/sensores/gas`
+- **QoS:** `1`
+- **Payload** (copiá y pegá literal):
+  ```json
+  {
+    "sensor_type": "gas",
+    "value": 400.0,
+    "unit": "ppm",
+    "area": "control",
+    "status": "critical",
+    "source": "mqttx_dev_<tu-inicial>",
+    "timestamp": "2026-06-04T18:50:00Z"
+  }
+  ```
+
+Click **Publish**.
+
+**Verificá (en paralelo, abrí otra pestaña con el dashboard `http://localhost:5173`):**
+
+| Dónde | Qué tiene que pasar | Cuándo |
+|---|---|---|
+| MQTTX suscripción `grupo17/invernadero/#` | Aparece un mensaje en `sensores/gas` | inmediato |
+| MQTTX suscripción | Aparece un mensaje en `actuadores/alarma` (el backend publica la acción) | inmediato |
+| MQTTX suscripción | Aparece un mensaje en `actuadores/ventilador` (el backend publica la acción) | inmediato |
+| Ventana del backend | Log `MQTT IN topic=grupo17/invernadero/sensores/gas ...` | inmediato |
+| Ventana del backend | Log `MQTT command persistido` o similar para actuadores | inmediato |
+| MongoDB Compass → `events` | Nuevo doc con `event_type: emergency`, `severity: critical` | inmediato |
+| MongoDB Compass → `actuator_logs` | `buzzer -> on` y `fan -> on` con `source: backend_rules` | inmediato |
+| Dashboard `http://localhost:5173` | Pill `EMERGENCIA` en **rojo**, `Alarma Sonora: Activo`, `Ventilación: Activo` | en ≤15s (polling) |
+
+#### Paso 5: restaurar publicando `gas=50`
+
+Mismo topic, mismo formato, pero `value: 50.0`:
+```json
+{
+  "sensor_type": "gas",
+  "value": 50.0,
+  "unit": "ppm",
+  "area": "control",
+  "status": "normal",
+  "source": "mqttx_dev_<tu-inicial>",
+  "timestamp": "2026-06-04T18:51:00Z"
+}
+```
+
+Click **Publish**. En ≤15s el dashboard vuelve a `NORMAL`/`ADVERTENCIA` (depende de cómo estén los otros sensores).
+
+#### Paso 6: probar un comando (cambia un actuador desde MQTTX)
+
+- **Topic:** `grupo17/invernadero/control/remoto`
+- **QoS:** `1`
+- **Payload:**
+  ```json
+  {
+    "command": "set_lights",
+    "target": "lights",
+    "source": "mqttx_dev_<tu-inicial>",
+    "payload": {"state": "on"},
+    "timestamp": "2026-06-04T18:52:00Z"
+  }
+  ```
+
+Click **Publish**. **Verificá:** en ≤15s, `Iluminación: Activo` en el dashboard.
+
+**Otros comandos que podés probar** (mismo topic, mismo formato):
+- `set_pump` con `payload.state: "on"` y `payload.area: "area_1"` o `"area_2"`
+- `set_fan` con `payload.state: "on"` o `"off"`
+- `set_buzzer` con `payload.state: "on"`, `"off"` o `"mute"`
+- `set_mode` con `payload.state: "auto"` o `"manual"`
+
+#### Paso 7: probar el filtro anti-loop (CRÍTICO entender)
+
+- **Topic:** `grupo17/invernadero/control/remoto`
+- **Payload:** igual al paso 6, pero con **`"source": "web"`** (o `"api"`, `"backend"`, `"system"`, `"dashboard"`)
+
+Click **Publish**.
+
+Vas a ver el mensaje en la suscripción (llegó al broker y se distribuyó), **pero NO** aparece en Compass ni cambia el dashboard. Esto es a propósito: el backend filtra `source in {web, api, backend, system, dashboard}` para evitar que un POST REST que publica por MQTT se re-procese en loop.
+
+> **Para una persona real siempre usá `source: mqttx_<tu-inicial>` o `source: <nombre único>`.** NUNCA `web`, `api`, `backend`, `system`, `dashboard`.
+
+#### Paso 8: si tenés el simulador, reinicialo
+
+`python simulador.py` en otra terminal. Vas a ver aparecer mensajes en tu suscripción `grupo17/invernadero/#` cada 5s (lecturas de los 6 sensores).
+
+❌ **Problema común — sesión pegada:** si publicás y MQTTX dice "OK" pero el backend no recibe, el broker público está guardando tu sesión vieja. Solución: cerrar la conexión → F5 → nueva conexión con Client ID `_v2` (ej. `mqttx_dev_jp_v2`).
 
 ---
 
@@ -369,9 +441,10 @@ tail -c 1 Proyecto1/arm64/lecturas.csv
 - [ ] `test_mqttx_simulator.py` → 12/12 publicados
 - [ ] Dashboard en `http://localhost:5173` actualiza cada 15s
 - [ ] MQTTX Web conecta a `wss://broker.emqx.io:8084` con SSL ON
-- [ ] Suscripción `grupo17/invernadero/#` recibe mensajes del simulador
-- [ ] Publicar `set_pump ON area_1` desde MQTTX → aparece en `commands` y dashboard cambia
-- [ ] Publicar `gas=200` desde MQTTX → dashboard va a `EMERGENCIA` (en ≤15s)
+- [ ] Suscripción `grupo17/invernadero/#` configurada
+- [ ] Publicar `gas=400` desde MQTTX (con simulador **parado**) → dashboard va a `EMERGENCIA` ROJO (en ≤15s)
+- [ ] Publicar `gas=50` desde MQTTX → dashboard vuelve a `NORMAL/ADVERTENCIA`
+- [ ] Publicar `set_lights ON` desde MQTTX → `Iluminación: Activo` en dashboard
 - [ ] Publicar `source=web` desde MQTTX → NO aparece en `commands` (filtro anti-loop)
 - [ ] `lecturas.csv` tiene 32 líneas con formato correcto
 - [ ] 6 colecciones presentes en MongoDB (sensor_readings, events, commands, system_status, actuator_logs, arm64_results)

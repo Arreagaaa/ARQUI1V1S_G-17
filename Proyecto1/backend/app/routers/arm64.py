@@ -110,9 +110,9 @@ def generate_mock_arm64_results(dev: bool = False):
             "module": "WEIGHTED_MEAN",
             "total_values": 30,
             "results": {
-                "SUM_X": 920,
+                "SUM_X": 892,
                 "WEIGHT_SUM": 465,
-                "WEIGHTED_MEAN": 31
+                "WEIGHTED_MEAN": 30
             },
             "source": "raspi-01",
             "created_at": now
@@ -121,9 +121,9 @@ def generate_mock_arm64_results(dev: bool = False):
             "module": "VARIANCE",
             "total_values": 30,
             "results": {
-                "MEAN": 31,
-                "VARIANCE": 18,
-                "STD_DEV": 4
+                "MEAN": 29,
+                "VARIANCE": 10,
+                "STD_DEV": 3
             },
             "source": "raspi-01",
             "created_at": now
@@ -134,8 +134,8 @@ def generate_mock_arm64_results(dev: bool = False):
             "results": {
                 "MEAN": 29,
                 "STD_DEV": 3,
-                "ANOMALIES": 4,
-                "SYSTEM_RISK": "HIGH"
+                "ANOMALIES": 2,
+                "SYSTEM_RISK": "MEDIUM"
             },
             "source": "raspi-01",
             "created_at": now
@@ -144,11 +144,11 @@ def generate_mock_arm64_results(dev: bool = False):
             "module": "PREDICTION",
             "total_values": 30,
             "results": {
-                "INITIAL_VALUE": 28,
-                "FINAL_VALUE": 34,
-                "TOTAL_DIFF": 6,
-                "AVG_CHANGE": 0.20,
-                "NEXT_VALUE": 34.20
+                "INITIAL_VALUE": 22,
+                "FINAL_VALUE": 30,
+                "TOTAL_DIFF": 8,
+                "AVG_CHANGE": 0.27,
+                "NEXT_VALUE": 30.27
             },
             "source": "raspi-01",
             "created_at": now
@@ -159,9 +159,9 @@ def generate_mock_arm64_results(dev: bool = False):
             "results": {
                 "INCREMENTS": 18,
                 "DECREMENTS": 10,
-                "MAX_UP_STREAK": 5,
-                "MAX_DOWN_STREAK": 3,
-                "ACCUM_DIFF": 7,
+                "MAX_UP_STREAK": 12,
+                "MAX_DOWN_STREAK": 6,
+                "ACCUM_DIFF": 8,
                 "TREND": "UP"
             },
             "source": "raspi-01",

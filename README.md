@@ -11,16 +11,16 @@ Monitoreo y control de un invernadero con dos áreas de cultivo y un centro de c
 ```
 ┌──────────────┐    MQTT (broker.emqx.io)   ┌──────────────┐   HTTP/REST   ┌──────────────┐
 │ Raspberry Pi │ ◄────────────────────────► │   Backend    │ ◄───────────► │   Frontend   │
-│ (sensores,   │   grupo17/invernadero/...  │   FastAPI    │               │ React + Vite │
+│ (sensores,   │   invernadero/...          │   FastAPI    │               │ React + Vite │
 │  actuadores) │                            └──────┬───────┘               └──────────────┘
 └──────────────┘                                   │
-                                              ┌────▼─────┐
-                                              │ MongoDB  │
-                                              │ Atlas    │
-                                              └──────────┘
+                                               ┌────▼─────┐
+                                               │ MongoDB  │
+                                               │ Atlas    │
+                                               └──────────┘
 ```
 
-- **Raspberry Pi 3B+** — publica lecturas de sensores y suscribe comandos vía MQTT.
+- **Raspberry Pi 3B+** — publica lecturas de sensores y suscribe comandos vía MQTT. 1 sola bomba + 2 válvulas selectoras (Área 1/Área 2), 3 LEDs de estado, LCD 16x2, 4 botones físicos.
 - **Backend** — FastAPI; puente MQTT↔REST↔MongoDB; reglas automáticas de riego/ventilador/alarma.
 - **Frontend** — Dashboard React con métricas en vivo (polling 15s), gráficos, controles manuales y sección ARM64.
 - **MongoDB Atlas** — 6 colecciones: `sensor_readings`, `events`, `commands`, `system_status`, `actuator_logs`, `arm64_results`.
@@ -39,13 +39,13 @@ ARQUI1V1S_G-17/
     │   ├── BACKEND.md         # Endpoints REST, MQTT contract, servicios
     │   ├── app/               # FastAPI: routers, services, mqtt/, db, seed
     │   ├── simulador.py       # Publica lecturas al broker (simula la Pi)
-    │   ├── test_regresion.py  # Suite 45 pruebas (API + Mongo + MQTT)
+    │   ├── test_regresion.py  # Suite 43 pruebas (API + Mongo + MQTT)
     │   └── test_mqttx_simulator.py  # Simula publicaciones MQTTX (12 mensajes)
     ├── frontend/
     │   ├── FRONTEND.md        # Dashboard, componentes, polling
     │   └── src/               # React + Vite + Tailwind
-    ├── raspberry/             # Cliente Python para la Pi (GPIO + MQTT)
-    └── arm64/                 # utils.s + 5 módulos por integrante + lecturas.csv
+    ├── raspberry/             # Cliente Python para la Pi (GPIO + MQTT + LCD + 4 botones)
+    └── arm64/                 # utils.s + 5 módulos por integrante + lecturas.csv + Makefile
 ```
 
 ## Inicio rápido (Windows)
@@ -82,7 +82,7 @@ npm run dev
 ```bash
 # Backend ya corriendo en :8080 con ENABLE_MQTT=true
 cd Proyecto1/backend
-python test_regresion.py        # esperado: 45 OK, 0 FAIL
+python test_regresion.py        # esperado: 43 OK, 0 FAIL
 python test_mqttx_simulator.py  # esperado: 12/12 publicados
 python simulador.py --once      # publica 6 sensores al broker
 ```
@@ -91,10 +91,12 @@ Health-check: `curl http://127.0.0.1:8080/api/health` debe devolver `mongodb: tr
 
 ## MQTTX Web (cualquier persona puede participar)
 
+> Prefijo MQTT: `invernadero/` (prefijo exacto del enunciado ACYE1, sección 4.2). NO usar `grupo17/`.
+
 1. Abrir MQTTX Web, conectar a `wss://broker.emqx.io:8084` (SSL/TLS ON), Client ID único.
-2. Suscribirse a `grupo17/invernadero/#` para ver todo el tráfico del grupo.
-3. Publicar en `grupo17/invernadero/control/remoto` con `source` propio (ej. `mqttx_jp` — nunca `web`, `api`, `backend`).
-4. Ver guía completa en [Proyecto1/docs/MQTTX_SETUP.md](Proyecto1/docs/MQTTX_SETUP.md).
+2. Suscribirse a `invernadero/#` para ver todo el tráfico del grupo.
+3. Publicar en `invernadero/control/remoto` con `source` propio (ej. `mqttx_jp` — nunca `web`, `api`, `backend`, `dashboard`).
+4. Ejemplos de payloads y 8 sub-pasos de prueba E2E en [DEVELOPER_ONBOARDING.md §TEST 6](DEVELOPER_ONBOARDING.md).
 
 ## Documentación
 

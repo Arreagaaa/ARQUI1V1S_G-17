@@ -29,7 +29,7 @@ import urllib.request
 
 BROKER = "broker.emqx.io"
 PORT = 1883
-BASE = "grupo17/invernadero"
+BASE = "invernadero"
 CLIENT_ID = f"mqttx_simulator_{random.randint(0, 100000)}"
 API = "http://127.0.0.1:8080"
 

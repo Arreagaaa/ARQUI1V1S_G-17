@@ -80,7 +80,7 @@ class MQTTPayloadValidator:
         Valida un payload basándose en el topic MQTT.
 
         Args:
-            topic: Topic MQTT completo (e.g. grupo17/invernadero/sensores/temperatura)
+            topic: Topic MQTT completo (e.g. invernadero/sensores/temperatura)
             payload: Diccionario del payload recibido
 
         Returns:

@@ -80,25 +80,25 @@ class MQTTSubscriber:
         """
         base = self.topics.base
 
-        # Suscribir a sensores: grupo17/invernadero/sensores/#
+        # Suscribir a sensores: invernadero/sensores/#
         self.manager.subscribe(
             f"{base}/sensores/#",
             lambda topic, payload: self._dispatch("sensors", topic, payload),
         )
 
-        # Suscribir a actuadores: grupo17/invernadero/actuadores/#
+        # Suscribir a actuadores: invernadero/actuadores/#
         self.manager.subscribe(
             f"{base}/actuadores/#",
             lambda topic, payload: self._dispatch("actuators", topic, payload),
         )
 
-        # Suscribir a control: grupo17/invernadero/control/#
+        # Suscribir a control: invernadero/control/#
         self.manager.subscribe(
             f"{base}/control/#",
             lambda topic, payload: self._dispatch("control", topic, payload),
         )
 
-        # Suscribir a estado global: grupo17/invernadero/estado/global
+        # Suscribir a estado global: invernadero/estado/global
         self.manager.subscribe(
             self.topics.global_state,
             lambda topic, payload: self._dispatch("global_state", topic, payload),

@@ -276,10 +276,11 @@ export default function App() {
   const quickActions = [
     { label: 'Modo automático', actuator: 'mode', state: 'auto' },
     { label: 'Modo manual', actuator: 'mode', state: 'manual' },
-    { label: 'Bomba Área 1 ON', actuator: 'pump', state: 'on', area: 'area_1' },
+    { label: 'Bomba Área 1 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_1' },
     { label: 'Bomba Área 1 OFF', actuator: 'pump', state: 'off', area: 'area_1' },
-    { label: 'Bomba Área 2 ON', actuator: 'pump', state: 'on', area: 'area_2' },
+    { label: 'Bomba Área 2 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_2' },
     { label: 'Bomba Área 2 OFF', actuator: 'pump', state: 'off', area: 'area_2' },
+    { label: 'Apagar bomba (sin área)', actuator: 'pump', state: 'off' },
     { label: 'Ventilación ON', actuator: 'fan', state: 'on' },
     { label: 'Ventilación OFF', actuator: 'fan', state: 'off' },
     { label: 'Luces ON', actuator: 'lights', state: 'on' },
@@ -416,7 +417,7 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
               <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-4 w-4" />} />
-              <ToggleCard title="Bomba de Riego" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-4 w-4" />} />
+              <ToggleCard title="Bomba de Riego (1 compartida)" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-4 w-4" />} />
               <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-4 w-4" />} />
               <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
               <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />

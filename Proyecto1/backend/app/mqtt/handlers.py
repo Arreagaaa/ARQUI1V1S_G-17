@@ -29,7 +29,7 @@ def handle_sensor_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de sensores.
 
-    Topic esperado: grupo17/invernadero/sensores/<tipo>
+    Topic esperado: invernadero/sensores/<tipo>
     Persiste en colección sensor_readings y procesa reglas de automatización.
     """
     try:
@@ -69,7 +69,7 @@ def handle_actuator_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de actuadores.
 
-    Topic esperado: grupo17/invernadero/actuadores/<nombre>
+    Topic esperado: invernadero/actuadores/<nombre>
     Persiste en colección actuator_logs.
     """
     try:
@@ -106,7 +106,7 @@ def handle_control_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de control remoto.
 
-    Topic esperado: grupo17/invernadero/control/remoto  o  .../control/manual
+    Topic esperado: invernadero/control/remoto  o  .../control/manual
     Persiste el comando en commands y ejecuta el control (que actualiza
     el estado global y publica de vuelta al broker).
     """
@@ -118,9 +118,9 @@ def handle_control_message(topic: str, payload: dict) -> None:
         sub_payload = payload.get("payload", {}) or {}
 
         # Evitar re-entrada: el backend publica sus propios comandos a
-        # control/remoto con source "web" o "api". El subscriber los
-        # recibe y los procesaría, generando un loop.
-        if source in ("web", "api", "backend", "system"):
+        # control/remoto con source "web" o "api" o "dashboard". El subscriber
+        # los recibe y los procesaría, generando un loop.
+        if source in ("web", "api", "backend", "system", "dashboard"):
             logger.debug("MQTT command ignorado (source=self): %s -> %s", command, target)
             return
 
@@ -150,7 +150,7 @@ def handle_global_state_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de estado global reportados por la Raspberry Pi.
 
-    Topic esperado: grupo17/invernadero/estado/global
+    Topic esperado: invernadero/estado/global
     Persiste en colección system_status (snapshot histórico).
     """
     try:
@@ -160,7 +160,7 @@ def handle_global_state_message(topic: str, payload: dict) -> None:
         # Evitar re-entrada: el backend publica su propio global state
         # desde update_system_status. El subscriber lo recibiría y
         # duplicaría el snapshot.
-        if source in ("web", "api", "backend", "system"):
+        if source in ("web", "api", "backend", "system", "dashboard"):
             logger.debug("MQTT global state ignorado (source=self)")
             return
 

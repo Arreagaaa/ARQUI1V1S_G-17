@@ -160,7 +160,7 @@ class ModeChangeRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# MQTT Payloads — Contrato oficial grupo17/invernadero
+# MQTT Payloads — Contrato oficial invernadero
 # ---------------------------------------------------------------------------
 
 class SensorMQTTPayload(BaseModel):

@@ -23,7 +23,7 @@ import requests
 
 BROKER = "broker.emqx.io"
 PORT = 1883
-BASE = "grupo17/invernadero"
+BASE = "invernadero"
 API = "http://127.0.0.1:8080"
 
 

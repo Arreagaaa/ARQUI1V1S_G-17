@@ -1,1 +1,3 @@
-# Placeholder
+# Esta carpeta almacena los archivos de salida de los 5 módulos ARM64.
+# Cada módulo escribe aquí su resultado_*.txt (ver formato exacto en
+# el enunciado ACYE1 §10 y en el README de cada módulo).

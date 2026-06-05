@@ -81,8 +81,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             "source": raw["source"],
             "recorded_at": dt
         })
-    
-    db.sensor_readings.insert_many(sensor_readings)
+
     results["sensor_readings"] = _seed_if_empty("sensor_readings", sensor_readings)
     
     # 2. Generar estados del sistema coherentes a lo largo del tiempo
@@ -130,8 +129,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             "source": "raspi-01",
             "updated_at": timestamp
         })
-        
-    db.system_status.insert_many(system_status_list)
+
     results["system_status"] = _seed_if_empty("system_status", system_status_list)
     
     # 3. Generar eventos simulados coherentes
@@ -178,7 +176,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             "created_at": now - timedelta(minutes=10)
         }
     ]
-    db.events.insert_many(events)
+
     results["events"] = _seed_if_empty("events", events)
     
     # 4. Generar comandos remotos e internos simulados
@@ -219,7 +217,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             "created_at": now - timedelta(minutes=45)
         }
     ]
-    db.commands.insert_many(commands)
+
     results["commands"] = _seed_if_empty("commands", commands)
     
     # 5. Generar logs de actuación de hardware correspondientes
@@ -265,7 +263,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             "created_at": now - timedelta(minutes=30)
         }
     ]
-    db.actuator_logs.insert_many(actuator_logs)
+
     results["actuator_logs"] = _seed_if_empty("actuator_logs", actuator_logs)
     
     logger.info("Siembra de base de datos completada con éxito. "

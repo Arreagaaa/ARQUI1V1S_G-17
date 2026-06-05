@@ -12,7 +12,7 @@
 | Backend FastAPI + reglas automáticas | ✅ COMPLETO | Modo auto/manual, umbrales, 18 endpoints |
 | MongoDB local (6 colecciones + índices + seed) | ✅ COMPLETO | Migración a Atlas = solo cambiar URI |
 | MQTT con broker público + MQTTX Web | ✅ COMPLETO | `broker.emqx.io:1883` y `:8084` WSS |
-| Suite de validación | ✅ COMPLETO | `test_regresion.py` 45/45, `test_mqttx_simulator.py` 12/12 |
+| Suite de validación | ✅ COMPLETO | `test_regresion.py` 43/43, `test_mqttx_simulator.py` 12/12 |
 | Estructura ARM64 + `lecturas.csv` (formato enunciado) | ✅ plantilla | Falta `utils.s` + 5 módulos `.s` por integrante |
 | Raspberry Pi + GPIO real + maqueta | ⬜ PENDIENTE | Bloqueado por hardware |
 | MongoDB Atlas | ⬜ SIGUIENTE HITO | Cambiar `MONGODB_URI` y validar |
@@ -116,7 +116,7 @@ arm64/
    - `POST /api/arm64-results` con `source: raspi-01`
 5. **Maqueta + GPIO** (cuando se tenga hardware)
    - 2 áreas de cultivo, 1 centro de control
-   - DHT22, 2 higrómetros, LDR, MQ, bomba, ventilador, LEDs, buzzer, LCD, botones
+   - DHT22, 2 higrómetros, LDR, MQ, **1 sola bomba + 2 válvulas selectoras** (Área 1/Área 2), ventilador, LEDs, buzzer, LCD, botones
 6. **Video + diagramas finales**
 
 ---
@@ -131,12 +131,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
 
 # 2. En otra terminal
 cd Proyecto1/backend
-python test_regresion.py        # esperado: 45 OK, 0 FAIL
+python test_regresion.py        # esperado: 43 OK, 0 FAIL
 python test_mqttx_simulator.py  # esperado: 12/12 publicados
 python simulador.py --once      # 6 lecturas al broker
 ```
 
-Validar manualmente con MQTTX Web (ver `Proyecto1/docs/MQTTX_SETUP.md`): suscribirse a `grupo17/invernadero/#`, publicar en `grupo17/invernadero/control/remoto` con `source: mqttx_<inicial>` y ver el cambio en el dashboard en ≤15s.
+Validar manualmente con MQTTX Web (guía completa en [DEVELOPER_ONBOARDING.md](../DEVELOPER_ONBOARDING.md) §TEST 6): suscribirse a `invernadero/#`, publicar en `invernadero/control/remoto` con `source: mqttx_<inicial>` y ver el cambio en el dashboard en ≤15s.
 
 ---
 

@@ -1,13 +1,13 @@
 """
 MQTTTopicRegistry — Registro centralizado de todos los topics MQTT oficiales.
 
-Contrato oficial:
+Contrato oficial (enunciado ACYE1 — Invernadero Inteligente IoT):
   Broker de desarrollo: broker.emqx.io
-  Puertos: 1883 (sin SSL), 8883 (con SSL)
-  Topic base: grupo17/invernadero
+  Puertos: 1883 (Python TCP), 8883 (Python SSL), 8084 (MQTTX Web WSS)
+  Topic base: invernadero  (prefijo exacto según enunciado, sección 4.2)
 
 NO usar Docker. NO usar Mosquitto local. NO crear brokers propios.
-La futura integración utilizará MQTTX Web conectado a broker.emqx.io.
+La integración cliente utiliza MQTTX Web (wss://broker.emqx.io:8084).
 """
 
 from ..config import get_settings
@@ -16,10 +16,10 @@ from ..config import get_settings
 class MQTTTopicRegistry:
     """
     Registro centralizado de topics MQTT según el contrato oficial
-    del proyecto de invernadero inteligente IoT — Grupo 17.
+    del proyecto de invernadero inteligente IoT.
 
     Todos los topics siguen la estructura:
-      grupo17/invernadero/<categoría>/<subcategoría>
+      invernadero/<categoría>/<subcategoría>
     """
 
     def __init__(self, base_topic: str | None = None):

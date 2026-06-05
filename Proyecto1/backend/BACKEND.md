@@ -23,7 +23,7 @@ CORS_ORIGINS=http://localhost:5173
 ENABLE_MQTT=true
 MQTT_HOST=broker.emqx.io
 MQTT_PORT=1883
-MQTT_BASE_TOPIC=grupo17/invernadero
+MQTT_BASE_TOPIC=invernadero
 ```
 
 ---
@@ -95,9 +95,9 @@ Swagger interactivo: `http://127.0.0.1:8080/docs`
 
 ## Contrato MQTT
 
-**Base:** `grupo17/invernadero/`
+**Base:** `invernadero/`
 **Broker:** `broker.emqx.io` (puerto `1883` para Python/CLI sin SSL, `8084` WSS+SSL para MQTTX Web).
-**Suscripciones backend:** `grupo17/invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
+**Suscripciones backend:** `invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
 
 ### 1. Sensores (la Raspberry Pi publica cada ~5s)
 
@@ -227,10 +227,10 @@ Las acciones se persisten en `actuator_logs` y se publican en `actuadores/*` por
 `mqtt/connection_manager.py` implementa un **singleton con `__new__`**:
 
 - Una sola instancia por proceso.
-- Reconexión automática con backoff (1s → 60s).
 - `publish()` es **fire-and-forget** (no espera `wait_for_publish()` desde handlers → evita deadlocks).
 - Loguea cada `MQTT IN topic=... source=...` para diagnóstico.
-- Suscripciones: `grupo17/invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
+- Suscripciones: `invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
+- Si el broker cae, `POST /api/mqtt/reconnect` fuerza la reconexión manual.
 
 `POST /api/mqtt/reconnect` fuerza reconexión manual si se pierde la conexión.
 
@@ -271,11 +271,11 @@ El broker público guarda sesiones de clientes "muertos" con el mismo Client ID.
 
 ### Suscripción wildcard
 
-Topic: `grupo17/invernadero/#` (QoS 0). Verás TODO el tráfico del grupo.
+Topic: `invernadero/#` (QoS 0). Verás TODO el tráfico del grupo.
 
 ### Publicar un comando
 
-Topic: `grupo17/invernadero/control/remoto`. Payload ejemplo:
+Topic: `invernadero/control/remoto`. Payload ejemplo:
 ```json
 {
   "command": "set_pump",
@@ -292,12 +292,12 @@ El backend recibe, persiste en `commands`, actualiza estado. Dashboard lo reflej
 
 Para ver en tiempo real si el backend recibe tus mensajes, mirá la consola donde corre `uvicorn`:
 ```
-[INFO] app.mqtt.connection_manager: MQTT IN topic=grupo17/invernadero/control/remoto qos=1 payload={...}
+[INFO] app.mqtt.connection_manager: MQTT IN topic=invernadero/control/remoto qos=1 payload={...}
 ```
 
 Si **no aparece**, el backend no recibió. Causas comunes:
 1. **Sesión pegada** → Client ID `_v2`
-2. **Topic incorrecto** → debe empezar con `grupo17/invernadero/...`
+2. **Topic incorrecto** → debe empezar con `invernadero/...`
 3. **JSON malformado** → comillas, comas
 4. **QoS** → usar QoS 1
 
@@ -316,7 +316,7 @@ python test_mqttx_simulator.py  # 12 mensajes
 ## Tests
 
 ```bash
-python test_regresion.py        # 45/45 OK: REST + Mongo + MQTT + reglas + filtro
+python test_regresion.py        # 43/43 OK: REST + Mongo + MQTT + reglas + filtro
 python test_mqttx_simulator.py  # 12/12 OK: simula MQTTX (sensores, controles, emergencia)
 python simulador.py --once      # publica 6 lecturas al broker
 ```

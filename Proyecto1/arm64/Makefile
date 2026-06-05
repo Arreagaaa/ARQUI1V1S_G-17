@@ -1,44 +1,44 @@
-// =============================================================================
-// Makefile — Invernadero Inteligente IoT (ACYE1, Grupo 17)
-//
-// Compila utils/utils.s + módulos ARM64 sobre Raspberry Pi 3/4 (AArch64).
-// Patrón basado en 02_ARM64/tools/makefile-templates/Makefile.qemu.multi
-// del repositorio del auxiliar (D:\Projects\USAC\ARQUI1_1S2026).
-//
-// Estado actual (post-limpieza 2026-06-05):
-//   - modulo_1_media: ✅ IMPLEMENTADO (Integrante 1 — listo para QEMU)
-//   - modulo_2_varianza: ⏳ pendiente (Integrante 2)
-//   - modulo_3_anomalias: ⏳ pendiente (Integrante 3)
-//   - modulo_4_prediccion: ⏳ pendiente (Integrante 4)
-//   - modulo_5_tendencia:  ⏳ pendiente (Integrante 5)
-//   - utils: ⏳ pendiente (tarea grupal, opcional — modulo_1 es auto-contenido)
-//
-// Targets:
-//   make all       → compila utils + modulo_1_media (lo único listo)
-//   make utils     → solo utils.o
-//   make modulo1   → módulo 1 (media ponderada) — LISTO
-//   make modulo2   → solo módulo 2 (varianza) — pendiente
-//   make modulo3   → solo módulo 3 (anomalías) — pendiente
-//   make modulo4   → solo módulo 4 (predicción) — pendiente
-//   make modulo5   → solo módulo 5 (tendencia) — pendiente
-//   make run1      → ejecuta modulo_1_media con QEMU
-//   make gdb1      → depura modulo_1_media con GDB sobre QEMU
-//   make clean     → borra build/
-//   make info      → muestra toolchain y variables
-//   make status    → muestra qué módulos están listos
-//
-// Uso típico en Raspberry Pi 3/4 (toolchain nativa):
-//   sudo apt install binutils-aarch64-linux-gnu
-//   make all
-//   ./build/modulo_1_media
-//
-// Uso típico en PC con QEMU (para pruebas cruzadas):
-//   sudo apt install qemu-user gdb-multiarch
-//   make run1
-// =============================================================================
+# =============================================================================
+# Makefile — Invernadero Inteligente IoT (ACYE1, Grupo 17)
+#
+# Compila utils/utils.s + módulos ARM64 sobre Raspberry Pi 3/4 (AArch64).
+# Patrón basado en 02_ARM64/tools/makefile-templates/Makefile.qemu.multi
+# del repositorio del auxiliar (D:\Projects\USAC\ARQUI1_1S2026).
+#
+# Estado actual (post-limpieza 2026-06-05):
+#   - modulo_1_media: ✅ IMPLEMENTADO (Integrante 1 — listo para QEMU)
+#   - modulo_2_varianza: ⏳ pendiente (Integrante 2)
+#   - modulo_3_anomalias: ⏳ pendiente (Integrante 3)
+#   - modulo_4_prediccion: ⏳ pendiente (Integrante 4)
+#   - modulo_5_tendencia:  ⏳ pendiente (Integrante 5)
+#   - utils: ⏳ pendiente (tarea grupal, opcional — modulo_1 es auto-contenido)
+#
+# Targets:
+#   make all       → compila utils + modulo_1_media (lo único listo)
+#   make utils     → solo utils.o
+#   make modulo1   → módulo 1 (media ponderada) — LISTO
+#   make modulo2   → solo módulo 2 (varianza) — pendiente
+#   make modulo3   → solo módulo 3 (anomalías) — pendiente
+#   make modulo4   → solo módulo 4 (predicción) — pendiente
+#   make modulo5   → solo módulo 5 (tendencia) — pendiente
+#   make run1      → ejecuta modulo_1_media con QEMU
+#   make gdb1      → depura modulo_1_media con GDB sobre QEMU
+#   make clean     → borra build/
+#   make info      → muestra toolchain y variables
+#   make status    → muestra qué módulos están listos
+#
+# Uso típico en Raspberry Pi 3/4 (toolchain nativa):
+#   sudo apt install binutils-aarch64-linux-gnu
+#   make all
+#   ./build/modulo_1_media
+#
+# Uso típico en PC con QEMU (para pruebas cruzadas):
+#   sudo apt install qemu-user gdb-multiarch
+#   make run1
+# =============================================================================
 
-AS      ?= aarch64-linux-gnu-as
-LD      ?= aarch64-linux-gnu-ld
+AS      = aarch64-linux-gnu-as
+LD      = aarch64-linux-gnu-ld
 QEMU    ?= qemu-aarch64
 GDB     ?= gdb-multiarch
 

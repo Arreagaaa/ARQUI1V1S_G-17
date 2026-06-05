@@ -92,14 +92,15 @@ out_buf:     .skip 256                      // buffer de salida (5 líneas)
 // -----------------------------------------------------------------------------
 // _start — punto de entrada
 //   1. Abrir  lecturas.csv             → x19 = fd_entrada
-//   2. Leer   30 líneas y parsear col 1 → values_buf[30]
-//   3. Cerrar archivo de entrada
-//   4. Calcular sum_x  con sum_values
-//   5. Calcular mean   con weighted_mean (subrutina propia)
-//   6. Construir archivo de salida      → out_buf
-//   7. Abrir  results/resultado_media.txt
-//   8. Escribir out_buf y cerrar
-//   9. exit(0)
+//   2. Saltar línea de cabecera
+//   3. Leer   30 líneas y parsear col 1 → values_buf[30]
+//   4. Cerrar archivo de entrada
+//   5. Calcular sum_x  con sum_values
+//   6. Calcular mean   con weighted_mean (subrutina propia)
+//   7. Construir archivo de salida      → out_buf
+//   8. Abrir  results/resultado_media.txt
+//   9. Escribir out_buf y cerrar
+//  10. exit(0)
 //
 // Registros de larga vida (callee-saved):
 //   x19 = fd actual (entrada o salida)
@@ -119,21 +120,45 @@ _start:
     b.lt error_exit                        // si fallo, salgo con codigo 1
     mov  x19, x0                           // x19 = fd de entrada
 
-    // ---- 2) Leer 30 líneas y parsear la columna 1 (TEMP) ----
+    // ---- 2) Saltar la línea de cabecera del CSV (ID,TEMP,...) ----
+skip_header:
+    mov  x0, x19                           // x0 = fd
+    adr  x1, line_buf                      // x1 = buffer temporal
+    mov  x2, #1                            // x2 = 1 byte
+    mov  x8, #SYS_READ                     // syscall read
+    svc  #0
+    cmp  x0, #0                            // ¿EOF?
+    b.le read_done
+    ldrb w6, [x1]                          // w6 = byte leído
+    cmp  w6, #'\n'                         // ¿fin de cabecera?
+    b.ne skip_header                       // no, seguir leyendo
+
+    // ---- 3) Leer 30 líneas y parsear la columna 1 (TEMP) ----
     mov  x20, #0                           // x20 = i = 0
 read_loop:
     cmp  x20, #N_VALUES                    // ¿ya leí 30?
     b.ge read_done                         // si, salir del loop
-    // ---- leer una linea del CSV ----
+    // ---- leer una línea completa byte por byte hasta '\n' ----
+    mov  x5, #0                            // x5 = índice dentro de line_buf
+read_line_loop:
     mov  x0, x19                           // x0 = fd
-    adr  x1, line_buf                      // x1 = buffer destino
-    mov  x2, #64                           // x2 = capacidad
+    adr  x1, line_buf                      // x1 = base de line_buf
+    add  x1, x1, x5                        // x1 = line_buf + x5
+    mov  x2, #1                            // x2 = 1 byte
     mov  x8, #SYS_READ                     // syscall read
     svc  #0
-    cmp  x0, #0                            // ¿se leyo algo?
-    b.le read_done                         // EOF o error, salir
+    cmp  x0, #0                            // ¿EOF?
+    b.le read_done
+    ldrb w6, [x1]                          // w6 = byte leído
+    cmp  w6, #'\n'                         // ¿fin de línea?
+    b.eq parse_line                        // si, parsear
+    add  x5, x5, #1                        // no, avanzar índice
+    cmp  x5, #63                           // ¿límite del buffer?
+    b.lt read_line_loop                    // no, seguir leyendo
+    b    read_line_loop                    // (caso extremo: línea >63)
+parse_line:
     // ---- parsear columna 1 (TEMP) de la línea ----
-    adr  x0, line_buf                      // x0 = buffer de la linea
+    adr  x0, line_buf                      // x0 = buffer con la línea
     mov  x1, #1                            // x1 = columna objetivo (0=ID, 1=TEMP)
     bl   parse_csv_column                  // x0 = valor entero parseado
     // ---- guardar en values_buf[i] ----
@@ -141,25 +166,25 @@ read_loop:
     lsl  x10, x20, #3                      // x10 = i * 8  (offset en bytes)
     str  x0, [x9, x10]                     // values_buf[i] = x0
     add  x20, x20, #1                      // i++
-    b    read_loop                         // siguiente linea
+    b    read_loop                         // siguiente línea
 
 read_done:
-    // ---- 3) Cerrar archivo de entrada ----
+    // ---- 4) Cerrar archivo de entrada ----
     mov  x0, x19                           // x0 = fd
     mov  x8, #SYS_CLOSE                    // syscall close
     svc  #0
 
-    // ---- 4) Calcular sum_x  (Σ X_i) ----
+    // ---- 5) Calcular sum_x  (Σ X_i) ----
     adr  x0, values_buf                    // x0 = base del arreglo
     bl   sum_values                        // x0 = sum_x
     mov  x21, x0                           // x21 = sum_x
 
-    // ---- 5) Calcular weighted_mean  (Σ X_i*W_i / 465) ----
+    // ---- 6) Calcular weighted_mean  (Σ X_i*W_i / 465) ----
     adr  x0, values_buf                    // x0 = base del arreglo
     bl   weighted_mean                     // x0 = media entera
     mov  x22, x0                           // x22 = mean
 
-    // ---- 6) Construir archivo de salida en out_buf ----
+    // ---- 7) Construir archivo de salida en out_buf ----
     adr  x9, out_buf                       // x9 = cursor de salida
 
     // linea 1: "MODULE=WEIGHTED_MEAN\n"
@@ -212,7 +237,7 @@ read_done:
     adr  x10, out_buf
     sub  x23, x9, x10                      // x23 = longitud del buffer
 
-    // ---- 7) Abrir results/resultado_media.txt para escritura ----
+    // ---- 8) Abrir results/resultado_media.txt para escritura ----
     mov  x0, #AT_FDCWD
     adr  x1, out_path
     mov  x2, #O_WRONLY | O_CREAT | O_TRUNC // crear y truncar
@@ -223,7 +248,7 @@ read_done:
     b.lt error_exit
     mov  x19, x0                           // x19 = fd de salida
 
-    // ---- 8) Escribir buffer completo ----
+    // ---- 9) Escribir buffer completo ----
     mov  x0, x19                           // x0 = fd
     adr  x1, out_buf                       // x1 = buffer
     mov  x2, x23                           // x2 = longitud
@@ -235,7 +260,7 @@ read_done:
     mov  x8, #SYS_CLOSE
     svc  #0
 
-    // ---- 9) Salir con éxito ----
+    // ---- 10) Salir con éxito ----
     mov  x0, #0                            // codigo de salida = 0
     mov  x8, #SYS_EXIT
     svc  #0
@@ -427,13 +452,13 @@ itoa_digit:
     mov  x19, x5                           // valor = cociente
     cbnz x19, itoa_digit                   // repetir mientras cociente != 0
 
-    // copiar dígitos al destino en orden INVERSO (MSB primero)
+    // copiar dígitos al destino en orden inverso (MSB primero)
     mov  x7, #0                            // x7 = índice de copia
 itoa_copy:
-    ldrb w6, [x2, x7]                      // cargar dígito del buffer temporal
+    sub  x3, x3, #1                        // x3-- (empezar desde el último dígito)
+    ldrb w6, [x2, x3]                      // cargar dígito (del final hacia el inicio)
     strb w6, [x20, x7]                     // escribir en buffer destino
-    add  x7, x7, #1                        // índice++
-    sub  x3, x3, #1                        // decrementar contador
+    add  x7, x7, #1                        // avanzar destino
     cbnz x3, itoa_copy                     // repetir hasta copiar todos
 
     add  sp, sp, #32                       // liberar buffer temporal
@@ -466,6 +491,5 @@ copy_str_loop:
     add  x1, x1, #1                        // dst++
     b    copy_str_loop
 copy_str_done:
-    // x0 queda apuntando al NUL copiado; x1 quedó una posición más allá
-    // (no se usa x1, así que da igual)
+    mov  x0, x1                            // retornar destino (siguiente byte libre)
     ret

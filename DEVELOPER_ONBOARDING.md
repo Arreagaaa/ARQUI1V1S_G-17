@@ -52,48 +52,55 @@ cd ARQUI1V1S_G-17
 ARQUI1V1S_G-17/
 ├── README.md
 ├── DEVELOPER_ONBOARDING.md      ← este archivo
-├── start.bat                    ← doble click para arrancar todo (Windows)
 └── Proyecto1/
     ├── ESTADO.md                ← cómo vamos, qué falta
     ├── .env.example
     ├── backend/
     │   ├── BACKEND.md           ← documentación técnica del backend
-    │   ├── app/
-    │   ├── simulador.py         ← simula la Raspberry Pi
-    │   ├── test_regresion.py    ← 45 tests automatizados
-    │   └── test_mqttx_simulator.py
+    │   └── app/                 ← FastAPI: routers, services, mqtt/, db, seed
     ├── frontend/
     │   ├── FRONTEND.md
     │   └── src/
     ├── raspberry/               ← código para la Pi (futuro, sin hardware aún)
     └── arm64/
-        └── lecturas.csv         ← 30 lecturas para módulos ARM64
+        ├── Makefile             ← `make run1` ejecuta módulo 1 con QEMU
+        ├── media.s              ← ✅ Módulo 1 (media ponderada) — listo
+        ├── lecturas.csv         ← 30 lecturas para módulos ARM64
+        └── utils/utils.s        ← ⏳ Biblioteca común (tarea grupal)
 ```
+
+> **Nota:** los archivos `start.bat`, `simulador.py`, `test_regresion.py` y `test_mqttx_simulator.py` fueron eliminados en commit `697a99d`. La verificación E2E ahora es **100% manual con MQTTX Web** (más cercano al uso real).
 
 ---
 
 ## PARTE 2 — Arrancar el sistema
 
-### 2.1 Windows: doble click en `start.bat`
+### 2.1 Windows: 2 terminales PowerShell
 
-1. Asegurate que **MongoDB está corriendo** (abrí Compass y conectate a `mongodb://localhost:27017`).
-2. Doble click en `start.bat` (raíz del repo).
-3. Se abren **dos ventanas**:
-   - **Backend** — corre en `http://127.0.0.1:8080`. NO la cierres.
-   - **Frontend** — corre en `http://localhost:5173`. NO la cierres.
+**Terminal 1 — Backend** (puerto 8080):
+```powershell
+cd Proyecto1\backend
+C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log
+```
+
+**Terminal 2 — Frontend** (puerto 5173):
+```powershell
+cd Proyecto1\frontend
+npm run dev
+```
 
 > ⚠️ **NO usar `uvicorn --reload`** — rompe la conexión MQTT singleton.
 
-### 2.2 Manual (Linux/macOS o si querés ver logs en una terminal)
+### 2.2 Linux/macOS (o si preferís venv)
 
 **Terminal 1 — Backend:**
 ```bash
 cd Proyecto1/backend
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp ../.env.example .env
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
+uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log
 ```
 
 **Terminal 2 — Frontend:**
@@ -134,74 +141,88 @@ Si da `mqtt_connected: false` → puede ser que el broker `broker.emqx.io` esté
 
 ---
 
-### TEST 2 — Simulador de la Raspberry Pi (sin hardware)
+### TEST 2 — Publicar una lectura de sensor desde MQTTX (sin hardware)
 **Objetivo:** validar el flujo MQTT sensor → backend → Mongo.
 
-**Terminal 3 (nueva):**
-```bash
-cd Proyecto1/backend
-python simulador.py --once      # publica 6 lecturas y sale
+> El antiguo `simulador.py` fue reemplazado por MQTTX Web. Es más cercano al uso real y no requiere scripts adicionales.
+
+Seguí los pasos 1-3 de TEST 6 para configurar MQTTX Web. Después:
+
+**Topic:** `grupo17/invernadero/sensores/temperatura` | **QoS:** 1 | **Payload:**
+```json
+{
+  "sensor_type": "temperature",
+  "value": 28.5,
+  "unit": "°C",
+  "area": "control",
+  "status": "normal",
+  "source": "mqttx_dev_<tu-inicial>",
+  "timestamp": "2026-06-05T00:00:00Z"
+}
 ```
 
-**Esperado en consola:** `Modo --once: publicadas 6 lecturas. Saliendo.`
+Click **Publish**.
 
 **Verificá en MongoDB Compass:**
 - Conectá a `mongodb://localhost:27017` → DB `invernadero_iot` → colección `sensor_readings`.
-- Debe haber 6 documentos nuevos con `source: raspi-sim-01` y `sensor_type` en {temperature, humidity, soil_1, soil_2, light, gas}.
+- Debe haber un documento nuevo con `source: mqttx_dev_<tu-inicial>` y `sensor_type: "temperature"`.
 
-❌ Si no aparecen → abrí la ventana del backend, debe haber líneas `MQTT IN topic=grupo17/invernadero/sensores/...`. Si NO aparecen, hay un problema de red o broker caído.
+❌ Si no aparece → abrí la ventana del backend, debe haber líneas `MQTT IN topic=grupo17/invernadero/sensores/temperatura ...`. Si NO aparecen, hay un problema de red o broker caído.
 
-**Variantes del simulador** (probalas todas, son escenarios del enunciado):
-```bash
-python simulador.py                  # cada 5s, valores normales
-python simulador.py --once           # una vez y sale
-python simulador.py --scenario emergencia        # gas=200ppm → EMERGENCIA
-python simulador.py --scenario seco_area1        # suelo1<30% → RIEGO_ACTIVO
-python simulador.py --scenario saturado_area2    # suelo2>80% → advertencia
-python simulador.py --scenario poca_luz          # luz<20% → luces ON
-python simulador.py --interval 2                 # más rápido para pruebas visuales
-```
+**Escenarios que podés probar** (mismo formato, distintos topics y valores):
+| Topic | `value` | `status` | Esperado |
+|---|---|---|---|
+| `sensores/gas` | 400.0 | critical | EMERGENCIA + ventilador ON + alarma ON |
+| `sensores/gas` | 50.0 | normal | NORMAL + recovery |
+| `sensores/humedad_suelo_area1` | 20.0 | warning | RIEGO_ACTIVO + bomba ON |
+| `sensores/luz` | 15.0 | warning | luces ON (auto) |
+| `sensores/temperatura` | 33.0 | warning | ADVERTENCIA + ventilador ON |
 
 ---
 
-### TEST 3 — Suite automatizada de regresión (45 tests)
-**Objetivo:** validar que TODOS los endpoints, reglas y filtros funcionan.
+### TEST 3 — Verificación de los 18 endpoints REST
+**Objetivo:** validar que el backend responde a todos los endpoints.
 
-**Terminal 3:**
 ```bash
-cd Proyecto1/backend
-python test_regresion.py
+# En navegador o con curl:
+http://127.0.0.1:8080/api/health
+http://127.0.0.1:8080/api/dashboard
+http://127.0.0.1:8080/api/sensors/latest
+http://127.0.0.1:8080/api/sensors/history?limit=10
+http://127.0.0.1:8080/api/events?limit=10
+http://127.0.0.1:8080/api/commands?limit=10
+http://127.0.0.1:8080/api/actuator-logs?limit=10
+http://127.0.0.1:8080/api/status
 ```
 
-**Esperado al final:** `RESUMEN: 45 OK, 0 FAIL` y `REGRESION EXITOSA — sistema validado al 100%`.
+**Esperado:** cada uno devuelve JSON válido. Detalle completo de los 18+ endpoints en [BACKEND.md](Proyecto1/backend/BACKEND.md).
 
-Las 7 secciones cubiertas:
-1. REST API (18 endpoints)
-2. Control endpoints (irrigation, lights, fan, alarm, mode)
-3. MongoDB 6 colecciones
-4. MQTT subscriber (enabled, connected, suscripciones, reconnect)
-5. Flujo MQTT E2E (publish → persistencia)
-6. Reglas automáticas (gas > 150 → ventilador + alarma + evento)
-7. Filtro anti-loop (`source=api` NO se persiste)
-
-❌ Si falla alguno → pegale el error al equipo. **NO seguir adelante con tests fallando.**
+❌ Si alguno da 500 o 404 → pegale el error al equipo. **NO seguir adelante con tests fallando.**
 
 ---
 
-### TEST 4 — Test del simulador MQTTX (12 mensajes, simula cualquier persona)
+### TEST 4 — Publicar comandos desde MQTTX (simula cualquier persona)
 **Objetivo:** simular lo que hace un developer cuando abre MQTTX Web.
 
-**Terminal 3:**
-```bash
-cd Proyecto1/backend
-python test_mqttx_simulator.py
+**Topic:** `grupo17/invernadero/control/remoto` | **QoS:** 1 | **Payloads** (probá uno a la vez, esperá 3s entre cada uno):
+
+```json
+{"command":"set_lights","target":"lights","source":"mqttx_dev_<tu-inicial>","payload":{"state":"on"},"timestamp":"2026-06-05T00:00:00Z"}
+```
+```json
+{"command":"set_mode","target":"mode","source":"mqttx_dev_<tu-inicial>","payload":{"state":"manual"},"timestamp":"2026-06-05T00:00:00Z"}
+```
+```json
+{"command":"set_pump","target":"pump","source":"mqttx_dev_<tu-inicial>","payload":{"state":"on","area":"area_1"},"timestamp":"2026-06-05T00:00:00Z"}
+```
+```json
+{"command":"set_buzzer","target":"buzzer","source":"mqttx_dev_<tu-inicial>","payload":{"state":"off"},"timestamp":"2026-06-05T00:00:00Z"}
 ```
 
-**Esperado:** `Mensajes enviados: 12, publicados OK: 12` y resúmenes de cada escenario (sensores, controles, apagado, emergencia).
-
-**Verificá en MongoDB Compass:**
-- Colección `commands` → debe haber nuevos documentos con `source: mqttx_simulator`.
-- Colección `events` → debe haber al menos un evento `emergency` (gas=200ppm dispara la regla).
+**Esperado en ≤15s**:
+- Dashboard refleja cada cambio (luces, modo, bomba, alarma)
+- MongoDB Compass → `commands` → documentos nuevos con `source: mqttx_dev_<tu-inicial>`
+- MongoDB Compass → `actuator_logs` → log del cambio correspondiente
 
 ---
 
@@ -220,15 +241,6 @@ python test_mqttx_simulator.py
 
 ### TEST 6 — MQTTX Web oficial (cualquier persona con navegador puede participar)
 **Objetivo:** confirmar que CUALQUIER developer con un navegador puede monitorear y controlar el sistema. El test "estrella" es publicar `gas=400` desde MQTTX y ver el dashboard pasar a **EMERGENCIA ROJA** en ≤15s.
-
-#### Paso 0: parar el simulador (CRÍTICO para ver el cambio limpio)
-
-El simulador publica cada 5s y **pisa** el estado de EMERGENCIA antes de que se vea en pantalla.
-- Si lo corriste vos mismo: andá a la terminal donde corre y hacé **Ctrl+C**.
-- Si no lo estás corriendo: salteá este paso.
-- Esperá **20 segundos** para que el sistema se asiente.
-
-> El simulador usa `source: raspi-sim-01`. En Compass, filtrá `sensor_readings` por ese source y verificá que no haya docs nuevos después de los 20s.
 
 #### Paso 1: abrir MQTTX Web
 
@@ -262,8 +274,6 @@ Click **+ New Subscription**:
 - Topic: `grupo17/invernadero/#`
 - QoS: `0`
 - Confirm
-
-Si el simulador estuviera activo, verías mensajes cada 5s. Como lo paraste, está vacío (bien).
 
 #### Paso 4: test dramático — publicar `gas=400` → EMERGENCIA ROJA
 
@@ -352,9 +362,9 @@ Vas a ver el mensaje en la suscripción (llegó al broker y se distribuyó), **p
 
 > **Para una persona real siempre usá `source: mqttx_<tu-inicial>` o `source: <nombre único>`.** NUNCA `web`, `api`, `backend`, `system`, `dashboard`.
 
-#### Paso 8: si tenés el simulador, reinicialo
+#### Paso 8: seguir publicando lecturas periódicas (opcional, para ver el dashboard en vivo)
 
-`python simulador.py` en otra terminal. Vas a ver aparecer mensajes en tu suscripción `grupo17/invernadero/#` cada 5s (lecturas de los 6 sensores).
+Podés publicar manualmente un sensor cada 30-60s para mantener el dashboard "vivo". O esperar a que llegue la maqueta con la Raspberry Pi publicando automáticamente cada 5s.
 
 ❌ **Problema común — sesión pegada:** si publicás y MQTTX dice "OK" pero el backend no recibe, el broker público está guardando tu sesión vieja. Solución: cerrar la conexión → F5 → nueva conexión con Client ID `_v2` (ej. `mqttx_dev_jp_v2`).
 
@@ -435,19 +445,19 @@ tail -c 1 Proyecto1/arm64/lecturas.csv
 - [ ] MongoDB corriendo en :27017
 - [ ] MongoDB Compass instalado
 - [ ] Repo clonado
-- [ ] `start.bat` levantó backend y frontend sin errores
+- [ ] Backend levantado en :8080 (con `--no-access-log`, SIN `--reload`)
+- [ ] Frontend levantado en :5173
 - [ ] `/api/health` → `mongodb: true`, `mqtt_connected: true`, 4 suscripciones
-- [ ] `test_regresion.py` → 45/45 OK
-- [ ] `test_mqttx_simulator.py` → 12/12 publicados
 - [ ] Dashboard en `http://localhost:5173` actualiza cada 15s
 - [ ] MQTTX Web conecta a `wss://broker.emqx.io:8084` con SSL ON
 - [ ] Suscripción `grupo17/invernadero/#` configurada
-- [ ] Publicar `gas=400` desde MQTTX (con simulador **parado**) → dashboard va a `EMERGENCIA` ROJO (en ≤15s)
+- [ ] Publicar `gas=400` desde MQTTX → dashboard va a `EMERGENCIA` ROJO (en ≤15s)
 - [ ] Publicar `gas=50` desde MQTTX → dashboard vuelve a `NORMAL/ADVERTENCIA`
 - [ ] Publicar `set_lights ON` desde MQTTX → `Iluminación: Activo` en dashboard
 - [ ] Publicar `source=web` desde MQTTX → NO aparece en `commands` (filtro anti-loop)
 - [ ] `lecturas.csv` tiene 32 líneas con formato correcto
 - [ ] 6 colecciones presentes en MongoDB (sensor_readings, events, commands, system_status, actuator_logs, arm64_results)
+- [ ] Módulo 1 ARM64 verificado (opcional, solo Integrante 1): `cd Proyecto1/arm64 && make run1` → `cat results/resultado_media.txt` muestra `SUM_X=892`, `WEIGHTED_MEAN=30`
 
 Si **todos** los checks están OK → mandale al equipo: **"Proyecto joya, levanté todo, corrí todas las pruebas, todo OK."**
 
@@ -464,7 +474,7 @@ Si **todos** los checks están OK → mandale al equipo: **"Proyecto joya, levan
 | `Address already in use` en puerto 8080 | Otro proceso en 8080 | Windows: `netstat -ano \| findstr 8080` y matar PID |
 | `python` no encontrado | Python no en PATH | Usar ruta completa: `C:\Users\<user>\AppData\Local\Programs\Python\Python313\python.exe` |
 | Dashboard dice "Borrar y sembrar" | Botón rojo destructivo | **NO clickear** durante pruebas |
-| `ModuleNotFoundError` en tests | venv no activado | `source venv/bin/activate` o `venv\Scripts\activate` |
+| `ModuleNotFoundError` en tests | venv no activado | `source .venv/bin/activate` o `.venv\Scripts\activate` |
 | `npm install` falla en Pi | Pocos recursos | `npm install --no-audit --no-fund --prefer-offline` |
 
 ---
@@ -478,14 +488,14 @@ Sos un asistente de QA técnico. Tu trabajo es ayudar a un developer a validar
 que el proyecto "Invernadero Inteligente IoT — Grupo 17" en
 D:\Projects\USAC\ARQUI1V1S_G-17 está funcionando al 100%.
 
-CONTEXTO DEL PROYECTO:
+ CONTEXTO DEL PROYECTO:
 - Raspberry Pi 3B+ → MQTT (broker.emqx.io:1883) → Backend FastAPI (:8080) → MongoDB
 - Frontend React/Vite dashboard en :5173
 - Tópicos MQTT: grupo17/invernadero/...
 - 6 colecciones Mongo: sensor_readings, events, commands, system_status, actuator_logs, arm64_results
 - Filtro anti-loop: source in {web, api, backend, system, dashboard} → NO persistir
-- Hardware (Pi, maqueta) NO existe todavía; se simula con simulador.py
-- Módulos ARM64 pendientes (5 módulos, uno por integrante)
+- Hardware (Pi, maqueta) NO existe todavía; se valida con MQTTX Web
+- Módulo 1 ARM64 (media ponderada) listo y verificado; módulos 2-5 pendientes
 
 TAREAS QUE DEBES HACER EN ORDEN:
 
@@ -499,17 +509,16 @@ TAREAS QUE DEBES HACER EN ORDEN:
    curl http://127.0.0.1:8080/api/health
    → Debe devolver mongodb:true, mqtt_connected:true, 4 suscripciones
 
-3. EJECUTAR los tests en orden:
-   cd D:\Projects\USAC\ARQUI1V1S_G-17\Proyecto1\backend
-   python test_regresion.py        # debe dar 45 OK, 0 FAIL
-   python test_mqttx_simulator.py  # debe dar 12/12 publicados
-   python simulador.py --once      # debe publicar 6 lecturas
+3. PROBAR los endpoints clave:
+   curl http://127.0.0.1:8080/api/dashboard
+   curl http://127.0.0.1:8080/api/sensors/latest
+   curl http://127.0.0.1:8080/api/status
+   → Cada uno debe devolver JSON válido
 
 4. VERIFICAR MongoDB con pymongo:
    - Conectar a mongodb://localhost:27017, DB invernadero_iot
    - Confirmar 6 colecciones existen
-   - sensor_readings debe crecer después del simulador
-   - commands debe crecer después de test_mqttx_simulator
+   - Las colecciones deben tener datos (seed inicial o de pruebas previas)
 
 5. SIMULAR lo que haria un developer con MQTTX Web (sin abrir navegador):
    - Publicar en grupo17/invernadero/control/remoto con source=mqttx_ai_agent
@@ -544,8 +553,9 @@ Empezá ahora.
 
 1. **Reportar al equipo:** "Proyecto joya, todas las pruebas pasaron, listo para migrar a Atlas."
 2. **Migración a Atlas (siguiente hito):** el equipo comparte la URI de Atlas → cambiar `MONGODB_URI` en `Proyecto1/backend/.env` → reiniciar backend.
-3. **Módulos ARM64 (fase siguiente):** cada integrante hace su `.s` en `arm64/modules/modulo_N_*/`. Primero grupal: `arm64/utils/utils.s` (5 pts).
-4. **Maqueta + Raspberry:** cuando se tenga el hardware, reemplazar `simulador.py` con `raspberry/main.py` (ya está el esqueleto).
+3. **Módulo 1 ARM64 (Integrante 1, listo):** probar en Ubuntu con `cd Proyecto1/arm64 && make run1` → verificar `cat results/resultado_media.txt` muestra `SUM_X=892`, `WEIGHTED_MEAN=30`. Depurar con `make gdb1`.
+4. **Módulos 2-5 ARM64 (Integrantes 2-5, pendientes):** cada uno crea su `.s` siguiendo el patrón de `media.s` (ver `Proyecto1/arm64/README.md` y `modules/modulo_X/README.md` de su módulo). Tarea grupal: `arm64/utils/utils.s` (5 pts).
+5. **Maqueta + Raspberry:** cuando se tenga el hardware, `raspberry/main.py` reemplaza al cliente MQTTX (ya está el esqueleto).
 
 ---
 

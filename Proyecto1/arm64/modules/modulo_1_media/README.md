@@ -1,6 +1,7 @@
 # Módulo 1 — Media Aritmética Ponderada
 
 **Integrante 1** | Archivo: `media.s` | Salida: `../../results/resultado_media.txt`
+**Estado**: ✅ Implementado y listo para probar en Ubuntu
 
 ---
 
@@ -25,60 +26,105 @@ Donde:
 
 ---
 
-## Formato exacto de salida
+## Salida esperada (con `lecturas.csv` actual)
 
-El módulo debe escribir en `../../results/resultado_media.txt`:
+El módulo escribe en `../../results/resultado_media.txt`:
 
 ```
 MODULE=WEIGHTED_MEAN
 TOTAL_VALUES=30
-SUM_X=920
+SUM_X=892
 WEIGHT_SUM=465
-WEIGHTED_MEAN=31
+WEIGHTED_MEAN=30
 ```
+
+**Cálculo verificado a mano**:
+- `SUM_X` = 265 + 311 + 316 = **892** (Σ de los 30 valores TEMP)
+- `Σ(X_i * W_i)` = 1540 + 4772 + 8050 = **14362**
+- `WEIGHTED_MEAN` = 14362 / 465 = **30** (división entera)
 
 > ⚠️ **El enunciado es estricto**: cualquier desviación del formato (espacios, mayúsculas, orden de líneas) puede invalidar la rúbrica. Usar exactamente `MODULE=`, `TOTAL_VALUES=`, `SUM_X=`, `WEIGHT_SUM=`, `WEIGHTED_MEAN=`.
 
-Los valores numéricos son de ejemplo (cambian con `lecturas.csv`); lo que importa es el formato.
+Si `lecturas.csv` cambia, recalcular con este comando Python:
+```python
+import csv
+xs = []
+with open('../../lecturas.csv') as f:
+    r = csv.reader(f)
+    next(r)  # saltar header
+    for row in r:
+        if row and row[0] != '$':
+            xs.append(int(row[1]))
+print('SUM_X =', sum(xs))
+print('WEIGHTED_MEAN =', sum(x*(i+1) for i,x in enumerate(xs)) // 465)
+```
 
 ---
 
-## Algoritmo esperado
+## Algoritmo implementado en `media.s`
 
 ```
-1. Abrir ../lecturas.csv
-2. Leer 30 líneas, extraer columna 1 (TEMP) → arreglo values[30]
-3. acc_weighted = 0
-4. Para i = 0..29:
-       weight = i + 1
-       acc_weighted += values[i] * weight
-5. mean = acc_weighted / 465        // división entera
-6. sum_x = Σ values[i]              // requerido por el formato
-7. Escribir 4 líneas en resultado_media.txt
-8. exit(0)
+1. Abrir ../lecturas.csv                   (syscall openat)
+2. Para i = 0..29:
+       read(1 línea)                       (syscall read)
+       parse_csv_column(col=1) → X_i      (subrutina propia)
+       values_buf[i] = X_i                 (almacenar en buffer 30×8B)
+3. close(lecturas.csv)                     (syscall close)
+4. sum_x = sum_values(values_buf)          (subrutina propia)
+5. mean  = weighted_mean(values_buf)       (SUBRUTINA PROPIA — req. enunciado)
+6. Construir 5 líneas ASCIIZ en out_buf    (copy_str + int_to_ascii)
+7. Abrir results/resultado_media.txt       (syscall openat, O_WRONLY|O_CREAT|O_TRUNC, 0644)
+8. write(out_buf) + close                  (syscalls write, close)
+9. exit(0)                                 (syscall exit)
 ```
 
-### Sugerencia de registros (ABI AArch64)
+### Sugerencia de registros (lo que usa `media.s`)
 
 | Registro | Uso |
 |---|---|
-| `x0` | puntero / retorno |
-| `x9` | puntero base del arreglo `values` |
-| `x10` | índice del loop (`i`) |
-| `x11` | peso (`i + 1`) |
-| `x12` | acumulador `acc_weighted` |
-| `x13` | acumulador `sum_x` |
-| `x19-x28` | callee-saved (preservar entre subrutinas) |
+| `x0`-`x2` | argumentos syscall / retorno subrutina |
+| `x8` | número de syscall |
+| `x9` | puntero base del arreglo (en `_start` también cursor de output) |
+| `x10` | índice del loop / offset |
+| `x19` | **callee-saved**: fd actual (entrada o salida) |
+| `x20` | **callee-saved**: contador de líneas / longitud output |
+| `x21` | **callee-saved**: `sum_x` |
+| `x22` | **callee-saved**: `weighted_mean` |
+| `x29`/`x30` | frame pointer / link register (prólogo/epílogo) |
 
-### Subrutinas externas necesarias (de `utils.s`)
+### Subrutinas propias definidas en `media.s` (100% auto-contenido)
 
-```asm
-.extern utils_open_csv
-.extern utils_read_int_column
-.extern utils_write_result
-.extern utils_exit
-.extern utils_print_string   // opcional, para debug
+> ✅ `media.s` **no usa `.extern`** — no depende de `utils.s` stub. Cuando el grupo implemente `utils.s`, las funciones de I/O se podrán consolidar sin romper `media.s`.
+
+| Subrutina | Propósito | Convocante |
+|---|---|---|
+| `parse_csv_column(buf, col) → int` | Extrae el valor entero de la columna N de una línea CSV | lectura |
+| `sum_values(buf) → int` | Suma los 30 enteros i64 del arreglo | cálculo |
+| **`weighted_mean(buf) → int`** | **Media ponderada entera** (requisito enunciado §9.3 #10) | cálculo |
+| `int_to_ascii(val, dst) → ptr` | Convierte entero ≥ 0 a ASCII decimal (con caso especial 0) | output |
+| `copy_str(src, dst) → ptr` | Copia string ASCIIZ y avanza el puntero destino | output |
+
+`int_to_ascii` y `copy_str` son auxiliares para construir el archivo de salida; no son parte del cálculo matemático.
+
+---
+
+## Quickstart Ubuntu (1 minuto)
+
+```bash
+# 1) Instalar toolchain (una sola vez)
+sudo apt update
+sudo apt install -y binutils-aarch64-linux-gnu qemu-user
+
+# 2) Compilar y ejecutar (CWD debe ser arm64/)
+cd Proyecto1/arm64
+make run1
+
+# 3) Verificar salida
+cat results/resultado_media.txt
+# Debe imprimir las 5 líneas con SUM_X=892 y WEIGHTED_MEAN=30
 ```
+
+> **CWD importante**: `media.s` usa paths relativos `lecturas.csv` y `results/resultado_media.txt`. Siempre ejecutar desde `Proyecto1/arm64/` (es lo que hace `make run1` internamente).
 
 ---
 

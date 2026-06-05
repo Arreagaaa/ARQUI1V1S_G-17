@@ -30,64 +30,66 @@ Monitoreo y control de un invernadero con dos áreas de cultivo y un centro de c
 ```
 ARQUI1V1S_G-17/
 ├── README.md                  # Este archivo (intro + setup rápido)
-├── DEVELOPER_ONBOARDING.md    # Guía para un developer nuevo (clonar + tests + prompt IA)
-├── start.bat                  # Doble click en Windows: backend + frontend
+├── DEVELOPER_ONBOARDING.md    # Guía para un developer nuevo (clonar + verificación E2E + prompt IA)
 └── Proyecto1/
     ├── ESTADO.md              # Cómo vamos, qué falta, roles, hitos
     ├── .env.example           # Plantilla de variables de entorno
     ├── backend/
     │   ├── BACKEND.md         # Endpoints REST, MQTT contract, servicios
-    │   ├── app/               # FastAPI: routers, services, mqtt/, db, seed
-    │   ├── simulador.py       # Publica lecturas al broker (simula la Pi)
-    │   ├── test_regresion.py  # Suite 45 pruebas (API + Mongo + MQTT)
-    │   └── test_mqttx_simulator.py  # Simula publicaciones MQTTX (12 mensajes)
+    │   └── app/               # FastAPI: routers, services, mqtt/, db, seed
     ├── frontend/
     │   ├── FRONTEND.md        # Dashboard, componentes, polling
     │   └── src/               # React + Vite + Tailwind
     ├── raspberry/             # Cliente Python para la Pi (GPIO + MQTT + LCD + 4 botones)
-    └── arm64/                 # utils.s + 5 módulos por integrante + lecturas.csv + Makefile
+    └── arm64/                 # Módulo 1 listo; módulos 2-5 con instrucciones pendientes
+        ├── media.s            # ✅ Módulo 1 (media ponderada) — listo para QEMU
+        ├── Makefile           # Compila utils + modulo1; targets 2-5 emiten "PENDIENTE"
+        ├── lecturas.csv       # 30 lecturas reales (formato exacto del enunciado)
+        └── utils/utils.s      # ⏳ Biblioteca común — tarea grupal
 ```
 
 ## Inicio rápido (Windows)
 
-**Doble click** en `start.bat` (raíz). Abre backend y frontend en ventanas separadas.
+Abrir 2 terminales PowerShell:
+
+**Terminal 1 — Backend** (puerto 8080):
+```powershell
+cd Proyecto1\backend
+C:\Users\crjav\AppData\Local\Programs\Python\Python313\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log
+```
+
+**Terminal 2 — Frontend** (puerto 5173):
+```powershell
+cd Proyecto1\frontend
+npm run dev
+```
 
 - Backend: `http://127.0.0.1:8080` (Swagger en `/docs`)
 - Frontend: `http://localhost:5173`
 
 Requisitos: Python 3.10+, Node 18+, MongoDB local en `:27017` o URI de Atlas en `backend/.env`.
 
-## Inicio manual
+## Inicio manual (Ubuntu)
 
-### Backend
 ```bash
+# Backend
 cd Proyecto1/backend
-pip install -r requirements.txt
-cp ../.env.example .env
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
+source .venv/bin/activate
+uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-access-log
+
+# Frontend (otra terminal)
+cd Proyecto1/frontend && npm run dev
 ```
 
 > ⚠️ **No usar `--reload`**. Mata la conexión MQTT singleton y rompe la suscripción al broker.
 
-### Frontend
-```bash
-cd Proyecto1/frontend
-npm install
-echo "VITE_API_BASE_URL=http://localhost:8080" > .env.local
-npm run dev
-```
-
 ## Verificar que todo funciona
 
-```bash
-# Backend ya corriendo en :8080 con ENABLE_MQTT=true
-cd Proyecto1/backend
-python test_regresion.py        # esperado: 45 OK, 0 FAIL
-python test_mqttx_simulator.py  # esperado: 12/12 publicados
-python simulador.py --once      # publica 6 sensores al broker
-```
-
 Health-check: `curl http://127.0.0.1:8080/api/health` debe devolver `mongodb: true` y `mqtt_connected: true`.
+
+Validación E2E completa con MQTTX Web (8 sub-pasos) en [DEVELOPER_ONBOARDING.md §TEST 6](DEVELOPER_ONBOARDING.md).
+
+> **Nota:** Los scripts `test_regresion.py`, `test_mqttx_simulator.py` y `simulador.py` fueron eliminados en commit `697a99d`. La verificación E2E ahora es 100% manual con MQTTX Web (más cercano al uso real).
 
 ## MQTTX Web (cualquier persona puede participar)
 

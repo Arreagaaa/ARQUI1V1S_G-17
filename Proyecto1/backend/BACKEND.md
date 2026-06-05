@@ -55,7 +55,7 @@ backend/app/
     ├── payload_validator.py   # Validación de payloads JSON
     ├── publisher.py           # Publica mensajes
     ├── subscriber.py          # MQTTSubscriber con 4 handlers
-    └── mock_provider.py       # Datos mock para tests
+    └── mock_provider.py       # Generador de datos mock (usado por seed.py al sembrar la DB)
 ```
 
 ---
@@ -303,41 +303,21 @@ Si **no aparece**, el backend no recibió. Causas comunes:
 
 Si aparece "MQTT IN" pero no "MQTT command persistido", el `source` fue filtrado. NO uses `web`, `api`, `backend`, `system`, `dashboard` — usá `mqttx_<inicial>`.
 
-### Alternativa 100% confiable: `test_mqttx_simulator.py`
-
-Si MQTTX Web da problemas, este script Python simula lo mismo (mismo broker, mismos topics, mismo JSON, QoS 1) y es 100% confiable:
-```bash
-cd Proyecto1/backend
-python test_mqttx_simulator.py  # 12 mensajes
-```
-
 ---
 
-## Tests
+## Verificación E2E manual (sin scripts)
 
-```bash
-python test_regresion.py        # 45/45 OK: REST + Mongo + MQTT + reglas + filtro
-python test_mqttx_simulator.py  # 12/12 OK: simula MQTTX (sensores, controles, emergencia)
-python simulador.py --once      # publica 6 lecturas al broker
-```
+Todo el backend se valida en vivo con MQTTX Web. Checklist de una corrida de prueba:
 
-`test_regresion.py` cubre:
-1. REST API (18 endpoints)
-2. Control endpoints (irrigation, lights, fan, alarm, mode + status)
-3. MongoDB 6 colecciones
-4. MQTT subscriber (enabled, connected, suscripciones, reconnect)
-5. Flujo MQTT E2E (publish sensor/command → lectura persistida)
-6. Reglas automáticas (gas > 150 → ventilador + alarma + evento)
-7. Filtro anti-loop (`source=api` NO se persiste)
+| # | Acción en MQTTX Web | Topic | Esperado en dashboard (≤15s) |
+|---|---|---|---|
+| 1 | `POST /api/health` | — | `{status:"ok", mongodb:true, mqtt_connected:true, mqtt_subscriptions:4}` |
+| 2 | Publicar lectura `gas:400` | `grupo17/invernadero/sensores/gas` | `overall_state:EMERGENCIA` + ventilador ON + alarma ON |
+| 3 | Publicar lectura `gas:50` | `grupo17/invernadero/sensores/gas` | `overall_state:NORMAL` + ventilador OFF + alarma OFF |
+| 4 | `set_lights on` | `grupo17/invernadero/control/remoto` | `lights_active:true` + log en `actuator_logs` |
+| 5 | `set_mode manual` | `grupo17/invernadero/control/remoto` | `mode:"manual"`, `overall_state:"MODO_MANUAL"` |
+| 6 | `set_irrigation on area_1` | `grupo17/invernadero/control/remoto` | `pump_active:true`, log en `actuator_logs` con `area:"area_1"` |
+| 7 | `set_buzzer off` | `grupo17/invernadero/control/remoto` | `buzzer_active:false` |
+| 8 | `source:"api"` en cualquier publish | `...` | **NO persistido** (filtro anti-loop) |
 
-### Escenarios de prueba del simulador
-
-| Quieres probar | Comando |
-|---|---|
-| Estado normal | `python simulador.py` |
-| Emergencia por gas | `python simulador.py --scenario emergencia` |
-| Suelo seco Área 1 | `python simulador.py --scenario seco_area1` |
-| Suelo saturado Área 2 | `python simulador.py --scenario saturado_area2` |
-| Poca luz | `python simulador.py --scenario poca_luz` |
-| Publicar una sola vez | `python simulador.py --once` |
-| Cada 2 segundos | `python simulador.py --interval 2` |
+> Verificación E2E con N2N (Node-to-Node): 7/7 OK ejecutada contra backend local antes del cierre de fase pre-ARM.

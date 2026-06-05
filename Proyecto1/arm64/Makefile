@@ -1,22 +1,31 @@
 // =============================================================================
 // Makefile — Invernadero Inteligente IoT (ACYE1, Grupo 17)
 //
-// Compila utils/utils.s + 5 módulos ARM64 sobre Raspberry Pi 3/4 (AArch64).
+// Compila utils/utils.s + módulos ARM64 sobre Raspberry Pi 3/4 (AArch64).
 // Patrón basado en 02_ARM64/tools/makefile-templates/Makefile.qemu.multi
 // del repositorio del auxiliar (D:\Projects\USAC\ARQUI1_1S2026).
 //
+// Estado actual (post-limpieza 2026-06-05):
+//   - modulo_1_media: ✅ IMPLEMENTADO (Integrante 1 — listo para QEMU)
+//   - modulo_2_varianza: ⏳ pendiente (Integrante 2)
+//   - modulo_3_anomalias: ⏳ pendiente (Integrante 3)
+//   - modulo_4_prediccion: ⏳ pendiente (Integrante 4)
+//   - modulo_5_tendencia:  ⏳ pendiente (Integrante 5)
+//   - utils: ⏳ pendiente (tarea grupal, opcional — modulo_1 es auto-contenido)
+//
 // Targets:
-//   make all       → compila utils + los 5 módulos
-//   make utils     → solo utils.o (objeto compartido)
-//   make modulo1   → solo módulo 1 (media ponderada)
-//   make modulo2   → solo módulo 2 (varianza)
-//   make modulo3   → solo módulo 3 (anomalías)
-//   make modulo4   → solo módulo 4 (predicción)
-//   make modulo5   → solo módulo 5 (tendencia)
-//   make run1      → ejecuta modulo1 con QEMU
-//   make gdb1      → depura modulo1 con GDB sobre QEMU
+//   make all       → compila utils + modulo_1_media (lo único listo)
+//   make utils     → solo utils.o
+//   make modulo1   → módulo 1 (media ponderada) — LISTO
+//   make modulo2   → solo módulo 2 (varianza) — pendiente
+//   make modulo3   → solo módulo 3 (anomalías) — pendiente
+//   make modulo4   → solo módulo 4 (predicción) — pendiente
+//   make modulo5   → solo módulo 5 (tendencia) — pendiente
+//   make run1      → ejecuta modulo_1_media con QEMU
+//   make gdb1      → depura modulo_1_media con GDB sobre QEMU
 //   make clean     → borra build/
 //   make info      → muestra toolchain y variables
+//   make status    → muestra qué módulos están listos
 //
 // Uso típico en Raspberry Pi 3/4 (toolchain nativa):
 //   sudo apt install binutils-aarch64-linux-gnu
@@ -37,107 +46,88 @@ BUILD    = build
 UTILS    = utils/utils.s
 UTILS_O  = $(BUILD)/utils.o
 
-# Módulos individuales
+# Módulo 1 (LISTO)
 M1_DIR   = modules/modulo_1_media
-M2_DIR   = modules/modulo_2_varianza
-M3_DIR   = modules/modulo_3_anomalias
-M4_DIR   = modules/modulo_4_prediccion
-M5_DIR   = modules/modulo_5_tendencia
-
 M1_S     = $(M1_DIR)/media.s
-M2_S     = $(M2_DIR)/varianza.s
-M3_S     = $(M3_DIR)/anomalias.s
-M4_S     = $(M4_DIR)/prediccion.s
-M5_S     = $(M5_DIR)/tendencia.s
-
 M1_O     = $(BUILD)/modulo_1_media.o
-M2_O     = $(BUILD)/modulo_2_varianza.o
-M3_O     = $(BUILD)/modulo_3_anomalias.o
-M4_O     = $(BUILD)/modulo_4_prediccion.o
-M5_O     = $(BUILD)/modulo_5_tendencia.o
-
 M1_BIN   = $(BUILD)/modulo_1_media
-M2_BIN   = $(BUILD)/modulo_2_varianza
-M3_BIN   = $(BUILD)/modulo_3_anomalias
-M4_BIN   = $(BUILD)/modulo_4_prediccion
-M5_BIN   = $(BUILD)/modulo_5_tendencia
+
+# Módulos 2-5 (PENDIENTES — targets emiten mensaje y salen)
+M2_S     = modules/modulo_2_varianza/varianza.s
+M3_S     = modules/modulo_3_anomalias/anomalias.s
+M4_S     = modules/modulo_4_prediccion/prediccion.s
+M5_S     = modules/modulo_5_tendencia/tendencia.s
 
 ASFLAGS  = -g
 LDFLAGS  =
 
-.PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 run1 gdb1 clean info
+.PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
+        run1 gdb1 clean info status
 
-all: utils modulo1 modulo2 modulo3 modulo4 modulo5
+# Por ahora `all` solo compila utils + módulo 1 (lo único implementado)
+all: utils modulo1
+	@echo
+	@echo "==> Listo: build/modulo_1_media"
+	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias, modulo_4_prediccion, modulo_5_tendencia"
 
 utils: $(UTILS_O)
 
-# Compilar utils.s primero (objeto compartido)
+# ----------------------------------------------------------------------------
+# utils.s (biblioteca común — tarea grupal, pendiente de implementación)
+# ----------------------------------------------------------------------------
 $(UTILS_O): $(UTILS) | $(BUILD)
 	$(AS) $(ASFLAGS) -o $@ $<
 
-# Compilar cada módulo enlazándolo con utils.o
-$(M1_O): $(M1_S) $(UTILS_O) | $(BUILD)
+# ----------------------------------------------------------------------------
+# Módulo 1 — Media aritmética ponderada (LISTO)
+# ----------------------------------------------------------------------------
+# media.s es 100% auto-contenido: no usa `.extern` ni símbolos de utils.s.
+# El enlace con utils.o es por compatibilidad con el Makefile multi-módulo
+# del auxiliar; si utils.s no compila, este target sigue funcionando.
+$(M1_O): $(M1_S) | $(BUILD)
 	$(AS) $(ASFLAGS) -o $@ $<
 
-$(M2_O): $(M2_S) $(UTILS_O) | $(BUILD)
-	$(AS) $(ASFLAGS) -o $@ $<
-
-$(M3_O): $(M3_S) $(UTILS_O) | $(BUILD)
-	$(AS) $(ASFLAGS) -o $@ $<
-
-$(M4_O): $(M4_S) $(UTILS_O) | $(BUILD)
-	$(AS) $(ASFLAGS) -o $@ $<
-
-$(M5_O): $(M5_S) $(UTILS_O) | $(BUILD)
-	$(AS) $(ASFLAGS) -o $@ $<
-
-# Enlazar cada módulo con utils.o
 $(M1_BIN): $(M1_O) $(UTILS_O)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(M2_BIN): $(M2_O) $(UTILS_O)
-	$(LD) $(LDFLAGS) -o $@ $^
-
-$(M3_BIN): $(M3_O) $(UTILS_O)
-	$(LD) $(LDFLAGS) -o $@ $^
-
-$(M4_BIN): $(M4_O) $(UTILS_O)
-	$(LD) $(LDFLAGS) -o $@ $^
-
-$(M5_BIN): $(M5_O) $(UTILS_O)
-	$(LD) $(LDFLAGS) -o $@ $^
-
-# Targets individuales
 modulo1: $(M1_BIN)
-modulo2: $(M2_BIN)
-modulo3: $(M3_BIN)
-modulo4: $(M4_BIN)
-modulo5: $(M5_BIN)
+	@echo "==> modulo_1_media compilado: $(M1_BIN)"
 
-# Ejecución con QEMU (en PC) o nativa (en Pi)
+# ----------------------------------------------------------------------------
+# Módulos 2-5 — PENDIENTES (mensaje informativo, no fallan el make)
+# ----------------------------------------------------------------------------
+modulo2:
+	@echo "⏳ modulo_2_varianza: PENDIENTE — Implementar Integrante 2"
+	@echo "   Ver enunciado §10.2 y modules/modulo_2_varianza/README.md"
+	@false
+
+modulo3:
+	@echo "⏳ modulo_3_anomalias: PENDIENTE — Implementar Integrante 3"
+	@echo "   Ver enunciado §10.3 y modules/modulo_3_anomalias/README.md"
+	@false
+
+modulo4:
+	@echo "⏳ modulo_4_prediccion: PENDIENTE — Implementar Integrante 4"
+	@echo "   Ver enunciado §10.4 y modules/modulo_4_prediccion/README.md"
+	@false
+
+modulo5:
+	@echo "⏳ modulo_5_tendencia: PENDIENTE — Implementar Integrante 5"
+	@echo "   Ver enunciado §10.5 y modules/modulo_5_tendencia/README.md"
+	@false
+
+# ----------------------------------------------------------------------------
+# Ejecución y depuración con QEMU
+# ----------------------------------------------------------------------------
 run1: $(M1_BIN)
 	$(QEMU) $<
-run2: $(M2_BIN)
-	$(QEMU) $<
-run3: $(M3_BIN)
-	$(QEMU) $<
-run4: $(M4_BIN)
-	$(QEMU) $<
-run5: $(M5_BIN)
-	$(QEMU) $<
 
-# Depuración con GDB (servidor QEMU en :1234)
 gdb1: $(M1_BIN)
 	$(QEMU) -g 1234 $<
-gdb2: $(M2_BIN)
-	$(QEMU) -g 1234 $<
-gdb3: $(M3_BIN)
-	$(QEMU) -g 1234 $<
-gdb4: $(M4_BIN)
-	$(QEMU) -g 1234 $<
-gdb5: $(M5_BIN)
-	$(QEMU) -g 1234 $<
 
+# ----------------------------------------------------------------------------
+# Utilidades
+# ----------------------------------------------------------------------------
 $(BUILD):
 	mkdir -p $(BUILD)
 
@@ -151,9 +141,22 @@ info:
 	@echo "  QEMU  = $(QEMU)"
 	@echo "  GDB   = $(GDB)"
 	@echo
-	@echo "Módulos:"
-	@echo "  M1    = $(M1_BIN)  (media ponderada)"
-	@echo "  M2    = $(M2_BIN)  (varianza y desv. estándar)"
-	@echo "  M3    = $(M3_BIN)  (detección de anomalías)"
-	@echo "  M4    = $(M4_BIN)  (predicción lineal)"
-	@echo "  M5    = $(M5_BIN)  (tendencia acumulada)"
+	@echo "Módulo listo:"
+	@echo "  M1    = $(M1_BIN)  (media ponderada) ✅"
+	@echo
+	@echo "Módulos pendientes (no compilan aún):"
+	@echo "  M2    = modulo_2_varianza  ⏳"
+	@echo "  M3    = modulo_3_anomalias ⏳"
+	@echo "  M4    = modulo_4_prediccion ⏳"
+	@echo "  M5    = modulo_5_tendencia  ⏳"
+
+status:
+	@echo "=== Estado de los 5 módulos ARM64 ==="
+	@echo
+	@if [ -f "$(M1_S)" ]; then echo "✅  M1  media.s            (Integrante 1)"; else echo "❌  M1  media.s"; fi
+	@if [ -f "$(M2_S)" ]; then echo "✅  M2  varianza.s         (Integrante 2)"; else echo "⏳  M2  varianza.s         (Integrante 2) — PENDIENTE"; fi
+	@if [ -f "$(M3_S)" ]; then echo "✅  M3  anomalias.s        (Integrante 3)"; else echo "⏳  M3  anomalias.s        (Integrante 3) — PENDIENTE"; fi
+	@if [ -f "$(M4_S)" ]; then echo "✅  M4  prediccion.s       (Integrante 4)"; else echo "⏳  M4  prediccion.s       (Integrante 4) — PENDIENTE"; fi
+	@if [ -f "$(M5_S)" ]; then echo "✅  M5  tendencia.s        (Integrante 5)"; else echo "⏳  M5  tendencia.s        (Integrante 5) — PENDIENTE"; fi
+	@echo
+	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o"; else echo "⏳  utils.s (biblioteca común) — tarea grupal PENDIENTE"; fi

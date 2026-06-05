@@ -60,7 +60,7 @@ ARQUI1V1S_G-17/
     │   ├── BACKEND.md           ← documentación técnica del backend
     │   ├── app/
     │   ├── simulador.py         ← simula la Raspberry Pi
-    │   ├── test_regresion.py    ← 43 tests automatizados
+    │   ├── test_regresion.py    ← 45 tests automatizados
     │   └── test_mqttx_simulator.py
     ├── frontend/
     │   ├── FRONTEND.md
@@ -164,7 +164,7 @@ python simulador.py --interval 2                 # más rápido para pruebas vis
 
 ---
 
-### TEST 3 — Suite automatizada de regresión (43 tests)
+### TEST 3 — Suite automatizada de regresión (45 tests)
 **Objetivo:** validar que TODOS los endpoints, reglas y filtros funcionan.
 
 **Terminal 3:**
@@ -173,7 +173,7 @@ cd Proyecto1/backend
 python test_regresion.py
 ```
 
-**Esperado al final:** `RESUMEN: 43 OK, 0 FAIL` y `REGRESION EXITOSA — sistema validado al 100%`.
+**Esperado al final:** `RESUMEN: 45 OK, 0 FAIL` y `REGRESION EXITOSA — sistema validado al 100%`.
 
 Las 7 secciones cubiertas:
 1. REST API (18 endpoints)
@@ -437,7 +437,7 @@ tail -c 1 Proyecto1/arm64/lecturas.csv
 - [ ] Repo clonado
 - [ ] `start.bat` levantó backend y frontend sin errores
 - [ ] `/api/health` → `mongodb: true`, `mqtt_connected: true`, 4 suscripciones
-- [ ] `test_regresion.py` → 43/43 OK
+- [ ] `test_regresion.py` → 45/45 OK
 - [ ] `test_mqttx_simulator.py` → 12/12 publicados
 - [ ] Dashboard en `http://localhost:5173` actualiza cada 15s
 - [ ] MQTTX Web conecta a `wss://broker.emqx.io:8084` con SSL ON
@@ -501,7 +501,7 @@ TAREAS QUE DEBES HACER EN ORDEN:
 
 3. EJECUTAR los tests en orden:
    cd D:\Projects\USAC\ARQUI1V1S_G-17\Proyecto1\backend
-   python test_regresion.py        # debe dar 43 OK, 0 FAIL
+   python test_regresion.py        # debe dar 45 OK, 0 FAIL
    python test_mqttx_simulator.py  # debe dar 12/12 publicados
    python simulador.py --once      # debe publicar 6 lecturas
 

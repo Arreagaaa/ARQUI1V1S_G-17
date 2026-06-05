@@ -316,7 +316,7 @@ python test_mqttx_simulator.py  # 12 mensajes
 ## Tests
 
 ```bash
-python test_regresion.py        # 43/43 OK: REST + Mongo + MQTT + reglas + filtro
+python test_regresion.py        # 45/45 OK: REST + Mongo + MQTT + reglas + filtro
 python test_mqttx_simulator.py  # 12/12 OK: simula MQTTX (sensores, controles, emergencia)
 python simulador.py --once      # publica 6 lecturas al broker
 ```

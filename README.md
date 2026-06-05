@@ -39,7 +39,7 @@ ARQUI1V1S_G-17/
     │   ├── BACKEND.md         # Endpoints REST, MQTT contract, servicios
     │   ├── app/               # FastAPI: routers, services, mqtt/, db, seed
     │   ├── simulador.py       # Publica lecturas al broker (simula la Pi)
-    │   ├── test_regresion.py  # Suite 43 pruebas (API + Mongo + MQTT)
+    │   ├── test_regresion.py  # Suite 45 pruebas (API + Mongo + MQTT)
     │   └── test_mqttx_simulator.py  # Simula publicaciones MQTTX (12 mensajes)
     ├── frontend/
     │   ├── FRONTEND.md        # Dashboard, componentes, polling
@@ -82,7 +82,7 @@ npm run dev
 ```bash
 # Backend ya corriendo en :8080 con ENABLE_MQTT=true
 cd Proyecto1/backend
-python test_regresion.py        # esperado: 43 OK, 0 FAIL
+python test_regresion.py        # esperado: 45 OK, 0 FAIL
 python test_mqttx_simulator.py  # esperado: 12/12 publicados
 python simulador.py --once      # publica 6 sensores al broker
 ```

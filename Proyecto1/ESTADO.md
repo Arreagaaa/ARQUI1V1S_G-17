@@ -12,7 +12,7 @@
 | Backend FastAPI + reglas automáticas | ✅ COMPLETO | Modo auto/manual, umbrales, 18 endpoints |
 | MongoDB local (6 colecciones + índices + seed) | ✅ COMPLETO | Migración a Atlas = solo cambiar URI |
 | MQTT con broker público + MQTTX Web | ✅ COMPLETO | `broker.emqx.io:1883` y `:8084` WSS |
-| Suite de validación | ✅ COMPLETO | `test_regresion.py` 43/43, `test_mqttx_simulator.py` 12/12 |
+| Suite de validación | ✅ COMPLETO | `test_regresion.py` 45/45, `test_mqttx_simulator.py` 12/12 |
 | Estructura ARM64 + `lecturas.csv` (formato enunciado) | ✅ plantilla | Falta `utils.s` + 5 módulos `.s` por integrante |
 | Raspberry Pi + GPIO real + maqueta | ⬜ PENDIENTE | Bloqueado por hardware |
 | MongoDB Atlas | ⬜ SIGUIENTE HITO | Cambiar `MONGODB_URI` y validar |
@@ -131,7 +131,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
 
 # 2. En otra terminal
 cd Proyecto1/backend
-python test_regresion.py        # esperado: 43 OK, 0 FAIL
+python test_regresion.py        # esperado: 45 OK, 0 FAIL
 python test_mqttx_simulator.py  # esperado: 12/12 publicados
 python simulador.py --once      # 6 lecturas al broker
 ```

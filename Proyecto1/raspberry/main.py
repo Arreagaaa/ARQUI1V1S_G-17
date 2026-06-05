@@ -16,10 +16,10 @@ Hardware simplificado (acorde al enunciado):
   - 1 buzzer que se activa en EMERGENCIA.
   - 1 pantalla LCD 16x2 con información rotativa.
 
-Topics MQTT (prefijo: invernadero/  según enunciado ACYE1):
-  - invernadero/sensores/<tipo>     (publicar lecturas)
-  - invernadero/control/#           (recibir comandos)
-  - invernadero/actuadores/<nombre> (reportar cambios)
+Topics MQTT (prefijo: grupo17/invernadero/  según enunciado ACYE1):
+  - grupo17/invernadero/sensores/<tipo>     (publicar lecturas)
+  - grupo17/invernadero/control/#           (recibir comandos)
+  - grupo17/invernadero/actuadores/<nombre> (reportar cambios)
 
 Si ENABLE_GPIO=false, simula los actuadores (dry-run) en PC de desarrollo.
 """
@@ -108,7 +108,7 @@ def load_settings() -> Settings:
         mqtt_port=int(os.getenv("MQTT_PORT", "1883")),
         mqtt_username=os.getenv("MQTT_USERNAME", ""),
         mqtt_password=os.getenv("MQTT_PASSWORD", ""),
-        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "invernadero"),
+        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "grupo17/invernadero"),
         device_id=os.getenv("DEVICE_ID", "raspi-01"),
         enable_gpio=os.getenv("ENABLE_GPIO", "false").lower() == "true",
         poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "15")),

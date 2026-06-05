@@ -72,7 +72,7 @@ def legacy_latest_commands(limit: int = Query(default=12, ge=1, le=100)):
 def create_command(payload: CommandCreate):
     """
     Crea un nuevo comando y lo publica a MQTT (topic control/remoto
-    según contrato oficial invernadero/control/remoto).
+    según contrato oficial grupo17/invernadero/control/remoto).
 
     Importante: este endpoint registra comandos genéricos (no solo de
     actuadores específicos). Para controlar riego/luces/ventilador/

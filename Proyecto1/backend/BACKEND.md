@@ -23,7 +23,7 @@ CORS_ORIGINS=http://localhost:5173
 ENABLE_MQTT=true
 MQTT_HOST=broker.emqx.io
 MQTT_PORT=1883
-MQTT_BASE_TOPIC=invernadero
+MQTT_BASE_TOPIC=grupo17/invernadero
 ```
 
 ---
@@ -95,9 +95,9 @@ Swagger interactivo: `http://127.0.0.1:8080/docs`
 
 ## Contrato MQTT
 
-**Base:** `invernadero/`
+**Base:** `grupo17/invernadero/`
 **Broker:** `broker.emqx.io` (puerto `1883` para Python/CLI sin SSL, `8084` WSS+SSL para MQTTX Web).
-**Suscripciones backend:** `invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
+**Suscripciones backend:** `grupo17/invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
 
 ### 1. Sensores (la Raspberry Pi publica cada ~5s)
 
@@ -229,7 +229,7 @@ Las acciones se persisten en `actuator_logs` y se publican en `actuadores/*` por
 - Una sola instancia por proceso.
 - `publish()` es **fire-and-forget** (no espera `wait_for_publish()` desde handlers → evita deadlocks).
 - Loguea cada `MQTT IN topic=... source=...` para diagnóstico.
-- Suscripciones: `invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
+- Suscripciones: `grupo17/invernadero/sensores/#`, `actuadores/#`, `control/#`, `estado/global`.
 - Si el broker cae, `POST /api/mqtt/reconnect` fuerza la reconexión manual.
 
 `POST /api/mqtt/reconnect` fuerza reconexión manual si se pierde la conexión.
@@ -271,11 +271,11 @@ El broker público guarda sesiones de clientes "muertos" con el mismo Client ID.
 
 ### Suscripción wildcard
 
-Topic: `invernadero/#` (QoS 0). Verás TODO el tráfico del grupo.
+Topic: `grupo17/invernadero/#` (QoS 0). Verás TODO el tráfico del grupo.
 
 ### Publicar un comando
 
-Topic: `invernadero/control/remoto`. Payload ejemplo:
+Topic: `grupo17/invernadero/control/remoto`. Payload ejemplo:
 ```json
 {
   "command": "set_pump",
@@ -292,12 +292,12 @@ El backend recibe, persiste en `commands`, actualiza estado. Dashboard lo reflej
 
 Para ver en tiempo real si el backend recibe tus mensajes, mirá la consola donde corre `uvicorn`:
 ```
-[INFO] app.mqtt.connection_manager: MQTT IN topic=invernadero/control/remoto qos=1 payload={...}
+[INFO] app.mqtt.connection_manager: MQTT IN topic=grupo17/invernadero/control/remoto qos=1 payload={...}
 ```
 
 Si **no aparece**, el backend no recibió. Causas comunes:
 1. **Sesión pegada** → Client ID `_v2`
-2. **Topic incorrecto** → debe empezar con `invernadero/...`
+2. **Topic incorrecto** → debe empezar con `grupo17/invernadero/...`
 3. **JSON malformado** → comillas, comas
 4. **QoS** → usar QoS 1
 

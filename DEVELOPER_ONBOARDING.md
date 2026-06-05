@@ -149,7 +149,7 @@ python simulador.py --once      # publica 6 lecturas y sale
 - Conectá a `mongodb://localhost:27017` → DB `invernadero_iot` → colección `sensor_readings`.
 - Debe haber 6 documentos nuevos con `source: raspi-sim-01` y `sensor_type` en {temperature, humidity, soil_1, soil_2, light, gas}.
 
-❌ Si no aparecen → abrí la ventana del backend, debe haber líneas `MQTT IN topic=invernadero/sensores/...`. Si NO aparecen, hay un problema de red o broker caído.
+❌ Si no aparecen → abrí la ventana del backend, debe haber líneas `MQTT IN topic=grupo17/invernadero/sensores/...`. Si NO aparecen, hay un problema de red o broker caído.
 
 **Variantes del simulador** (probalas todas, son escenarios del enunciado):
 ```bash
@@ -259,7 +259,7 @@ Click **Connect**. **Punto verde arriba** = conectado.
 #### Paso 3: suscribirse para ver el tráfico
 
 Click **+ New Subscription**:
-- Topic: `invernadero/#`
+- Topic: `grupo17/invernadero/#`
 - QoS: `0`
 - Confirm
 
@@ -271,7 +271,7 @@ Este es el test más visible: el dashboard pasa de `NORMAL/ADVERTENCIA` (verde/a
 
 En el panel **Publish** (a la derecha):
 
-- **Topic:** `invernadero/sensores/gas`
+- **Topic:** `grupo17/invernadero/sensores/gas`
 - **QoS:** `1`
 - **Payload** (copiá y pegá literal):
   ```json
@@ -292,10 +292,10 @@ Click **Publish**.
 
 | Dónde | Qué tiene que pasar | Cuándo |
 |---|---|---|
-| MQTTX suscripción `invernadero/#` | Aparece un mensaje en `sensores/gas` | inmediato |
+| MQTTX suscripción `grupo17/invernadero/#` | Aparece un mensaje en `sensores/gas` | inmediato |
 | MQTTX suscripción | Aparece un mensaje en `actuadores/alarma` (el backend publica la acción) | inmediato |
 | MQTTX suscripción | Aparece un mensaje en `actuadores/ventilador` (el backend publica la acción) | inmediato |
-| Ventana del backend | Log `MQTT IN topic=invernadero/sensores/gas ...` | inmediato |
+| Ventana del backend | Log `MQTT IN topic=grupo17/invernadero/sensores/gas ...` | inmediato |
 | Ventana del backend | Log `MQTT command persistido` o similar para actuadores | inmediato |
 | MongoDB Compass → `events` | Nuevo doc con `event_type: emergency`, `severity: critical` | inmediato |
 | MongoDB Compass → `actuator_logs` | `buzzer -> on` y `fan -> on` con `source: backend_rules` | inmediato |
@@ -320,7 +320,7 @@ Click **Publish**. En ≤15s el dashboard vuelve a `NORMAL`/`ADVERTENCIA` (depen
 
 #### Paso 6: probar un comando (cambia un actuador desde MQTTX)
 
-- **Topic:** `invernadero/control/remoto`
+- **Topic:** `grupo17/invernadero/control/remoto`
 - **QoS:** `1`
 - **Payload:**
   ```json
@@ -343,7 +343,7 @@ Click **Publish**. **Verificá:** en ≤15s, `Iluminación: Activo` en el dashbo
 
 #### Paso 7: probar el filtro anti-loop (CRÍTICO entender)
 
-- **Topic:** `invernadero/control/remoto`
+- **Topic:** `grupo17/invernadero/control/remoto`
 - **Payload:** igual al paso 6, pero con **`"source": "web"`** (o `"api"`, `"backend"`, `"system"`, `"dashboard"`)
 
 Click **Publish**.
@@ -354,7 +354,7 @@ Vas a ver el mensaje en la suscripción (llegó al broker y se distribuyó), **p
 
 #### Paso 8: si tenés el simulador, reinicialo
 
-`python simulador.py` en otra terminal. Vas a ver aparecer mensajes en tu suscripción `invernadero/#` cada 5s (lecturas de los 6 sensores).
+`python simulador.py` en otra terminal. Vas a ver aparecer mensajes en tu suscripción `grupo17/invernadero/#` cada 5s (lecturas de los 6 sensores).
 
 ❌ **Problema común — sesión pegada:** si publicás y MQTTX dice "OK" pero el backend no recibe, el broker público está guardando tu sesión vieja. Solución: cerrar la conexión → F5 → nueva conexión con Client ID `_v2` (ej. `mqttx_dev_jp_v2`).
 
@@ -364,7 +364,7 @@ Vas a ver el mensaje en la suscripción (llegó al broker y se distribuyó), **p
 **Objetivo:** ver que las reglas se disparan en modo `auto`.
 
 1. En el dashboard, cambiá modo a **auto** (botón Modo).
-2. En MQTTX Web, publicá en `invernadero/sensores/gas`:
+2. En MQTTX Web, publicá en `grupo17/invernadero/sensores/gas`:
    ```json
    {"sensor_type": "gas", "value": 200.0, "unit": "ppm", "area": "control", "status": "critical", "source": "mqttx_dev", "timestamp": "2026-06-04T18:30:00Z"}
    ```
@@ -376,7 +376,7 @@ Vas a ver el mensaje en la suscripción (llegó al broker y se distribuyó), **p
 4. Esperá ~10s y publicá un valor normal (`value: 50.0`). El estado debe volver a `NORMAL`.
 
 **Probar regla de suelo seco:**
-5. Publicá en `invernadero/sensores/humedad_suelo_area1`:
+5. Publicá en `grupo17/invernadero/sensores/humedad_suelo_area1`:
    ```json
    {"sensor_type": "soil_1", "value": 20.0, "unit": "%", "area": "area_1", "status": "warning", "source": "mqttx_dev", "timestamp": "2026-06-04T18:30:00Z"}
    ```
@@ -392,7 +392,7 @@ Ejecutá en Terminal 3:
 python -c "from app.mqtt.topic_registry import MQTTTopicRegistry; r = MQTTTopicRegistry(); print('\n'.join(sorted(r.all_topics())))"
 ```
 
-**Esperado:** al menos 15 topics, todos bajo `invernadero/`:
+**Esperado:** al menos 15 topics, todos bajo `grupo17/invernadero/`:
 - 6 de sensores (temperatura, humedad_aire, humedad_suelo_area1, humedad_suelo_area2, luz, gas)
 - 4+ de actuadores (bomba, ventilador, luces, alarma)
 - 1+ de control remoto (`control/remoto`)
@@ -441,7 +441,7 @@ tail -c 1 Proyecto1/arm64/lecturas.csv
 - [ ] `test_mqttx_simulator.py` → 12/12 publicados
 - [ ] Dashboard en `http://localhost:5173` actualiza cada 15s
 - [ ] MQTTX Web conecta a `wss://broker.emqx.io:8084` con SSL ON
-- [ ] Suscripción `invernadero/#` configurada
+- [ ] Suscripción `grupo17/invernadero/#` configurada
 - [ ] Publicar `gas=400` desde MQTTX (con simulador **parado**) → dashboard va a `EMERGENCIA` ROJO (en ≤15s)
 - [ ] Publicar `gas=50` desde MQTTX → dashboard vuelve a `NORMAL/ADVERTENCIA`
 - [ ] Publicar `set_lights ON` desde MQTTX → `Iluminación: Activo` en dashboard
@@ -481,7 +481,7 @@ D:\Projects\USAC\ARQUI1V1S_G-17 está funcionando al 100%.
 CONTEXTO DEL PROYECTO:
 - Raspberry Pi 3B+ → MQTT (broker.emqx.io:1883) → Backend FastAPI (:8080) → MongoDB
 - Frontend React/Vite dashboard en :5173
-- Tópicos MQTT: invernadero/...
+- Tópicos MQTT: grupo17/invernadero/...
 - 6 colecciones Mongo: sensor_readings, events, commands, system_status, actuator_logs, arm64_results
 - Filtro anti-loop: source in {web, api, backend, system, dashboard} → NO persistir
 - Hardware (Pi, maqueta) NO existe todavía; se simula con simulador.py
@@ -512,9 +512,9 @@ TAREAS QUE DEBES HACER EN ORDEN:
    - commands debe crecer después de test_mqttx_simulator
 
 5. SIMULAR lo que haria un developer con MQTTX Web (sin abrir navegador):
-   - Publicar en invernadero/control/remoto con source=mqttx_ai_agent
+   - Publicar en grupo17/invernadero/control/remoto con source=mqttx_ai_agent
    - Verificar que aparece en MongoDB commands
-   - Publicar en invernadero/sensores/gas con value=200
+   - Publicar en grupo17/invernadero/sensores/gas con value=200
    - Verificar que events tiene un emergency nuevo
    - Publicar con source=web → verificar que NO aparece (filtro anti-loop)
 

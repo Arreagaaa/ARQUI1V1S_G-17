@@ -67,7 +67,7 @@ def get_settings() -> Settings:
         mqtt_port_ssl=int(os.getenv("MQTT_PORT_SSL", "8883")),
         mqtt_username=os.getenv("MQTT_USERNAME", ""),
         mqtt_password=os.getenv("MQTT_PASSWORD", ""),
-        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "invernadero"),
+        mqtt_base_topic=os.getenv("MQTT_BASE_TOPIC", "grupo17/invernadero"),
         enable_mqtt=os.getenv("ENABLE_MQTT", "false").lower() == "true",
 
         # Logging

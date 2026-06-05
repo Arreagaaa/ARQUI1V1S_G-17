@@ -27,8 +27,8 @@ class MQTTConnectionManager:
     Uso:
         manager = MQTTConnectionManager()
         manager.connect()
-        manager.publish("invernadero/sensores/temperatura", payload)
-        manager.subscribe("invernadero/control/#", callback)
+        manager.publish("grupo17/invernadero/sensores/temperatura", payload)
+        manager.subscribe("grupo17/invernadero/control/#", callback)
         manager.disconnect()
     """
 

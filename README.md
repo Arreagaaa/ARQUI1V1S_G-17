@@ -11,7 +11,7 @@ Monitoreo y control de un invernadero con dos áreas de cultivo y un centro de c
 ```
 ┌──────────────┐    MQTT (broker.emqx.io)   ┌──────────────┐   HTTP/REST   ┌──────────────┐
 │ Raspberry Pi │ ◄────────────────────────► │   Backend    │ ◄───────────► │   Frontend   │
-│ (sensores,   │   invernadero/...          │   FastAPI    │               │ React + Vite │
+│ (sensores,   │   grupo17/invernadero/...          │   FastAPI    │               │ React + Vite │
 │  actuadores) │                            └──────┬───────┘               └──────────────┘
 └──────────────┘                                   │
                                                ┌────▼─────┐
@@ -91,11 +91,11 @@ Health-check: `curl http://127.0.0.1:8080/api/health` debe devolver `mongodb: tr
 
 ## MQTTX Web (cualquier persona puede participar)
 
-> Prefijo MQTT: `invernadero/` (prefijo exacto del enunciado ACYE1, sección 4.2). NO usar `grupo17/`.
+> Prefijo MQTT: `grupo17/invernadero/` (prefijo del equipo, según permiso del auxiliar; sub-prefijo del árbol `invernadero/` del enunciado ACYE1 §4.2 para evitar colisiones en broker público).
 
 1. Abrir MQTTX Web, conectar a `wss://broker.emqx.io:8084` (SSL/TLS ON), Client ID único.
-2. Suscribirse a `invernadero/#` para ver todo el tráfico del grupo.
-3. Publicar en `invernadero/control/remoto` con `source` propio (ej. `mqttx_jp` — nunca `web`, `api`, `backend`, `dashboard`).
+2. Suscribirse a `grupo17/invernadero/#` para ver todo el tráfico del grupo.
+3. Publicar en `grupo17/invernadero/control/remoto` con `source` propio (ej. `mqttx_jp` — nunca `web`, `api`, `backend`, `dashboard`).
 4. Ejemplos de payloads y 8 sub-pasos de prueba E2E en [DEVELOPER_ONBOARDING.md §TEST 6](DEVELOPER_ONBOARDING.md).
 
 ## Documentación

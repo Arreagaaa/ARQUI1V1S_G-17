@@ -19,7 +19,7 @@ class MQTTTopicRegistry:
     del proyecto de invernadero inteligente IoT.
 
     Todos los topics siguen la estructura:
-      invernadero/<categoría>/<subcategoría>
+      grupo17/invernadero/<categoría>/<subcategoría>
     """
 
     def __init__(self, base_topic: str | None = None):

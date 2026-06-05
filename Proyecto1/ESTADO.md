@@ -136,7 +136,7 @@ python test_mqttx_simulator.py  # esperado: 12/12 publicados
 python simulador.py --once      # 6 lecturas al broker
 ```
 
-Validar manualmente con MQTTX Web (guía completa en [DEVELOPER_ONBOARDING.md](../DEVELOPER_ONBOARDING.md) §TEST 6): suscribirse a `invernadero/#`, publicar en `invernadero/control/remoto` con `source: mqttx_<inicial>` y ver el cambio en el dashboard en ≤15s.
+Validar manualmente con MQTTX Web (guía completa en [DEVELOPER_ONBOARDING.md](../DEVELOPER_ONBOARDING.md) §TEST 6): suscribirse a `grupo17/invernadero/#`, publicar en `grupo17/invernadero/control/remoto` con `source: mqttx_<inicial>` y ver el cambio en el dashboard en ≤15s.
 
 ---
 

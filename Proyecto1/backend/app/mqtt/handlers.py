@@ -29,7 +29,7 @@ def handle_sensor_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de sensores.
 
-    Topic esperado: invernadero/sensores/<tipo>
+    Topic esperado: grupo17/invernadero/sensores/<tipo>
     Persiste en colección sensor_readings y procesa reglas de automatización.
     """
     try:
@@ -69,7 +69,7 @@ def handle_actuator_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de actuadores.
 
-    Topic esperado: invernadero/actuadores/<nombre>
+    Topic esperado: grupo17/invernadero/actuadores/<nombre>
     Persiste en colección actuator_logs.
     """
     try:
@@ -106,7 +106,7 @@ def handle_control_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de control remoto.
 
-    Topic esperado: invernadero/control/remoto  o  .../control/manual
+    Topic esperado: grupo17/invernadero/control/remoto  o  .../control/manual
     Persiste el comando en commands y ejecuta el control (que actualiza
     el estado global y publica de vuelta al broker).
     """
@@ -150,7 +150,7 @@ def handle_global_state_message(topic: str, payload: dict) -> None:
     """
     Handler para mensajes de estado global reportados por la Raspberry Pi.
 
-    Topic esperado: invernadero/estado/global
+    Topic esperado: grupo17/invernadero/estado/global
     Persiste en colección system_status (snapshot histórico).
     """
     try:

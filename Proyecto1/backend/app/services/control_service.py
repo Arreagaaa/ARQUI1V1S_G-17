@@ -27,7 +27,7 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     2. Registra un log en la colección `actuator_logs`
     3. Actualiza el estado global del sistema
     4. Publica UN SOLO mensaje vía MQTT al topic de actuador correspondiente
-       (el dashboard/raspberry suscrito a `invernadero/control/#` se entera
+       (el dashboard/raspberry suscrito a `grupo17/invernadero/control/#` se entera
         del cambio por la actualización de estado global, evitando duplicados)
 
     Args:

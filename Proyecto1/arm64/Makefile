@@ -52,23 +52,28 @@ M1_S     = $(M1_DIR)/media.s
 M1_O     = $(BUILD)/modulo_1_media.o
 M1_BIN   = $(BUILD)/modulo_1_media
 
+# Módulo 4 (LISTO)
+M4_DIR   = modules/modulo_4_prediccion
+M4_S     = $(M4_DIR)/predicciones.s
+M4_O     = $(BUILD)/modulo_4_prediccion.o
+M4_BIN   = $(BUILD)/modulo_4_prediccion
+
 # Módulos 2-5 (PENDIENTES — targets emiten mensaje y salen)
 M2_S     = modules/modulo_2_varianza/varianza.s
 M3_S     = modules/modulo_3_anomalias/anomalias.s
-M4_S     = modules/modulo_4_prediccion/prediccion.s
 M5_S     = modules/modulo_5_tendencia/tendencia.s
 
 ASFLAGS  = -g
 LDFLAGS  =
 
 .PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
-        run1 gdb1 clean info status
+        run1 run4 gdb1 gdb4 clean info status
 
 # Por ahora `all` solo compila utils + módulo 1 (lo único implementado)
-all: utils modulo1
+all: utils modulo1 modulo4
 	@echo
-	@echo "==> Listo: build/modulo_1_media"
-	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias, modulo_4_prediccion, modulo_5_tendencia"
+	@echo "==> Listo: build/modulo_1_media, build/modulo_4_prediccion"
+	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias, modulo_5_tendencia"
 
 utils: $(UTILS_O)
 
@@ -94,6 +99,18 @@ modulo1: $(M1_BIN)
 	@echo "==> modulo_1_media compilado: $(M1_BIN)"
 
 # ----------------------------------------------------------------------------
+# Módulo 4 — Predicción lineal simple (LISTO)
+# ----------------------------------------------------------------------------
+$(M4_O): $(M4_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(M4_BIN): $(M4_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+modulo4: $(M4_BIN)
+	@echo "==> modulo_4_prediccion compilado: $(M4_BIN)"
+
+# ----------------------------------------------------------------------------
 # Módulos 2-5 — PENDIENTES (mensaje informativo, no fallan el make)
 # ----------------------------------------------------------------------------
 modulo2:
@@ -104,11 +121,6 @@ modulo2:
 modulo3:
 	@echo "⏳ modulo_3_anomalias: PENDIENTE — Implementar Integrante 3"
 	@echo "   Ver enunciado §10.3 y modules/modulo_3_anomalias/README.md"
-	@false
-
-modulo4:
-	@echo "⏳ modulo_4_prediccion: PENDIENTE — Implementar Integrante 4"
-	@echo "   Ver enunciado §10.4 y modules/modulo_4_prediccion/README.md"
 	@false
 
 modulo5:
@@ -122,7 +134,17 @@ modulo5:
 run1: $(M1_BIN)
 	$(QEMU) $<
 
+run4: $(M4_BIN)
+	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_prediccion.txt
+
+
 gdb1: $(M1_BIN)
+	$(QEMU) -g 1234 $<
+
+gdb4: $(M4_BIN)
+	@echo "Iniciando QEMU en puerto 1234..."
 	$(QEMU) -g 1234 $<
 
 # ----------------------------------------------------------------------------
@@ -143,6 +165,7 @@ info:
 	@echo
 	@echo "Módulo listo:"
 	@echo "  M1    = $(M1_BIN)  (media ponderada) ✅"
+	@echo "  M4    = $(M4_BIN)  (predicción) ✅"
 	@echo
 	@echo "Módulos pendientes (no compilan aún):"
 	@echo "  M2    = modulo_2_varianza  ⏳"
@@ -156,7 +179,7 @@ status:
 	@if [ -f "$(M1_S)" ]; then echo "✅  M1  media.s            (Integrante 1)"; else echo "❌  M1  media.s"; fi
 	@if [ -f "$(M2_S)" ]; then echo "✅  M2  varianza.s         (Integrante 2)"; else echo "⏳  M2  varianza.s         (Integrante 2) — PENDIENTE"; fi
 	@if [ -f "$(M3_S)" ]; then echo "✅  M3  anomalias.s        (Integrante 3)"; else echo "⏳  M3  anomalias.s        (Integrante 3) — PENDIENTE"; fi
-	@if [ -f "$(M4_S)" ]; then echo "✅  M4  prediccion.s       (Integrante 4)"; else echo "⏳  M4  prediccion.s       (Integrante 4) — PENDIENTE"; fi
+	@if [ -f "$(M4_S)" ]; then echo "✅  M4  predicciones.s     (Integrante 4)"; else echo "❌  M4  predicciones.s"; fi
 	@if [ -f "$(M5_S)" ]; then echo "✅  M5  tendencia.s        (Integrante 5)"; else echo "⏳  M5  tendencia.s        (Integrante 5) — PENDIENTE"; fi
 	@echo
 	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o"; else echo "⏳  utils.s (biblioteca común) — tarea grupal PENDIENTE"; fi

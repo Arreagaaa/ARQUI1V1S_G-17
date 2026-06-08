@@ -241,12 +241,13 @@ class GpioController:
             self.valve_area_1_on = True
             self.valve_area_2_on = False
         elif area == "area_2":
-            self._write(self.settings.gpio_valve_area_2, True)
+            # Área 2 se riega manualmente (solo 1 válvula física instalada)
+            print("[gpio] Área 2: riego manual requerido — mover manguera manualmente")
             self._write(self.settings.gpio_valve_area_1, False)
-            self._write(self.settings.gpio_pump, True)
-            self.pump_on = True
+            self.pump_on = False
             self.valve_area_1_on = False
-            self.valve_area_2_on = True
+            self.valve_area_2_on = False
+            return {"actuator": "pump", "state": "manual", "area": area, "applied": False, "reason": "valvula_2_no_instalada", "mode": "dry_run"}
         else:
             # Sin área específica: apagar todo
             return self.set_pump_irrigation(None, False)

@@ -10,7 +10,7 @@
 #   - modulo_2_varianza: ⏳ pendiente (Integrante 2)
 #   - modulo_3_anomalias: ⏳ pendiente (Integrante 3)
 #   - modulo_4_prediccion: ⏳ pendiente (Integrante 4)
-#   - modulo_5_tendencia:  ⏳ pendiente (Integrante 5)
+#   - modulo_5_tendencia:  ✅ IMPLEMENTADO (Integrante 5 — listo para QEMU)
 #   - utils: ⏳ pendiente (tarea grupal, opcional — modulo_1 es auto-contenido)
 #
 # Targets:
@@ -20,7 +20,7 @@
 #   make modulo2   → solo módulo 2 (varianza) — pendiente
 #   make modulo3   → solo módulo 3 (anomalías) — pendiente
 #   make modulo4   → solo módulo 4 (predicción) — pendiente
-#   make modulo5   → solo módulo 5 (tendencia) — pendiente
+#   make modulo5   → solo módulo 5 (tendencia) — LISTO
 #   make run1      → ejecuta modulo_1_media con QEMU
 #   make gdb1      → depura modulo_1_media con GDB sobre QEMU
 #   make clean     → borra build/
@@ -58,22 +58,27 @@ M4_S     = $(M4_DIR)/predicciones.s
 M4_O     = $(BUILD)/modulo_4_prediccion.o
 M4_BIN   = $(BUILD)/modulo_4_prediccion
 
-# Módulos 2-5 (PENDIENTES — targets emiten mensaje y salen)
+# Módulo 5 (LISTO)
+M5_DIR   = modules/modulo_5_tendencia
+M5_S     = $(M5_DIR)/tendencia.s
+M5_O     = $(BUILD)/modulo_5_tendencia.o
+M5_BIN   = $(BUILD)/modulo_5_tendencia
+
+# Módulos 2-3 (PENDIENTES — targets emiten mensaje y salen)
 M2_S     = modules/modulo_2_varianza/varianza.s
 M3_S     = modules/modulo_3_anomalias/anomalias.s
-M5_S     = modules/modulo_5_tendencia/tendencia.s
 
 ASFLAGS  = -g
 LDFLAGS  =
 
 .PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
-        run1 run4 gdb1 gdb4 clean info status
+        run1 run4 run5 gdb1 gdb4 gdb5 clean info status
 
-# Por ahora `all` solo compila utils + módulo 1 (lo único implementado)
-all: utils modulo1 modulo4
+# Por ahora `all` compila utils + módulos implementados
+all: utils modulo1 modulo4 modulo5
 	@echo
-	@echo "==> Listo: build/modulo_1_media, build/modulo_4_prediccion"
-	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias, modulo_5_tendencia"
+	@echo "==> Listo: build/modulo_1_media, build/modulo_4_prediccion, build/modulo_5_tendencia"
+	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias"
 
 utils: $(UTILS_O)
 
@@ -111,7 +116,19 @@ modulo4: $(M4_BIN)
 	@echo "==> modulo_4_prediccion compilado: $(M4_BIN)"
 
 # ----------------------------------------------------------------------------
-# Módulos 2-5 — PENDIENTES (mensaje informativo, no fallan el make)
+# Módulo 5 — Tendencia acumulada avanzada (LISTO)
+# ----------------------------------------------------------------------------
+$(M5_O): $(M5_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(M5_BIN): $(M5_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+modulo5: $(M5_BIN)
+	@echo "==> modulo_5_tendencia compilado: $(M5_BIN)"
+
+# ----------------------------------------------------------------------------
+# Módulos 2-3 — PENDIENTES (mensaje informativo, no fallan el make)
 # ----------------------------------------------------------------------------
 modulo2:
 	@echo "⏳ modulo_2_varianza: PENDIENTE — Implementar Integrante 2"
@@ -121,11 +138,6 @@ modulo2:
 modulo3:
 	@echo "⏳ modulo_3_anomalias: PENDIENTE — Implementar Integrante 3"
 	@echo "   Ver enunciado §10.3 y modules/modulo_3_anomalias/README.md"
-	@false
-
-modulo5:
-	@echo "⏳ modulo_5_tendencia: PENDIENTE — Implementar Integrante 5"
-	@echo "   Ver enunciado §10.5 y modules/modulo_5_tendencia/README.md"
 	@false
 
 # ----------------------------------------------------------------------------
@@ -139,12 +151,17 @@ run4: $(M4_BIN)
 	@echo "--- Resultado ---"
 	@cat results/resultado_prediccion.txt
 
+run5: $(M5_BIN)
+	$(QEMU) $<
 
 gdb1: $(M1_BIN)
 	$(QEMU) -g 1234 $<
 
 gdb4: $(M4_BIN)
 	@echo "Iniciando QEMU en puerto 1234..."
+	$(QEMU) -g 1234 $<
+
+gdb5: $(M5_BIN)
 	$(QEMU) -g 1234 $<
 
 # ----------------------------------------------------------------------------
@@ -163,15 +180,14 @@ info:
 	@echo "  QEMU  = $(QEMU)"
 	@echo "  GDB   = $(GDB)"
 	@echo
-	@echo "Módulo listo:"
+	@echo "Módulos listos:"
 	@echo "  M1    = $(M1_BIN)  (media ponderada) ✅"
 	@echo "  M4    = $(M4_BIN)  (predicción) ✅"
+	@echo "  M5    = $(M5_BIN)  (tendencia) ✅"
 	@echo
 	@echo "Módulos pendientes (no compilan aún):"
 	@echo "  M2    = modulo_2_varianza  ⏳"
 	@echo "  M3    = modulo_3_anomalias ⏳"
-	@echo "  M4    = modulo_4_prediccion ⏳"
-	@echo "  M5    = modulo_5_tendencia  ⏳"
 
 status:
 	@echo "=== Estado de los 5 módulos ARM64 ==="

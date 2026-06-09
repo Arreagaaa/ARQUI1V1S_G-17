@@ -58,8 +58,13 @@ M4_S     = $(M4_DIR)/predicciones.s
 M4_O     = $(BUILD)/modulo_4_prediccion.o
 M4_BIN   = $(BUILD)/modulo_4_prediccion
 
-# Módulos 2-5 (PENDIENTES — targets emiten mensaje y salen)
-M2_S     = modules/modulo_2_varianza/varianza.s
+# Módulo 2 (LISTO)
+M2_DIR   = modules/modulo_2_varianza
+M2_S     = $(M2_DIR)/varianza.s
+M2_O     = $(BUILD)/modulo_2_varianza.o
+M2_BIN   = $(BUILD)/modulo_2_varianza
+
+# Módulos 3,5 (PENDIENTES)
 M3_S     = modules/modulo_3_anomalias/anomalias.s
 M5_S     = modules/modulo_5_tendencia/tendencia.s
 
@@ -67,13 +72,13 @@ ASFLAGS  = -g
 LDFLAGS  =
 
 .PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
-        run1 run4 gdb1 gdb4 clean info status
+        run1 run2 run4 gdb1 gdb2 gdb4 clean info status
 
-# Por ahora `all` solo compila utils + módulo 1 (lo único implementado)
-all: utils modulo1 modulo4
+# Por ahora `all` solo compila utils + módulo 1 + módulo 4 (lo único implementado)
+all: utils modulo1 modulo2 modulo4
 	@echo
-	@echo "==> Listo: build/modulo_1_media, build/modulo_4_prediccion"
-	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias, modulo_5_tendencia"
+	@echo "==> Listos: build/modulo_1_media, build/modulo_2_varianza, build/modulo_4_prediccion"
+	@echo "    Pendientes: modulo_3_anomalias, modulo_5_tendencia"
 
 utils: $(UTILS_O)
 
@@ -111,13 +116,20 @@ modulo4: $(M4_BIN)
 	@echo "==> modulo_4_prediccion compilado: $(M4_BIN)"
 
 # ----------------------------------------------------------------------------
-# Módulos 2-5 — PENDIENTES (mensaje informativo, no fallan el make)
+# Módulo 2 — Varianza y Desviación Estándar (LISTO)
 # ----------------------------------------------------------------------------
-modulo2:
-	@echo "⏳ modulo_2_varianza: PENDIENTE — Implementar Integrante 2"
-	@echo "   Ver enunciado §10.2 y modules/modulo_2_varianza/README.md"
-	@false
+$(M2_O): $(M2_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
 
+$(M2_BIN): $(M2_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+modulo2: $(M2_BIN)
+	@echo "==> modulo_2_varianza compilado: $(M2_BIN)"
+
+# ----------------------------------------------------------------------------
+# Módulos 3,5 — PENDIENTES (mensaje informativo, no fallan el make)
+# ----------------------------------------------------------------------------
 modulo3:
 	@echo "⏳ modulo_3_anomalias: PENDIENTE — Implementar Integrante 3"
 	@echo "   Ver enunciado §10.3 y modules/modulo_3_anomalias/README.md"
@@ -139,8 +151,17 @@ run4: $(M4_BIN)
 	@echo "--- Resultado ---"
 	@cat results/resultado_prediccion.txt
 
+run2: $(M2_BIN)
+	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_varianza.txt
+
 
 gdb1: $(M1_BIN)
+	$(QEMU) -g 1234 $<
+
+gdb2: $(M2_BIN)
+	@echo "Iniciando QEMU en puerto 1234..."
 	$(QEMU) -g 1234 $<
 
 gdb4: $(M4_BIN)

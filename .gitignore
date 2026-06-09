@@ -40,3 +40,7 @@ htmlcov/
 # Uploads
 uploads/
 *.csv.bak
+
+# ARM64 build artifacts
+Proyecto1/arm64/build/
+Proyecto1/arm64/results/

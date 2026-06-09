@@ -9,9 +9,8 @@ Responsabilidades:
   - Manejar el centro de control físico: LCD 16x2, 4 botones, 3 LEDs, buzzer.
 
 Hardware simplificado (acorde al enunciado):
-  - 1 SOLA bomba de agua (compartida por Área 1 y Área 2 mediante válvulas
-    selectoras). Las áreas no se riegan en paralelo.
-  - 2 válvulas (1 por área) que alternan según `riego_area1` o `riego_area2`.
+  - 1 SOLA bomba de agua.
+  - 1 válvula física real; Área 2 se marca como riego manual en el dashboard.
   - 3 LEDs de estado (verde/amarillo/rojo) según `overall_state`.
   - 1 buzzer que se activa en EMERGENCIA.
   - 1 pantalla LCD 16x2 con información rotativa.
@@ -70,7 +69,7 @@ class Settings:
     device_id: str
     enable_gpio: bool
     poll_interval_seconds: int
-    # Riego (1 bomba + 2 válvulas)
+    # Riego (1 bomba + 1 válvula física; Área 2 es manual/simulada)
     gpio_pump: int
     gpio_valve_area_1: int
     gpio_valve_area_2: int
@@ -165,7 +164,7 @@ class BackendClient:
 
 class GpioController:
     """
-    Maneja GPIO de: 1 bomba + 2 válvulas, ventilador, luces, buzzer, 3 LEDs
+    Maneja GPIO de: 1 bomba + 1 válvula física, ventilador, luces, buzzer, 3 LEDs
     de estado, LCD 16x2 y 4 botones físicos.
     """
 

@@ -11,7 +11,7 @@
 #   - modulo_3_anomalias:  ✅ IMPLEMENTADO (Integrante 3)
 #   - modulo_4_prediccion: ✅ IMPLEMENTADO (Integrante 4)
 #   - modulo_5_tendencia:  ✅ IMPLEMENTADO (Integrante 5)
-#   - utils: ⏳ pendiente (tarea grupal, opcional)
+#   - utils: ✅ IMPLEMENTADO (biblioteca común con 11 subrutinas)
 #
 # Targets:
 #   make all       → compila utils + los 5 módulos
@@ -86,7 +86,6 @@ LDFLAGS  =
 all: utils modulo1 modulo2 modulo3 modulo4 modulo5
 	@echo
 	@echo "==> Listos: los 5 módulos ARM64"
-	@echo "    Pendiente: utils.s (tarea grupal, opcional)"
 
 utils: $(UTILS_O)
 
@@ -164,6 +163,8 @@ modulo5: $(M5_BIN)
 # ----------------------------------------------------------------------------
 run1: $(M1_BIN)
 	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_media.txt
 
 run2: $(M2_BIN)
 	$(QEMU) $<
@@ -219,6 +220,9 @@ info:
 	@echo "  QEMU  = $(QEMU)"
 	@echo "  GDB   = $(GDB)"
 	@echo
+	@echo "Biblioteca común:"
+	@echo "  utils = $(UTILS_O)     (11 subrutinas)      ✅"
+	@echo
 	@echo "Módulos (los 5 listos):"
 	@echo "  M1    = $(M1_BIN)  (media ponderada)      ✅"
 	@echo "  M2    = $(M2_BIN)  (varianza)              ✅"
@@ -235,4 +239,4 @@ status:
 	@if [ -f "$(M4_S)" ]; then echo "✅  M4  predicciones.s     (Integrante 4)"; else echo "❌  M4  predicciones.s"; fi
 	@if [ -f "$(M5_S)" ]; then echo "✅  M5  tendencia.s        (Integrante 5)"; else echo "⏳  M5  tendencia.s        (Integrante 5) — PENDIENTE"; fi
 	@echo
-	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o"; else echo "⏳  utils.s (biblioteca común) — tarea grupal PENDIENTE"; fi
+	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o (biblioteca común con 11 subrutinas)"; else echo "⏳  utils.s — PENDIENTE"; fi

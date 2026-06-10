@@ -44,11 +44,11 @@ class SensorReadingCreate(BaseModel):
             if not (0 <= v <= 100):
                 raise ValueError("Humedad del suelo fuera de rango (0‑100 %)")
         elif sensor in ("light", "luz"):
-            if not (0 <= v <= 100):
-                raise ValueError("Luz fuera de rango (0‑100 %)")
+            if not (0 <= v <= 1023):
+                raise ValueError("Luz fuera de rango (0‑1023 ADC)")
         elif sensor == "gas":
-            if not (0 <= v <= 500):
-                raise ValueError("Gas fuera de rango (0‑500 ppm)")
+            if not (0 <= v <= 1023):
+                raise ValueError("Gas fuera de rango (0‑1023 ADC)")
         return v
 
 

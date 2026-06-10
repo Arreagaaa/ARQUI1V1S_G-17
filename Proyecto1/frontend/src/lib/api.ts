@@ -67,7 +67,7 @@ export async function getARM64Results() {
 }
 
 export async function generateMockARM64Results() {
-  return request<unknown>("/api/arm64-results/mock", {
+  return request<unknown>("/api/arm64-results/mock?dev=true", {
     method: 'POST',
   });
 }

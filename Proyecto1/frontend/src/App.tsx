@@ -28,6 +28,7 @@ import {
   controlFan,
   controlAlarm,
 } from './lib/api';
+import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from './types';
 
 type DashboardState = {
@@ -110,6 +111,53 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
+    // Conectar MQTT para tiempo real
+    mqttClient.connect();
+
+    mqttClient.onConnect(() => {
+      if (!active) return;
+      setMqttStatus({ enabled: true, connected: true });
+    });
+
+    mqttClient.onDisconnect(() => {
+      if (!active) return;
+      setMqttStatus({ enabled: true, connected: false });
+    });
+
+    // Suscribir a topics de sensores y estado global
+    mqttClient.subscribe('sensores/#', (topic, payload) => {
+      if (!active) return;
+      setDashboard((prev) => ({
+        ...prev,
+        recent_readings: [
+          { sensor_type: payload.sensor_type as string, value: payload.value as number, unit: payload.unit as string, area: payload.area as string, recorded_at: payload.timestamp as string },
+          ...prev.recent_readings,
+        ].slice(0, 30),
+      }));
+    });
+
+    mqttClient.subscribe('estado/global', (_topic, payload) => {
+      if (!active) return;
+      setDashboard((prev) => ({
+        ...prev,
+        status: {
+          mode: payload.mode as string,
+          overall_state: payload.overall_state as string,
+          temperature: payload.temperature as number,
+          humidity: payload.humidity as number,
+          soil_1: payload.soil_1 as number,
+          soil_2: payload.soil_2 as number,
+          light: payload.light as number,
+          gas: payload.gas as number,
+          pump_active: payload.pump_active as boolean,
+          fan_active: payload.fan_active as boolean,
+          lights_active: payload.lights_active as boolean,
+          buzzer_active: payload.buzzer_active as boolean,
+          updated_at: payload.timestamp as string,
+        },
+      }));
+    });
+
     async function load() {
       try {
         const [health, data, arm64] = await Promise.all([getHealth(), getDashboard(), getARM64Results()]);
@@ -124,10 +172,6 @@ export default function App() {
           apiStatus: health.status,
           arm64_results: arm64,
         });
-        setMqttStatus({
-          enabled: health.mqtt_enabled,
-          connected: health.mqtt_connected,
-        });
       } catch {
         if (!active) return;
         setDashboard((current) => ({ ...current, apiStatus: 'Sin conexión' }));
@@ -139,6 +183,7 @@ export default function App() {
     return () => {
       active = false;
       window.clearInterval(interval);
+      mqttClient.disconnect();
     };
   }, []);
 
@@ -171,6 +216,15 @@ export default function App() {
     setBusy(key);
     setNotice('');
     try {
+      // Publicar comando vía MQTT también
+      mqttClient.publish('control/remoto', {
+        command: `set_${nextAction.actuator}`,
+        target: nextAction.actuator,
+        source: 'dashboard',
+        payload: { state: nextAction.state, area: nextAction.area },
+        timestamp: new Date().toISOString(),
+      });
+
       if (nextAction.actuator === 'mode') {
         await controlMode(nextAction.state as 'auto' | 'manual');
       } else if (nextAction.actuator === 'pump') {
@@ -617,7 +671,14 @@ function StatusPill({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
+function classifySoil(value: number): { label: string; color: string } {
+  if (value < 30) return { label: 'SECO', color: 'text-rose-400' };
+  if (value > 80) return { label: 'SATURADO', color: 'text-cyan-400' };
+  return { label: 'NORMAL', color: 'text-emerald-400' };
+}
+
 function MetricCard({ label, value, unit, active, onClick }: { label: string; value: number; unit: string; active: boolean; onClick: () => void }) {
+  const soilClass = label.includes('Suelo') ? classifySoil(value) : null;
   return (
     <article
       onClick={onClick}
@@ -632,6 +693,9 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
         {value !== undefined ? (typeof value === 'number' ? value.toFixed(1).replace('.0', '') : value) : '0'}
         <span className="ml-1 text-xs sm:text-sm font-medium text-slate-400">{unit}</span>
       </p>
+      {soilClass && (
+        <p className={`mt-1 text-[10px] font-bold uppercase ${soilClass.color}`}>{soilClass.label}</p>
+      )}
     </article>
   );
 }

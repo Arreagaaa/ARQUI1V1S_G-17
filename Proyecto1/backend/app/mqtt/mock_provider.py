@@ -87,25 +87,25 @@ class MQTTMockProvider:
             }
 
         if sensor_type in ("light", "luz"):
-            self._base_light = self._drift(self._base_light, 5.0, 95.0, 5.0)
+            self._base_light = self._drift(self._base_light, 0.0, 1023.0, 30.0)
             return {
                 "sensor_type": "light",
                 "value": round(self._base_light, 1),
-                "unit": "%",
+                "unit": "lux",
                 "area": area,
-                "status": "normal",
+                "status": "warning" if self._base_light < 200 else "normal",
                 "source": source,
                 "timestamp": now.isoformat(),
             }
 
         if sensor_type == "gas":
-            self._base_gas = self._drift(self._base_gas, 30.0, 250.0, 8.0)
+            self._base_gas = self._drift(self._base_gas, 0.0, 1023.0, 30.0)
             return {
                 "sensor_type": "gas",
                 "value": round(self._base_gas, 1),
                 "unit": "ppm",
                 "area": area,
-                "status": "critical" if self._base_gas > 150 else "normal",
+                "status": "critical" if self._base_gas > 700 else "warning" if self._base_gas > 300 else "normal",
                 "source": source,
                 "timestamp": now.isoformat(),
             }
@@ -122,7 +122,7 @@ class MQTTMockProvider:
 
     def generate_full_reading_set(self, source: str = "raspi-01") -> list[dict]:
         """Genera un set completo de lecturas para todos los sensores."""
-        return [
+        readings = [
             self.generate_sensor_reading("temperature", "control", source),
             self.generate_sensor_reading("humidity", "control", source),
             self.generate_sensor_reading("soil_1", "area_1", source),
@@ -130,6 +130,8 @@ class MQTTMockProvider:
             self.generate_sensor_reading("light", "control", source),
             self.generate_sensor_reading("gas", "control", source),
         ]
+        self._update_bases_from_readings(readings)
+        return readings
 
     def generate_global_state(self, source: str = "raspi-01") -> dict:
         """Genera un estado global coherente basado en el estado actual de los mocks."""
@@ -162,6 +164,23 @@ class MQTTMockProvider:
             "source": source,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+    def _update_bases_from_readings(self, readings: list[dict]) -> None:
+        for r in readings:
+            t = r.get("sensor_type", "")
+            v = r.get("value", 0.0)
+            if t == "temperature":
+                self._base_temp = v
+            elif t == "humidity":
+                self._base_humidity = v
+            elif t == "soil_1":
+                self._base_soil_1 = v
+            elif t == "soil_2":
+                self._base_soil_2 = v
+            elif t == "light":
+                self._base_light = v
+            elif t == "gas":
+                self._base_gas = v
 
     def generate_historical_readings(self, count: int = 30, source: str = "raspi-01") -> list[dict]:
         """

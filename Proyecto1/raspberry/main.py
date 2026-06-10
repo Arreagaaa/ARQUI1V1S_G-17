@@ -4,7 +4,7 @@ Raspberry Pi — Cliente embebido del invernadero inteligente IoT.
 Responsabilidades:
   - Leer sensores físicos: DHT11/22 (temp/humedad) por GPIO,
     LDR, 2× higrómetros, MQ-2/135 por ADC MCP3008 por SPI.
-  - Publicar lecturas por MQTT (broker.hivemq.com:1883).
+  - Publicar lecturas por MQTT (broker.emqx.io:1883).
   - Reportar status global al backend (REST).
   - Recibir comandos remotos por MQTT (control/#) y aplicarlos a GPIO.
   - Publicar cambios de actuadores a MQTT (actuadores/<nombre>).
@@ -121,7 +121,7 @@ class Settings:
 def load_settings() -> Settings:
     return Settings(
         backend_url=os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/"),
-        mqtt_host=os.getenv("MQTT_HOST", "broker.hivemq.com"),
+        mqtt_host=os.getenv("MQTT_HOST", "broker.emqx.io"),
         mqtt_port=int(os.getenv("MQTT_PORT", "1883")),
         mqtt_username=os.getenv("MQTT_USERNAME", ""),
         mqtt_password=os.getenv("MQTT_PASSWORD", ""),
@@ -640,8 +640,26 @@ class GreenhouseDevice:
 
     # --- Publicaciones MQTT --------------------------------------------
 
+    SENSOR_TOPIC_MAP = {
+        "temperature": "temperatura",
+        "humidity": "humedad_ambiente",
+        "soil_1": "humedad_suelo_area1",
+        "soil_2": "humedad_suelo_area2",
+        "light": "luz",
+        "gas": "gas",
+    }
+
+    ACTUATOR_TOPIC_MAP = {
+        "pump": "riego",
+        "fan": "ventilador",
+        "lights": "luces",
+        "buzzer": "alarma",
+        "alarm": "alarma",
+    }
+
     def _publish_sensor(self, sensor_type: str, value: float) -> None:
-        topic = self.topic(f"sensores/{sensor_type}")
+        topic_name = self.SENSOR_TOPIC_MAP.get(sensor_type, sensor_type)
+        topic = self.topic(f"sensores/{topic_name}")
         payload = json.dumps({
             "sensor_type": sensor_type,
             "value": value,
@@ -652,7 +670,8 @@ class GreenhouseDevice:
         print(f"[mqtt] publicado {topic}: {value}")
 
     def _publish_actuator(self, name: str, result: dict[str, Any]) -> None:
-        topic = self.topic(f"actuadores/{name}")
+        topic_name = self.ACTUATOR_TOPIC_MAP.get(name, name)
+        topic = self.topic(f"actuadores/{topic_name}")
         payload = json.dumps({
             "actuator": name,
             "state": result.get("state", "unknown"),

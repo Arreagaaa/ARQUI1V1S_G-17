@@ -96,7 +96,7 @@ cd Proyecto1/arm64 && make all && \
 
 1. Abrir [MQTTX Web](https://mqttx.app/web)
 2. Conexión:
-   - **Host:** `broker.hivemq.com`
+    - **Host:** `broker.emqx.io`
    - **Puerto:** `8884` (WSS)
    - **Client ID:** `mqttx-test-<random>`
 3. Suscribir: `grupo17/invernadero/#`

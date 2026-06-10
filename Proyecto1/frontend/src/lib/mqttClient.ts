@@ -1,6 +1,6 @@
 import mqtt from 'mqtt';
 
-const MQTT_URL = import.meta.env.VITE_MQTT_URL ?? 'wss://broker.hivemq.com:8884/mqtt';
+const MQTT_URL = import.meta.env.VITE_MQTT_URL ?? 'wss://broker.emqx.io:8084/mqtt';
 const CLIENT_ID = import.meta.env.VITE_MQTT_CLIENT_ID ?? 'invernadero_dashboard_17';
 const BASE_TOPIC = import.meta.env.VITE_MQTT_BASE_TOPIC ?? 'grupo17/invernadero';
 

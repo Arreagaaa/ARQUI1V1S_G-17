@@ -26,6 +26,7 @@ FIELD_NAMES = ["ID", "TEMP", "HUM_AIRE", "HUM_SUELO_1", "HUM_SUELO_2", "LUZ", "G
 
 SENSOR_TYPE_MAP = {
     "temperature": "TEMP",
+    "temperatura": "TEMP",
     "humidity": "HUM_AIRE",
     "hum_aire": "HUM_AIRE",
     "humedad_ambiente": "HUM_AIRE",
@@ -133,7 +134,7 @@ def write_lecturas(output_path: Path, rows: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Genera lecturas.csv para ARM64")
-    parser.add_argument("--output", default="lecturas.csv", help="Ruta de salida (default: lecturas.csv)")
+    parser.add_argument("--output", default="../arm64/lecturas.csv", help="Ruta de salida (default: ../arm64/lecturas.csv)")
     parser.add_argument("--count", type=int, default=30, help="Número de registros (default: 30)")
     parser.add_argument("--from-db", action="store_true", help="Usar datos reales de MongoDB")
     args = parser.parse_args()

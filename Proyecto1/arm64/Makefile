@@ -72,7 +72,7 @@ ASFLAGS  = -g
 LDFLAGS  =
 
 .PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
-        run1 run2 run4 gdb1 gdb2 gdb4 clean info status
+        run1 run2 run4 runall gdb1 gdb2 gdb4 clean info status
 
 # Por ahora `all` solo compila utils + módulo 1 + módulo 4 (lo único implementado)
 all: utils modulo1 modulo2 modulo4
@@ -155,6 +155,10 @@ run2: $(M2_BIN)
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_varianza.txt
+
+runall: run1 run2 run4
+	@echo
+	@echo "==> runall completado"
 
 
 gdb1: $(M1_BIN)

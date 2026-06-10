@@ -5,6 +5,12 @@
 // ========================================================================
 
 .global _start   // Declara _start como símbolo global (punto de entrada)
+.extern utils_open_csv
+.extern utils_read_int_column
+.extern utils_close_csv
+.extern utils_i64_to_str
+.extern utils_write_result
+.extern utils_exit
 
 // ========================================================================
 // DEFINICIONES DE SYSCALLS (llamadas al sistema en ARM64 Linux)
@@ -75,12 +81,7 @@ _start:
     // ====================================================================
     // PASO 1: ABRIR EL ARCHIVO lecturas.csv
     // ====================================================================
-    mov x0, DIR_ACTUAL          // x0 = -100 (directorio actual)
-    ldr x1, =archivo_entrada    // x1 = dirección del string "lecturas.csv"
-    mov x2, SOLO_LECTURA        // x2 = 0 (abrir solo lectura)
-    mov x3, #0                  // x3 = 0 (no usado en ABRIR)
-    mov x8, ABRIR               // x8 = 56 (número del syscall ABRIR)
-    svc #0                      // Ejecutar syscall (retorna ID en x0 o error)
+    bl utils_open_csv           // Abrir lecturas.csv usando la biblioteca común
     cmp x0, #0                  // Comparar: ¿es error? (ID < 0)
     blt _exit_error             // Si error, salir
 
@@ -91,37 +92,16 @@ _start:
     // PASO 2: SALTAR LA CABECERA DEL CSV
     // Leemos la primera línea (ID,TEMP,HUM_AIRE...) y la descartamos
     // ====================================================================
-    ldr x0, =descriptor_csv     // x0 = dirección de descriptor_csv
-    ldr x0, [x0]                // x0 = ID del archivo (cargamos valor)
-    ldr x1, =buffer_linea       // x1 = dirección del buffer
-    mov x2, #256                // x2 = tamaño máximo del buffer
-    bl read_line                // Llamar función para leer línea
+    // utils_read_int_column se encarga de saltar la cabecera.
 
     // ====================================================================
     // PASO 3: LEER 30 TEMPERATURAS DEL CSV EN UN LOOP
     // ====================================================================
-    mov x20, #0                 // x20 = 0 (contador de temperaturas)
-    ldr x21, =array_temperaturas// x21 = dirección del array
-
-.read_loop:
-    cmp x20, #N_VALUES          // Comparar: ¿contador >= 30?
-    bge .read_done              // Si sí, salir del loop
-
-    ldr x0, =descriptor_csv     // x0 = dirección de descriptor_csv
-    ldr x0, [x0]                // x0 = ID del archivo
-    ldr x1, =buffer_linea       // x1 = buffer donde leer
-    mov x2, #256                // x2 = tamaño máximo
-    bl read_line                // Leer una línea
-
-    ldr x0, =buffer_linea       // x0 = dirección de la línea leída
-    mov x1, #1                  // x1 = 1 (extraer columna 1 = TEMP)
-    bl parse_csv_column         // Extraer temperatura como número
-
-    str x0, [x21, x20, lsl #3]  // Guardar en array[contador] (lsl #3 = ×8)
-    add x20, x20, #1            // contador++
-    b .read_loop                // Repetir loop
-
-.read_done:
+    mov x0, #1                  // x0 = 1 (extraer columna 1 = TEMP)
+    ldr x1, =array_temperaturas // x1 = dirección del array
+    bl utils_read_int_column    // Leer columna TEMP completa con utils
+    cmp x0, #N_VALUES           // ¿se leyeron exactamente 30 valores?
+    bne _exit_error             // Si no, salir con error
     // ====================================================================
     // PASO 4: CALCULAR LA MEDIA (promedio)
     // ====================================================================
@@ -170,7 +150,7 @@ _start:
 
     mov x0, x24                 // x0 = posición actual
     mov x1, #N_VALUES           // x1 = 30 (cantidad de valores)
-    bl int_to_ascii             // Convertir número a texto ASCII
+    bl utils_i64_to_str         // Convertir número a texto ASCII
     mov x24, x0                 // x24 = nueva posición
 
     mov x0, x24                 // x0 = posición actual
@@ -186,7 +166,7 @@ _start:
 
     mov x0, x24                 // x0 = posición actual
     mov x1, x19                 // x1 = media
-    bl int_to_ascii             // Convertir a texto
+    bl utils_i64_to_str         // Convertir a texto
     mov x24, x0                 // x24 = nueva posición
 
     mov x0, x24                 // x0 = posición actual
@@ -202,7 +182,7 @@ _start:
 
     mov x0, x24                 // x0 = posición actual
     mov x1, x22                 // x1 = varianza
-    bl int_to_ascii             // Convertir a texto
+    bl utils_i64_to_str         // Convertir a texto
     mov x24, x0                 // x24 = nueva posición
 
     mov x0, x24                 // x0 = posición actual
@@ -218,7 +198,7 @@ _start:
 
     mov x0, x24                 // x0 = posición actual
     mov x1, x23                 // x1 = desviación estándar
-    bl int_to_ascii             // Convertir a texto
+    bl utils_i64_to_str         // Convertir a texto
     mov x24, x0                 // x24 = nueva posición
 
     mov x0, x24                 // x0 = posición actual
@@ -229,35 +209,20 @@ _start:
     // ====================================================================
     // PASO 8: CREAR/ABRIR ARCHIVO DE SALIDA Y ESCRIBIR
     // ====================================================================
-    mov x0, DIR_ACTUAL                          // x0 = directorio actual
-    ldr x1, =archivo_salida                     // x1 = "results/resultado_varianza.txt"
-    mov x2, SOLO_ESCRITURA | CREAR | VACIAR    // Crear si no existe, vaciar si existe
-    mov x3, PERMISOS_ARCHIVO                    // x3 = permisos (rw-rw-r--)
-    mov x8, ABRIR                               // x8 = 56 (syscall ABRIR)
-    svc #0                                      // Ejecutar
-    cmp x0, #0                                  // Comparar: ¿error?
-    blt _exit_error                             // Si error, salir
-    mov x25, x0                                 // x25 = ID del archivo salida
-
-    // Escribir el contenido al archivo
-    mov x0, x25                     // x0 = ID del archivo
+    ldr x0, =archivo_salida         // x0 = "results/resultado_varianza.txt"
     ldr x1, =buffer_salida          // x1 = dirección del contenido
     ldr x3, =buffer_salida          // x3 = inicio del buffer (para calcular largo)
     sub x2, x24, x3                 // x2 = bytes a escribir (fin - inicio)
-    mov x8, ESCRIBIR                // x8 = 64 (syscall ESCRIBIR)
-    svc #0                          // Ejecutar
+    bl utils_write_result           // Crear/truncar y escribir archivo usando utils
+    cmp x0, #0                      // Comparar: ¿error?
+    blt _exit_error                             // Si error, salir
 
     // ====================================================================
     // PASO 9: CERRAR ARCHIVOS Y TERMINAR
     // ====================================================================
     ldr x0, =descriptor_csv     // x0 = dirección del ID del CSV
     ldr x0, [x0]                // x0 = ID del archivo CSV
-    mov x8, CERRAR              // x8 = 57 (syscall CERRAR)
-    svc #0                      // Cerrar CSV
-
-    mov x0, x25                 // x0 = ID del archivo de salida
-    mov x8, CERRAR              // x8 = 57 (syscall CERRAR)
-    svc #0                      // Cerrar salida
+    bl utils_close_csv          // Cerrar CSV usando la biblioteca común
 
     b _exit_success             // Salir exitosamente
 
@@ -566,11 +531,9 @@ copy_str:
 // Salida con ERROR (código 1)
 _exit_error:
     mov x0, #1                  // x0 = 1 (código de error)
-    mov x8, SALIR               // x8 = 93 (syscall SALIR)
-    svc #0                      // Ejecutar
+    bl utils_exit               // Ejecutar salida usando utils
 
 // Salida EXITOSA (código 0)
 _exit_success:
     mov x0, #0                  // x0 = 0 (éxito)
-    mov x8, SALIR               // x8 = 93 (syscall SALIR)
-    svc #0                      // Ejecutar
+    bl utils_exit               // Ejecutar salida usando utils

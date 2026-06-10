@@ -21,6 +21,7 @@
 .extern utils_write_result
 .extern utils_i64_to_str
 .extern utils_exit
+.extern utils_read_column_config
 
 // =============================================================================
 // .rodata — strings de solo lectura
@@ -62,9 +63,11 @@ _start:
     bl   utils_open_csv
     mov  x19, x0
 
-    // ---- 2) Leer columna 1 (TEMP) en values_buf ----
+    // ---- 2) Leer columna configurada (default: 1 = TEMP) ----
+    mov  x0, #3
+    bl   utils_read_column_config
+    mov  x1, x0
     mov  x0, x19
-    mov  x1, #1
     adr  x2, values_buf
     bl   utils_read_int_column
     cmp  x0, #N_VALUES

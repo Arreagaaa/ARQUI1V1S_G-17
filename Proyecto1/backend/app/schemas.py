@@ -90,6 +90,9 @@ class SystemStatusCreate(BaseModel):
 
     mode: str = Field(default="auto")
     overall_state: str = Field(default="NORMAL")
+    irrigation_state: str = Field(default="RIEGO_OFF", description="RIEGO_OFF, RIEGO_AREA_1, RIEGO_AREA_2, RIEGO_MANUAL, BLOQUEADO_POR_SATURACION")
+    ventilation_state: str = Field(default="VENTILACION_OFF", description="VENTILACION_OFF, VENTILACION_ON, VENTILACION_MANUAL, VENTILACION_EMERGENCIA")
+    gas_state: str = Field(default="GAS_NORMAL", description="GAS_NORMAL, GAS_ADVERTENCIA, GAS_EMERGENCIA")
     temperature: float = Field(default=0.0)
     humidity: float = Field(default=0.0)
     soil_1: float = Field(default=0.0)
@@ -100,6 +103,8 @@ class SystemStatusCreate(BaseModel):
     fan_active: bool = Field(default=False)
     lights_active: bool = Field(default=False)
     buzzer_active: bool = Field(default=False)
+    pump_started_at: Optional[str] = Field(default=None, description="ISO timestamp when pump was activated")
+    pump_last_stopped_at: Optional[str] = Field(default=None, description="ISO timestamp when pump was last stopped")
     source: str = Field(default="raspi-01")
     updated_at: Optional[datetime] = None
 
@@ -201,6 +206,9 @@ class GlobalStateMQTTPayload(BaseModel):
 
     mode: str = "auto"
     overall_state: str = "NORMAL"
+    irrigation_state: str = "RIEGO_OFF"
+    ventilation_state: str = "VENTILACION_OFF"
+    gas_state: str = "GAS_NORMAL"
     temperature: float = 0.0
     humidity: float = 0.0
     soil_1: float = 0.0

@@ -12,6 +12,7 @@ import {
   Cpu,
   RefreshCw,
   Sun,
+  Settings2,
 } from 'lucide-react';
 import {
   createEvent,
@@ -27,6 +28,8 @@ import {
   controlLights,
   controlFan,
   controlAlarm,
+  getARM64ColumnConfig,
+  setARM64ColumnConfig,
 } from './lib/api';
 import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from './types';
@@ -94,6 +97,8 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [activeTab, setActiveTab] = useState<string>('temperature');
 
+  const [pumpArea, setPumpArea] = useState<string>('area_1');
+
   const [reading, setReading] = useState<ReadingState>({
     area: 'area_1',
     sensor_type: 'temperature',
@@ -143,6 +148,9 @@ export default function App() {
         status: {
           mode: payload.mode as string,
           overall_state: payload.overall_state as string,
+          irrigation_state: payload.irrigation_state as string || 'RIEGO_OFF',
+          ventilation_state: payload.ventilation_state as string || 'VENTILACION_OFF',
+          gas_state: payload.gas_state as string || 'GAS_NORMAL',
           temperature: payload.temperature as number,
           humidity: payload.humidity as number,
           soil_1: payload.soil_1 as number,
@@ -330,10 +338,8 @@ export default function App() {
   const quickActions = [
     { label: 'Modo automático', actuator: 'mode', state: 'auto' },
     { label: 'Modo manual', actuator: 'mode', state: 'manual' },
-    { label: 'Bomba Área 1 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_1' },
-    { label: 'Bomba Área 1 OFF', actuator: 'pump', state: 'off', area: 'area_1' },
-    { label: 'Bomba Área 2 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_2' },
-    { label: 'Bomba Área 2 OFF', actuator: 'pump', state: 'off', area: 'area_2' },
+    { label: `Riego ${pumpArea === 'area_1' ? 'Área 1' : 'Área 2'} ON`, actuator: 'pump', state: 'on', area: pumpArea },
+    { label: `Riego ${pumpArea === 'area_1' ? 'Área 1' : 'Área 2'} OFF`, actuator: 'pump', state: 'off', area: pumpArea },
     { label: 'Apagar bomba (sin área)', actuator: 'pump', state: 'off' },
     { label: 'Ventilación ON', actuator: 'fan', state: 'on' },
     { label: 'Ventilación OFF', actuator: 'fan', state: 'off' },
@@ -476,9 +482,35 @@ export default function App() {
               <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
               <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />
             </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Riego</span>
+                <p className="mt-1 font-semibold text-white">{status?.irrigation_state ?? '—'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Ventilación</span>
+                <p className="mt-1 font-semibold text-white">{status?.ventilation_state ?? '—'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Gas</span>
+                <p className="mt-1 font-semibold text-white">{status?.gas_state ?? '—'}</p>
+              </div>
+            </div>
 
             <section className="grid gap-4 lg:grid-cols-2">
               <Panel title="Acciones rápidas (Control manual)">
+                <div className="mb-3 flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">Área riego:</span>
+                  <select
+                    value={pumpArea}
+                    onChange={(e) => setPumpArea(e.target.value)}
+                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-white outline-none focus:border-emerald-300/40"
+                  >
+                    <option value="area_1">Área 1</option>
+                    <option value="area_2">Área 2</option>
+                  </select>
+                  <span className="text-slate-500">(1 bomba compartida)</span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
                   {quickActions.map((item) => {
                     const key = `${item.actuator}-${item.state}-${item.area || ''}`;
@@ -930,6 +962,15 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
   );
 }
 
+const COLUMN_LABELS: Record<number, string> = {
+  0: 'ID', 1: 'TEMP', 2: 'HUM_AIRE', 3: 'HUM_SUELO_1',
+  4: 'HUM_SUELO_2', 5: 'LUZ', 6: 'GAS',
+};
+
+const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
+
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 };
+
 function ARM64ResultsSection({
   results,
   onGenerateMock,
@@ -939,6 +980,22 @@ function ARM64ResultsSection({
   onGenerateMock: () => void;
   loading: boolean;
 }) {
+  const [columnConfig, setColumnConfig] = useState<Record<number, number>>(DEFAULT_COLUMNS);
+  const [savingCol, setSavingCol] = useState(false);
+
+  useEffect(() => {
+    getARM64ColumnConfig().then(data => {
+      if (data.columns) setColumnConfig(data.columns);
+    }).catch(() => {});
+  }, []);
+
+  const handleColumnChange = (moduleId: number, colIdx: number) => {
+    const next = { ...columnConfig, [moduleId]: colIdx };
+    setColumnConfig(next);
+    setSavingCol(true);
+    setARM64ColumnConfig(next).finally(() => setSavingCol(false));
+  };
+
   const modulesList = [
     {
       key: 'WEIGHTED_MEAN',
@@ -1034,6 +1091,33 @@ function ARM64ResultsSection({
         >
           {loading ? 'Generando...' : 'Generar datos de prueba ARM64'}
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/4 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5 text-slate-400" />
+            Columnas del CSV por módulo
+            {savingCol && <span className="text-[9px] text-slate-500 ml-1">guardando...</span>}
+          </h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[1, 2, 3, 4, 5].map((modId) => (
+            <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
+              <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
+              <select
+                value={columnConfig[modId] ?? DEFAULT_COLUMNS[modId]}
+                onChange={(e) => handleColumnChange(modId, Number(e.target.value))}
+                className="appearance-none bg-slate-800 text-[10px] text-slate-200 rounded border border-white/10 px-1.5 py-0.5
+                           focus:outline-none focus:border-emerald-400/50 cursor-pointer hover:bg-slate-700 transition"
+              >
+                {COLUMN_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
       </div>
 
       {!hasData ? (

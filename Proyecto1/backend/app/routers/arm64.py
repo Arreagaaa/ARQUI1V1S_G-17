@@ -184,3 +184,41 @@ def generate_mock_arm64_results(dev: bool = False):
 
     logger.info("Datos de prueba ARM64 generados exitosamente.")
     return {"status": "ok", "message": "Mock ARM64 results generated"}
+
+
+COLUMN_LABELS = {
+    0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1",
+    4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS", 7: "RIEGO_1", 8: "RIEGO_2",
+}
+
+DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1}
+
+
+@router.get("/api/arm64/column-config")
+def get_arm64_column_config():
+    """Obtiene la configuración de columnas para cada módulo ARM64."""
+    db = get_database()
+    doc = db.arm64_column_config.find_one(sort=[("updated_at", -1)])
+    if doc:
+        cols = doc.get("columns", {})
+        return {
+            "columns": {int(k): v for k, v in cols.items()},
+            "labels": {int(k): COLUMN_LABELS.get(int(v), f"col{v}") for k, v in cols.items()},
+        }
+    return {
+        "columns": DEFAULT_COLUMNS,
+        "labels": {k: COLUMN_LABELS.get(v, f"col{v}") for k, v in DEFAULT_COLUMNS.items()},
+    }
+
+
+@router.post("/api/arm64/column-config")
+def set_arm64_column_config(payload: dict):
+    """Guarda la configuración de columnas para cada módulo ARM64."""
+    db = get_database()
+    columns = payload.get("columns", {})
+    doc = {
+        "columns": {str(k): int(v) for k, v in columns.items()},
+        "updated_at": _now(),
+    }
+    db.arm64_column_config.insert_one(doc)
+    return {"status": "ok", "columns": columns, "labels": {int(k): COLUMN_LABELS.get(int(v), f"col{v}") for k, v in columns.items()}}

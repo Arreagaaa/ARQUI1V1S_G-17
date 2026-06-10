@@ -53,6 +53,7 @@
 .align 3
 
 csv_path:    .asciz "lecturas.csv"
+config_path: .asciz "column_config.txt"
 msg_nl:      .asciz "\n"
 
 // =============================================================================
@@ -406,6 +407,93 @@ utils_print_i64:
     svc  #0
 
     add  sp, sp, #32
+    ldp  x29, x30, [sp], #16
+    ret
+
+// =============================================================================
+// utils_read_column_config — lee la columna configurada para un módulo
+// -----------------------------------------------------------------------------
+// Lee el archivo "column_config.txt" que contiene líneas con formato:
+//     <module_id>:<column_index>
+// Ejemplo:
+//     1:2
+//     2:3
+// Retorna el índice de columna para el módulo solicitado.
+//
+// Entrada: x0 = module_id (1-5)
+// Salida:  x0 = column_index (0-based)
+// =============================================================================
+.global utils_read_column_config
+utils_read_column_config:
+    stp  x29, x30, [sp, #-16]!
+    stp  x19, x20, [sp, #-16]!
+
+    mov  x19, x0              // module_id guardado
+
+    // Abrir column_config.txt
+    mov  x0, #AT_FDCWD
+    adr  x1, config_path
+    mov  x2, #O_RDONLY
+    mov  x3, #0
+    mov  x8, #SYS_OPENAT
+    svc  #0
+    cmp  x0, #0
+    b.lt urcc_default         // si no existe, usar default
+
+    mov  x20, x0              // fd guardado
+
+urcc_loop:
+    mov  x0, x20
+    adr  x1, line_buf
+    mov  x2, #BUF_SIZE
+    bl   utils_read_line
+    cmp  x0, #0
+    b.le urcc_close_default   // EOF sin encontrar → default
+
+    // Parsear: buscar "module_id:" al inicio de la línea
+    adr  x1, line_buf
+    ldrb w2, [x1]
+    sub  w2, w2, #'0'         // convertir ASCII a entero
+    cmp  w2, w19              // ¿coincide con module_id?
+    b.ne urcc_loop
+
+    // Verificar que sigue ':'
+    add  x1, x1, #1
+    ldrb w2, [x1]
+    cmp  w2, #':'
+    b.ne urcc_loop
+
+    // Leer columna después de ':'
+    add  x0, x1, #1
+    bl   utils_parse_i64      // x0 = column_index
+
+    // Cerrar archivo
+    mov  x1, x0
+    mov  x0, x20
+    mov  x8, #SYS_CLOSE
+    svc  #0
+    mov  x0, x1
+
+    ldp  x19, x20, [sp], #16
+    ldp  x29, x30, [sp], #16
+    ret
+
+urcc_close_default:
+    mov  x0, x20
+    mov  x8, #SYS_CLOSE
+    svc  #0
+
+urcc_default:
+    // Devolver columna por defecto según módulo
+    mov  x0, x19
+    cmp  x0, #4
+    b.eq urcc_def_4
+    mov  x0, #1               // default: columna 1 (TEMP)
+    b    urcc_def_end
+urcc_def_4:
+    mov  x0, #4               // módulo 4: columna 4 (HUM_SUELO_2)
+urcc_def_end:
+    ldp  x19, x20, [sp], #16
     ldp  x29, x30, [sp], #16
     ret
 

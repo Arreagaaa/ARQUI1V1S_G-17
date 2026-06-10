@@ -122,4 +122,16 @@ export async function controlMode(mode: 'auto' | 'manual') {
   });
 }
 
+export async function getARM64ColumnConfig() {
+  return request<{ columns: Record<string, number>; labels: Record<string, string> }>("/api/arm64/column-config");
+}
+
+export async function setARM64ColumnConfig(columns: Record<string, number>) {
+  return request<unknown>("/api/arm64/column-config", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ columns }),
+  });
+}
+
 

@@ -77,6 +77,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Solo parsea archivos de salida (no ejecuta los binarios)",
     )
+    for i in range(1, 6):
+        parser.add_argument(
+            f"--col{i}",
+            type=int,
+            default=None,
+            help=f"Columna para módulo {i} (0-based, default: 1 para M1-M3,M5, 4 para M4)",
+        )
     return parser.parse_args()
 
 
@@ -179,6 +186,31 @@ def main() -> int:
     print(f"  Directorio: {arm_dir}")
     print(f"  Backend:    {args.url}")
     print(f"  Modo:       {'QEMU' if use_qemu else 'Nativo'}{' (solo parseo)' if args.parse_only else ''}")
+
+    columns = {}
+    for i in range(1, 6):
+        col = getattr(args, f"col{i}")
+        if col is not None:
+            columns[i] = col
+            col_name = {0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1", 4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS"}.get(col, f"col{col}")
+            print(f"  Módulo {i}: columna {col} ({col_name})")
+        else:
+            default_col = 4 if i == 4 else 1
+            col_name = {0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1", 4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS"}.get(default_col, f"col{default_col}")
+            print(f"  Módulo {i}: columna por defecto {default_col} ({col_name})")
+    print()
+
+    # Escribir column_config.txt para los módulos ARM64
+    config_path = arm_dir / "column_config.txt"
+    try:
+        config_lines = []
+        for i in range(1, 6):
+            col = columns.get(i, 4 if i == 4 else 1)
+            config_lines.append(f"{i}:{col}")
+        config_path.write_text("\n".join(config_lines) + "\n")
+        print(f"Configuración de columnas escrita en {config_path}")
+    except IOError as exc:
+        print(f"Error escribiendo config: {exc}")
     print()
 
     # Fase 1: ejecutar módulos

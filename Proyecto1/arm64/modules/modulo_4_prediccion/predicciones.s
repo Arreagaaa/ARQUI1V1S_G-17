@@ -66,6 +66,7 @@
 .extern utils_write_result
 .extern utils_i64_to_str
 .extern utils_exit
+.extern utils_read_column_config
 
 // =============================================================================
 // .rodata — strings de solo lectura
@@ -117,11 +118,12 @@ _start:
     bl   utils_open_csv        // utils_open_csv() → fd en x0
     mov  x19, x0               // x19 = fd de entrada
 
-    // ---- 2) Leer columna 4 (HUM_SUELO_2) en values_buf ----
     // utils_read_int_column(x0=fd, x1=col, x2=buf)
     // Salta el header internamente, llena buf con 30 enteros de 8 bytes.
+    mov  x0, #4
+    bl   utils_read_column_config
+    mov  x1, x0
     mov  x0, x19
-    mov  x1, #4
     adr  x2, values_buf
     bl   utils_read_int_column
 

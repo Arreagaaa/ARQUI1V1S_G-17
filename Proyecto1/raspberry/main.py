@@ -567,6 +567,11 @@ class GreenhouseDevice:
         # Debounce de botones
         self._last_button_time: float = 0.0
 
+        # LCD rotation
+        self._lcd_cycle: int = 0
+        self._lcd_last_update: float = 0.0
+        self._lcd_interval: float = 3.0
+
     def topic(self, suffix: str) -> str:
         return f"{self.settings.mqtt_base_topic}/{suffix}"
 
@@ -677,6 +682,26 @@ class GreenhouseDevice:
             "gas": "ppm",
         }.get(sensor_type, "")
 
+    # --- LCD Rotation ---------------------------------------------------
+
+    def _get_lcd_screen(self, readings: dict[str, float], state: str, state_info: dict | None = None) -> tuple[str, str]:
+        irr = (state_info or {}).get("irrigation_state", "?")
+        vent = (state_info or {}).get("ventilation_state", "?")
+        irr_short = irr.replace("BLOQUEADO_POR_SATURACION", "BLOQxSAT").replace("RIEGO_", "R:")
+        vent_short = vent.replace("VENTILACION_", "V:")
+        LINES = [
+            (f"T:{readings['temperature']:.1f}C", f"H:{readings['humidity']:.0f}%"),
+            (f"S1:{readings['soil_1']:.0f}% S2:{readings['soil_2']:.0f}%", f"Luz:{readings['light']:.0f}%"),  # noqa: E501
+            (f"Luz:{readings['light']:.0f}%", f"Gas:{readings['gas']:.0f}ppm"),
+            (f"{irr_short[:14]}", f"{vent_short[:14]}"),
+            (f"State:{state[:12]}", f"Mode:{self.gpio.mode}"),
+        ]
+        if state == "EMERGENCIA":
+            self._lcd_cycle = 0
+            return ("!! EMERGENCIA !!", f"Gas:{readings['gas']:.0f}ppm")
+        self._lcd_cycle = self._lcd_cycle % len(LINES)
+        return LINES[self._lcd_cycle]
+
     # --- Lectura de sensores -------------------------------------------
 
     def read_sensors(self) -> dict[str, float]:
@@ -782,11 +807,17 @@ class GreenhouseDevice:
                 except Exception as exc:
                     print(f"[backend] status report failed: {exc}")
 
-                # Actualizar LCD
+                # Actualizar LCD con rotación cada 3s
+                now = time.time()
+                if now - self._lcd_last_update >= self._lcd_interval:
+                    self._lcd_cycle += 1
+                    self._lcd_last_update = now
                 state = self.gpio.current_state
-                line1 = f"State:{state[:12]}"
-                line2 = f"T:{readings['temperature']:.1f}C H:{readings['humidity']:.0f}%"
+                state_info = getattr(self, "_last_state_info", None)
+                line1, line2 = self._get_lcd_screen(readings, state, state_info)
                 self.gpio.update_lcd(line1, line2)
+                self._last_state_info = {"irrigation_state": "RIEGO_ACTIVO" if self.gpio.pump_on else "RIEGO_OFF",
+                                         "ventilation_state": "VENTILACION_EMERGENCIA" if state == "EMERGENCIA" else ("VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF")}
 
         except KeyboardInterrupt:
             pass

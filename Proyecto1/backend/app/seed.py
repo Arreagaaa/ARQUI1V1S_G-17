@@ -113,9 +113,16 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
         else:
             state = "NORMAL"
             
+        irr_state = "RIEGO_AREA_1" if pump else "RIEGO_OFF"
+        vent_state = "VENTILACION_EMERGENCIA" if gas > 150.0 else ("VENTILACION_ON" if fan else "VENTILACION_OFF")
+        gas_state = "GAS_EMERGENCIA" if gas > 150.0 else ("GAS_ADVERTENCIA" if gas > 80.0 else "GAS_NORMAL")
+
         system_status_list.append({
             "mode": "auto",
             "overall_state": state,
+            "irrigation_state": irr_state,
+            "ventilation_state": vent_state,
+            "gas_state": gas_state,
             "temperature": round(temp, 1),
             "humidity": round(hum, 1),
             "soil_1": round(soil1, 1),

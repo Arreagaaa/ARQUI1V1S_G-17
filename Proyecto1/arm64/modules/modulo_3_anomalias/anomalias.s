@@ -7,36 +7,22 @@
 // y escribe el resultado en results/resultado_anomalias.txt.
 // =============================================================================
 
-// ---------------------------------------------------------------------------
-// Constantes de syscalls Linux AArch64
-// ---------------------------------------------------------------------------
-.equ SYS_READ,        63
-.equ SYS_WRITE,       64
-.equ SYS_OPENAT,      56
-.equ SYS_CLOSE,       57
-.equ SYS_EXIT,        93
+// 1. AGREGAR .extern DE DE UTILS
+.extern utils_open_csv
+.extern utils_read_int_column
+.extern utils_close_csv
+.extern utils_i64_to_str
+.extern utils_write_result
+.extern utils_exit
 
-.equ AT_FDCWD,        -100
-.equ O_RDONLY,        0
-.equ O_WRONLY,        1
-.equ O_CREAT,         0100
-.equ O_TRUNC,         01000
+.equ N_VALUES, 30
 
-// ---------------------------------------------------------------------------
-// Constantes del módulo
-// ---------------------------------------------------------------------------
-.equ N_VALUES,        30
-
-// =============================================================================
-// .rodata — strings de solo lectura
-// =============================================================================
 .section .rodata
 .align 3
 
 csv_path:   .asciz "lecturas.csv"
 out_path:   .asciz "results/resultado_anomalias.txt"
 
-// Etiquetas de salida (formato EXACTO del enunciado)
 lbl_module: .asciz "MODULE=ANOMALY_DETECTION\n"
 lbl_total:  .asciz "TOTAL_VALUES=30\n"
 lbl_mean:   .asciz "MEAN="
@@ -45,102 +31,40 @@ lbl_anom:   .asciz "ANOMALIES="
 lbl_risk:   .asciz "SYSTEM_RISK="
 nl:         .asciz "\n"
 
-// Opciones de riesgo
 str_normal: .asciz "NORMAL"
 str_medium: .asciz "MEDIUM"
 str_high:   .asciz "HIGH"
 
-// =============================================================================
-// .bss — buffers en memoria no inicializada
-// =============================================================================
 .section .bss
 .align 3
-
-line_buf:    .skip 64                 // buffer para 1 línea del CSV
 values_buf:  .skip 8 * N_VALUES       // arreglo de 30 enteros i64
 out_buf:     .skip 512                // buffer de salida completo
 
-// =============================================================================
-// .text — código
-// =============================================================================
 .section .text
 .global _start
 
 _start:
-    // ---- 1) Abrir lecturas.csv (openat) ----
-    mov  x0, #AT_FDCWD                // directorio actual
-    adr  x1, csv_path                 // ruta del CSV
-    mov  x2, #O_RDONLY                // solo lectura
-    mov  x3, #0                       // modo (ignorado en O_RDONLY)
-    mov  x8, #SYS_OPENAT
-    svc  #0
-    cmp  x0, #0
-    b.lt error_exit                   // si fd < 0, error
-    mov  x19, x0                      // x19 = fd de entrada
-
-    // ---- 2) Saltar la línea de cabecera del CSV ----
-skip_header:
-    mov  x0, x19
-    adr  x1, line_buf
-    mov  x2, #1                       // leer 1 byte
-    mov  x8, #SYS_READ
-    svc  #0
-    cmp  x0, #0
-    b.le read_done                    // EOF
-    ldrb w6, [x1]                     // w6 = byte leído
-    cmp  w6, #'\n'
-    b.ne skip_header                  // seguir hasta encontrar \n
-
-    // ---- 3) Leer 30 líneas y parsear columna TEMP (col=1) ----
-    mov  x20, #0                      // x20 = contador i = 0
-read_loop:
-    cmp  x20, #N_VALUES
-    b.ge read_done
-
-    // Leer una línea completa byte a byte hasta \n
-    mov  x5, #0                       // x5 = índice en line_buf
-read_line_loop:
-    mov  x0, x19
-    adr  x1, line_buf
-    add  x1, x1, x5                   // x1 = line_buf + x5
-    mov  x2, #1
-    mov  x8, #SYS_READ
-    svc  #0
-    cmp  x0, #0
-    b.le read_done                    // EOF inesperado
-    ldrb w6, [x1]
-    cmp  w6, #'\n'
-    b.eq parse_line                   // fin de línea → parsear
-    add  x5, x5, #1
-    cmp  x5, #63
-    b.lt read_line_loop
-    b    read_line_loop               // línea muy larga (>63 bytes), seguir leyendo pero truncar a 63
-
-parse_line:
-    mov  w6, #0
-    adr  x7, line_buf
-    add  x7, x7, x5
-    strb w6, [x7]
-
-    adr  x0, line_buf
-    mov  x1, #1                       // 1 = Columna TEMP
-    bl   parse_csv_column
-
-    // Guardar en values_buf[i]
-    adr  x9, values_buf
-    lsl  x10, x20, #3                 // offset = i * 8
-    str  x0, [x9, x10]
-    add  x20, x20, #1
-    b    read_loop
-
-read_done:
-    // ---- 4) Cerrar archivo de entrada ----
-    mov  x0, x19
-    mov  x8, #SYS_CLOSE
-    svc  #0
-
     // =========================================================================
-    // AQUI EMPIEZA CALCULOS DE MEDIA, DESVIACIÓN, Z-SCORE, ANOMALÍAS Y RIESGO
+    // FUNCIONES DE UTILS (CORREGIDO)
+    // =========================================================================
+    
+    // 1. Abrimos el archivo
+    bl  utils_open_csv                // Abre lecturas.csv y deja el 'fd' en x0
+    mov x19, x0                       // Guardar el 'fd' en x19 para que no se pierda
+
+    // 2. Leemos la columna (x0 ya tiene el fd, no lo tocamos)
+    mov x1, #1                        // x1 = Columna TEMP (1)
+    adr x2, values_buf                // x2 = Dirección donde se guardarán los datos
+    bl  utils_read_int_column         // Ejecutar lectura
+
+    // 3. Cerramos el archivo
+    mov x0, x19                       // Recuperamos el 'fd' guardado
+    bl  utils_close_csv               // Cerrar archivo
+
+
+    
+    // =========================================================================
+    // CALCULOS DE MEDIA, DESVIACIÓN, Z-SCORE, ANOMALÍAS Y RIESGO
     
     //Direcciones de los resultados finales:
     //   x21 = Valor de la Media
@@ -309,206 +233,66 @@ fin_riesgo:
     // ---- 6) Construir buffer de salida en out_buf ----
     adr  x26, out_buf                 // x26 = cursor de escritura
 
+   // --- Subrutina In-line (Mini Copy-Str) ---
+    // Usaremos un macro lógico repetido para copiar los textos fijos
+    // Parámetros internos: x10 = string de origen, x26 = destino (se actualiza)
+    
     // Línea 1: "MODULE=ANOMALY_DETECTION\n"
-    adr  x0, lbl_module
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    adr x10, lbl_module
+copia_lbl1: ldrb w11, [x10], #1; cbz w11, fin_lbl1; strb w11, [x26], #1; b copia_lbl1; fin_lbl1:
 
     // Línea 2: "TOTAL_VALUES=30\n"
-    adr  x0, lbl_total
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    adr x10, lbl_total
+copia_lbl2: ldrb w11, [x10], #1; cbz w11, fin_lbl2; strb w11, [x26], #1; b copia_lbl2; fin_lbl2:
 
     // Línea 3: "MEAN=<media>\n"
-    adr  x0, lbl_mean
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
-    mov  x0, x21                      // Aquí usamos la media
-    mov  x1, x26
-    bl   int_to_ascii
-    mov  x26, x0
-    adr  x0, nl
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    adr x10, lbl_mean
+copia_lbl3: ldrb w11, [x10], #1; cbz w11, fin_lbl3; strb w11, [x26], #1; b copia_lbl3; fin_lbl3:
+    mov x0, x21                // Valor = Media
+    mov x1, x26
+    bl utils_i64_to_str
+    mov x26, x0
+    adr x10, nl
+copia_nl1:  ldrb w11, [x10], #1; cbz w11, fin_nl1;  strb w11, [x26], #1; b copia_nl1; fin_nl1:
 
     // Línea 4: "STD_DEV=<std_dev>\n"
-    adr  x0, lbl_std
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
-    mov  x0, x22                      // Aquí usamos la desviación
-    mov  x1, x26
-    bl   int_to_ascii
-    mov  x26, x0
-    adr  x0, nl
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    adr x10, lbl_std
+copia_lbl4: ldrb w11, [x10], #1; cbz w11, fin_lbl4; strb w11, [x26], #1; b copia_lbl4; fin_lbl4:
+    mov x0, x22                // Valor = Desviación
+    mov x1, x26
+    bl utils_i64_to_str
+    mov x26, x0
+    adr x10, nl
+copia_nl2:  ldrb w11, [x10], #1; cbz w11, fin_nl2;  strb w11, [x26], #1; b copia_nl2; fin_nl2:
 
     // Línea 5: "ANOMALIES=<anomalias>\n"
-    adr  x0, lbl_anom
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
-    mov  x0, x23                      // Aquí usamos el total de anomalías
-    mov  x1, x26
-    bl   int_to_ascii
-    mov  x26, x0
-    adr  x0, nl
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    adr x10, lbl_anom
+copia_lbl5: ldrb w11, [x10], #1; cbz w11, fin_lbl5; strb w11, [x26], #1; b copia_lbl5; fin_lbl5:
+    mov x0, x23                // Valor = Anomalías
+    mov x1, x26
+    bl utils_i64_to_str
+    mov x26, x0
+    adr x10, nl
+copia_nl3:  ldrb w11, [x10], #1; cbz w11, fin_nl3;  strb w11, [x26], #1; b copia_nl3; fin_nl3:
 
-    // Línea 6: "SYSTEM_RISK=<riesgo>\n" 
-    adr  x0, lbl_risk
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
-    mov  x0, x24                      // Aquí usamos el string de riesgo
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
-    adr  x0, nl
-    mov  x1, x26
-    bl   copy_str
-    mov  x26, x0
+    // Línea 6: "SYSTEM_RISK=<riesgo>\n"
+    adr x10, lbl_risk
+copia_lbl6: ldrb w11, [x10], #1; cbz w11, fin_lbl6; strb w11, [x26], #1; b copia_lbl6; fin_lbl6:
+    mov x10, x24               // x24 tiene la dirección de "HIGH", "MEDIUM", etc.
+copia_risk: ldrb w11, [x10], #1; cbz w11, fin_risk; strb w11, [x26], #1; b copia_risk; fin_risk:
+    adr x10, nl
+copia_nl4:  ldrb w11, [x10], #1; cbz w11, fin_nl4;  strb w11, [x26], #1; b copia_nl4; fin_nl4:
 
-    // ---- 7) Calcular longitud total del buffer ----
-    adr  x10, out_buf
-    sub  x27, x26, x10                // x27 = bytes a escribir
+    // ---- Calcular Longitud y Escribir ----
+    adr x10, out_buf
+    sub x2, x26, x10           // x2 = Tamaño total escrito
 
-    // ---- 8) Abrir results/resultado_anomalias.txt (escritura) ----
-    mov  x0, #AT_FDCWD
-    adr  x1, out_path
-    mov  x2, #577                     // O_WRONLY | O_CREAT | O_TRUNC (en decimal es aprox 577, respetamos el de tu compañero)
-    mov  x3, #0644                    // permisos rw-r--r--
-    mov  x8, #SYS_OPENAT
-    svc  #0
-    cmp  x0, #0
-    b.lt error_exit
-    mov  x19, x0                      // x19 = fd de salida
+    adr x0, out_path           // x0 = Ruta
+    adr x1, out_buf            // x1 = Buffer
+    bl utils_write_result      // ¡Boom! Escritura ejecutada.
 
-    // ---- 9) Escribir buffer completo y cerrar ----
-    mov  x0, x19
-    adr  x1, out_buf
-    mov  x2, x27
-    mov  x8, #SYS_WRITE
-    svc  #0
-
-    mov  x0, x19
-    mov  x8, #SYS_CLOSE
-    svc  #0
-
-    // ---- 10) exit(0) ----
-    mov  x0, #0
-    mov  x8, #SYS_EXIT
-    svc  #0
-
-error_exit:
-    mov  x0, #1                       // código de error = 1
-    mov  x8, #SYS_EXIT
-    svc  #0
-
-
-// =============================================================================
-// SUBRUTINAS DE UTILIDAD (NO TOCAR)
-// =============================================================================
-
-// parse_csv_column — extrae el valor entero de la columna N
-parse_csv_column:
-    stp  x29, x30, [sp, #-16]!        
-    mov  x29, sp
-    mov  x2, x0                       
-    mov  x3, x1                       
-    mov  x4, #0                       
-parse_skip_outer:
-    cmp  x4, x3
-    b.ge parse_read_int               
-parse_skip_field:
-    ldrb w5, [x2]
-    cbz  w5, parse_eof                
-    cmp  w5, #'\n'
-    b.eq parse_eof                    
-    cmp  w5, #','
-    b.ne parse_skip_next              
-    add  x2, x2, #1                   
-    add  x4, x4, #1                   
-    b    parse_skip_outer
-parse_skip_next:
-    add  x2, x2, #1
-    b    parse_skip_field
-parse_read_int:
-    mov  x0, #0                       
-    mov  x6, #10                      
-parse_digit:
-    ldrb w5, [x2]
-    cmp  w5, #'0'
-    b.lt parse_done                   
-    cmp  w5, #'9'
-    b.gt parse_done                   
-    mul  x0, x0, x6                   
-    sub  w5, w5, #'0'                 
-    add  x0, x0, x5                   
-    add  x2, x2, #1
-    b    parse_digit
-parse_eof:
-    mov  x0, #0
-parse_done:
-    ldp  x29, x30, [sp], #16          
-    ret
-
-// int_to_ascii — convierte entero a texto
-int_to_ascii:
-    stp  x29, x30, [sp, #-32]!        
-    mov  x29, sp
-    stp  x19, x20, [sp, #16]          
-    mov  x19, x0                      
-    mov  x20, x1                      
-    cbnz x19, itoa_non_zero
-    mov  w0, #'0'                     
-    strb w0, [x20]
-    add  x0, x20, #1
-    b    itoa_done
-itoa_non_zero:
-    sub  sp, sp, #32                  
-    mov  x2, sp                       
-    mov  x3, #0                       
-    mov  x4, #10                      
-itoa_digit:
-    udiv x5, x19, x4                  
-    msub x6, x5, x4, x19              
-    add  x6, x6, #'0'                 
-    strb w6, [x2, x3]                 
-    add  x3, x3, #1
-    mov  x19, x5                      
-    cbnz x19, itoa_digit              
-    mov  x7, #0                       
-itoa_copy:
-    sub  x3, x3, #1
-    ldrb w6, [x2, x3]
-    strb w6, [x20, x7]
-    add  x7, x7, #1
-    cbnz x3, itoa_copy
-    add  sp, sp, #32                  
-    add  x0, x20, x7                  
-itoa_done:
-    ldp  x19, x20, [sp, #16]          
-    ldp  x29, x30, [sp], #32          
-    ret
-
-// copy_str — copia un string ASCIIZ
-copy_str:
-copy_str_loop:
-    ldrb w2, [x0]                     
-    cbz  w2, copy_str_done            
-    strb w2, [x1]                     
-    add  x0, x0, #1                   
-    add  x1, x1, #1                   
-    b    copy_str_loop
-copy_str_done:
-    mov  x0, x1                       
-    ret
+    // =========================================================================
+    // MANDAR A LLAMAR UTILS_EXIT
+    // =========================================================================
+    mov x0, #0
+    bl utils_exit

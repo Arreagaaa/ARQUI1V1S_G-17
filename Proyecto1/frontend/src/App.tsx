@@ -233,6 +233,17 @@ export default function App() {
         timestamp: new Date().toISOString(),
       });
 
+      // Los cambios de modo también se publican en control/manual (topic dedicado)
+      if (nextAction.actuator === 'mode') {
+        mqttClient.publish('control/manual', {
+          command: `set_${nextAction.actuator}`,
+          target: nextAction.actuator,
+          source: 'dashboard',
+          payload: { state: nextAction.state, area: nextAction.area },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       if (nextAction.actuator === 'mode') {
         await controlMode(nextAction.state as 'auto' | 'manual');
       } else if (nextAction.actuator === 'pump') {

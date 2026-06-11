@@ -602,6 +602,8 @@ class GreenhouseDevice:
             client.subscribe([
                 (self.topic("control/#"), 1),
                 (self.topic("estado/global"), 1),
+                (self.topic("actuadores/riego_area1"), 1),
+                (self.topic("actuadores/riego_area2"), 1),
             ])
             self._publish_status()
         else:
@@ -620,7 +622,10 @@ class GreenhouseDevice:
 
         actuator = (payload.get("target") or payload.get("actuator")
                     or message.topic.rsplit("/", 1)[-1])
-        state = payload.get("payload", {}).get("state") or payload.get("state") or "on"
+        state = (payload.get("payload", {}).get("state")
+                 or payload.get("state")
+                 or payload.get("action")
+                 or "on")
         area = payload.get("payload", {}).get("area") or payload.get("area")
 
         # En modo auto ignorar comandos manuales (excepto mode)

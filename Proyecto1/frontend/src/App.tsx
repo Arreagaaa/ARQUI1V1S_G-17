@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -22,6 +22,8 @@ import {
   getHealth,
   getARM64Results,
   generateMockARM64Results,
+  generateARM64CSV,
+  triggerARM64Run,
   seedDatabase,
   controlMode,
   controlIrrigation,
@@ -30,6 +32,7 @@ import {
   controlAlarm,
   getARM64ColumnConfig,
   setARM64ColumnConfig,
+  baseUrl,
 } from './lib/api';
 import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from './types';
@@ -95,6 +98,7 @@ export default function App() {
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const arm64PollRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('temperature');
 
   const [pumpArea, setPumpArea] = useState<string>('area_1');
@@ -191,6 +195,7 @@ export default function App() {
     return () => {
       active = false;
       window.clearInterval(interval);
+      if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
       mqttClient.disconnect();
     };
   }, []);
@@ -329,6 +334,43 @@ export default function App() {
     } catch {
       setNotice('Error al generar los resultados de análisis ARM64.');
     } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePrepareARM64Data() {
+    setBusy('arm64-prep');
+    setNotice('');
+    try {
+      const res = await generateARM64CSV();
+      setNotice(res.message);
+    } catch {
+      setNotice('Error al preparar datos ARM64.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRunARM64() {
+    setBusy('arm64-run');
+    setNotice('');
+    if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
+    try {
+      const res = await triggerARM64Run();
+      setNotice(res.message);
+      let count = 0;
+      arm64PollRef.current = window.setInterval(async () => {
+        count++;
+        await refresh();
+        if (count >= 20) {
+          if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
+          arm64PollRef.current = null;
+          setBusy(null);
+          setNotice('Análisis ARM64 finalizado. Refresca la página para confirmar todos los resultados.');
+        }
+      }, 3000);
+    } catch {
+      setNotice('Error al ejecutar análisis ARM64 en la Pi.');
       setBusy(null);
     }
   }
@@ -684,19 +726,16 @@ export default function App() {
         <ARM64ResultsSection
           results={dashboard.arm64_results}
           onGenerateMock={() => void handleGenerateMockARM64()}
+          onPrepareData={() => void handlePrepareARM64Data()}
+          onRunAnalysis={() => void handleRunARM64()}
           loading={busy === 'arm64-mock'}
+          preparing={busy === 'arm64-prep'}
+          running={busy === 'arm64-run'}
+          backendUrl={baseUrl}
         />
 
-        {/* Nota MQTT */}
-        <footer className="rounded-3xl border border-emerald-400/15 bg-emerald-500/10 p-5 sm:p-6 backdrop-blur">
-          <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-emerald-400 animate-spin-slow shrink-0" />
-            <span>Fase Pre-ARM y Pre-Maqueta Completada</span>
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-emerald-50/80">
-            Toda la arquitectura web está lista. El backend tiene implementada la lógica de automatización y umbrales para simular las lecturas y activar el estado global de MongoDB. Cuando se conecte la Raspberry Pi por MQTT, el sistema operará automáticamente. El contrato MQTT ha quedado documentado.
-          </p>
-        </footer>
+        {/* Espaciado final */}
+        <div className="h-4" />
       </section>
     </main>
   );
@@ -985,11 +1024,21 @@ const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 }
 function ARM64ResultsSection({
   results,
   onGenerateMock,
-  loading
+  onPrepareData,
+  onRunAnalysis,
+  loading,
+  preparing,
+  running,
+  backendUrl,
 }: {
   results: Record<string, ARM64Result> | null;
   onGenerateMock: () => void;
+  onPrepareData: () => void;
+  onRunAnalysis: () => void;
   loading: boolean;
+  preparing: boolean;
+  running: boolean;
+  backendUrl: string;
 }) {
   const [columnConfig, setColumnConfig] = useState<Record<number, number>>(DEFAULT_COLUMNS);
   const [savingCol, setSavingCol] = useState(false);
@@ -1094,15 +1143,42 @@ function ARM64ResultsSection({
             Resultados calculados en ensamblador AArch64 ejecutados localmente en la Raspberry Pi 3.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onGenerateMock}
-          disabled={loading}
-          className="w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Generando...' : 'Generar datos de prueba ARM64'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onPrepareData}
+            disabled={preparing}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {preparing ? 'Generando...' : 'Preparar datos desde MongoDB'}
+          </button>
+          <button
+            type="button"
+            onClick={onRunAnalysis}
+            disabled={running}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {running ? 'Ejecutando...' : 'Ejecutar análisis en la Pi'}
+          </button>
+          <button
+            type="button"
+            onClick={onGenerateMock}
+            disabled={loading}
+            className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Generando...' : 'Datos de prueba (mock)'}
+          </button>
+        </div>
       </div>
+
+      {running && (
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+          <p className="text-xs text-emerald-300 flex items-center gap-2">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Ejecutando módulos ARM64 en la Raspberry Pi...
+          </p>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-white/10 bg-white/4 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -1134,7 +1210,7 @@ function ARM64ResultsSection({
       {!hasData ? (
         <div className="flex flex-col items-center justify-center py-10 px-4 rounded-2xl border border-dashed border-white/10 bg-slate-950/30">
           <p className="text-xs text-slate-400 text-center max-w-sm">
-            Ningún análisis ARM64 ha sido reportado en MongoDB. Presiona el botón superior para poblar la colección y previsualizar la interfaz.
+            Ningún análisis ARM64 ha sido reportado en MongoDB. Prepara los datos desde MongoDB y ejecuta los módulos en la Raspberry Pi para obtener resultados reales.
           </p>
         </div>
       ) : (

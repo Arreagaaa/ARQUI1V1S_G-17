@@ -1,6 +1,6 @@
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from '../types';
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+export const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, init);
@@ -68,6 +68,18 @@ export async function getARM64Results() {
 
 export async function generateMockARM64Results() {
   return request<unknown>("/api/arm64-results/mock?dev=true", {
+    method: 'POST',
+  });
+}
+
+export async function generateARM64CSV() {
+  return request<{ status: string; message: string; total_records: number; source: string }>("/api/arm64/csv", {
+    method: 'POST',
+  });
+}
+
+export async function triggerARM64Run() {
+  return request<{ status: string; message: string; total_records: number; source: string; mqtt_topic?: string }>("/api/arm64/run", {
     method: 'POST',
   });
 }

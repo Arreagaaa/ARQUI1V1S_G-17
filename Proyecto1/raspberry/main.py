@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -630,6 +632,11 @@ class GreenhouseDevice:
                  or "on")
         area = payload.get("payload", {}).get("area") or payload.get("area")
 
+        # ARM64: ejecutar análisis en la Pi (viene del dashboard)
+        if actuator == "arm64_run":
+            self._handle_arm64_run()
+            return
+
         # En modo auto ignorar comandos manuales (excepto mode)
         if self.gpio.mode == "auto" and actuator != "mode":
             return
@@ -733,6 +740,31 @@ class GreenhouseDevice:
             "device_id": self.settings.device_id,
         })
         self.client.publish(topic, payload, qos=1, retain=True)
+
+    def _handle_arm64_run(self) -> None:
+        print("[arm64] ejecutando módulos ARM64...")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        executor = os.path.join(script_dir, "arm_executor.py")
+        arm_dir = os.path.join(script_dir, "..", "arm64")
+        url = self.settings.backend_url
+
+        try:
+            result = subprocess.run(
+                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir],
+                capture_output=True, text=True, timeout=120,
+            )
+            for line in result.stdout.splitlines():
+                print(f"[arm64] {line}")
+            if result.stderr:
+                for line in result.stderr.splitlines():
+                    print(f"[arm64] ERROR: {line}")
+            print(f"[arm64] código de salida: {result.returncode}")
+        except FileNotFoundError:
+            print(f"[arm64] no encontrado: {executor}")
+        except subprocess.TimeoutExpired:
+            print("[arm64] timeout (120s) ejecutando módulos ARM64")
+        except Exception as exc:
+            print(f"[arm64] error: {exc}")
 
     @staticmethod
     def _sensor_unit(sensor_type: str) -> str:

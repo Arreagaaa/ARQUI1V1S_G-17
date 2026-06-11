@@ -8,12 +8,18 @@ Endpoints legacy (compatibilidad):
   GET  /api/arm64-results/latest
   POST /api/arm64-results
   POST /api/arm64-results/mock
+
+Endpoints de generación de datos:
+  GET  /api/arm64/csv — Genera y descarga lecturas.csv desde MongoDB real
 """
 
+import csv
+import io
 import logging
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 
 from ..db import get_database
 from ..schemas import ARM64ResultCreate
@@ -186,12 +192,169 @@ def generate_mock_arm64_results(dev: bool = False):
     return {"status": "ok", "message": "Mock ARM64 results generated"}
 
 
+FIELD_NAMES = ["ID", "TEMP", "HUM_AIRE", "HUM_SUELO_1", "HUM_SUELO_2", "LUZ", "GAS", "RIEGO_1", "RIEGO_2"]
+
+SENSOR_TYPE_MAP = {
+    "temperature": "TEMP", "temperatura": "TEMP",
+    "humidity": "HUM_AIRE", "hum_aire": "HUM_AIRE", "humedad_ambiente": "HUM_AIRE",
+    "soil_1": "HUM_SUELO_1", "soil_2": "HUM_SUELO_2",
+    "humedad_suelo_area1": "HUM_SUELO_1", "humedad_suelo_area2": "HUM_SUELO_2",
+    "light": "LUZ", "luz": "LUZ",
+    "gas": "GAS",
+}
+
 COLUMN_LABELS = {
     0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1",
     4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS", 7: "RIEGO_1", 8: "RIEGO_2",
 }
 
 DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1}
+
+
+@router.get("/api/arm64/csv")
+def download_arm64_csv():
+    """
+    Descarga lecturas.csv generado desde MongoDB (o datos simulados).
+    Usado por arm_executor.py en la Raspberry Pi.
+    """
+    db = get_database()
+    total = db.sensor_readings.count_documents({})
+    rows = _generate_csv_rows(db, total)
+    source = "mongodb" if total >= 30 else "mock_fallback"
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=FIELD_NAMES)
+    writer.writeheader()
+    writer.writerows(rows)
+    buf.write("$\n")
+
+    return PlainTextResponse(
+        content=buf.getvalue(),
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": "attachment; filename=lecturas.csv",
+            "X-Total-Records": str(len(rows)),
+            "X-Source": source,
+        }
+    )
+
+
+@router.post("/api/arm64/csv")
+def generate_arm64_csv():
+    """
+    Genera lecturas.csv desde MongoDB y retorna metadatos.
+    Usado por el dashboard para preparar datos antes de ejecutar en la Pi.
+    """
+    db = get_database()
+    total = db.sensor_readings.count_documents({})
+    rows = _generate_csv_rows(db, total)
+    source = "mongodb" if total >= 30 else "mock_fallback"
+
+    logger.info("CSV ARM64 generado: %d registros, fuente: %s", len(rows), source)
+    return {
+        "status": "ok",
+        "message": f"lecturas.csv generado con {len(rows)} registros desde {source}.",
+        "total_records": len(rows),
+        "source": source,
+    }
+
+
+@router.post("/api/arm64/run")
+def trigger_arm64_run():
+    """
+    Genera lecturas.csv y envía comando MQTT a la Raspberry Pi
+    para ejecutar los 5 módulos ARM64.
+    """
+    db = get_database()
+    total = db.sensor_readings.count_documents({})
+    rows = _generate_csv_rows(db, total)
+    source = "mongodb" if total >= 30 else "mock_fallback"
+
+    logger.info("CSV ARM64 generado para ejecución: %d registros, fuente: %s", len(rows), source)
+
+    try:
+        from ..mqtt.publisher import MQTTPublisher
+        publisher = MQTTPublisher()
+        result = publisher.publish_control_command(
+            command="run_arm64",
+            target="arm64_run",
+            state="execute",
+            source="web",
+        )
+        if result and result.success:
+            return {
+                "status": "ok",
+                "message": f"CSV generado ({len(rows)} registros). Comando enviado a la Raspberry Pi.",
+                "total_records": len(rows),
+                "source": source,
+                "mqtt_topic": result.topic,
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "CSV generado pero no se pudo enviar el comando MQTT a la Raspberry Pi.",
+                "total_records": len(rows),
+                "source": source,
+            }
+    except Exception as exc:
+        logger.error("Error al publicar comando ARM64 por MQTT: %s", exc)
+        return {
+            "status": "error",
+            "message": f"Error al comunicar con la Raspberry Pi: {exc}",
+        }
+
+
+def _generate_csv_rows(db, total: int, count: int = 30) -> list[dict]:
+    if total >= count:
+        latest = list(db.sensor_readings.find().sort("recorded_at", -1).limit(count * 6))
+        if latest and len(latest) >= count:
+            groups: dict[str, list[float]] = {}
+            for doc in latest:
+                st = doc.get("sensor_type", "").lower().replace(" ", "_").replace("-", "_")
+                col = SENSOR_TYPE_MAP.get(st)
+                if col:
+                    if col not in groups:
+                        groups[col] = []
+                    v = doc.get("value", 0.0)
+                    if isinstance(v, (int, float)):
+                        groups[col].append(float(v))
+
+            rows = []
+            for i in range(count):
+                row = {"ID": i + 1}
+                for col in ["TEMP", "HUM_AIRE", "HUM_SUELO_1", "HUM_SUELO_2", "LUZ", "GAS"]:
+                    vals = groups.get(col, [])
+                    if i < len(vals):
+                        row[col] = round(vals[i], 1) if col in ("TEMP", "HUM_AIRE", "HUM_SUELO_1", "HUM_SUELO_2") else int(round(vals[i]))
+                    else:
+                        row[col] = 0
+                row["RIEGO_1"] = 0
+                row["RIEGO_2"] = 0
+                rows.append(row)
+
+            if len(rows) >= count:
+                return rows[:count]
+
+    return _generate_mock_csv_rows(count)
+
+
+def _generate_mock_csv_rows(count: int = 30) -> list[dict]:
+    import random
+    rng = random.Random(42)
+    rows = []
+    for i in range(1, count + 1):
+        rows.append({
+            "ID": i,
+            "TEMP": round(rng.uniform(22.0, 38.0), 1),
+            "HUM_AIRE": round(rng.uniform(40.0, 90.0), 1),
+            "HUM_SUELO_1": round(rng.uniform(0.0, 100.0), 1),
+            "HUM_SUELO_2": round(rng.uniform(0.0, 100.0), 1),
+            "LUZ": rng.randint(0, 1023),
+            "GAS": rng.randint(0, 1023),
+            "RIEGO_1": rng.randint(0, 1),
+            "RIEGO_2": rng.randint(0, 1),
+        })
+    return rows
 
 
 @router.get("/api/arm64/column-config")

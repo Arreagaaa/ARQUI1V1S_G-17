@@ -822,6 +822,13 @@ class GreenhouseDevice:
         self._pending_global = None
         self._last_global_update = now
 
+        # Sincronizar modo desde el backend (dashboard cambió modo)
+        backend_mode = payload.get("mode")
+        if backend_mode in ("auto", "manual"):
+            if self.gpio.mode != backend_mode:
+                self.gpio.mode = backend_mode
+                print(f"[estado] modo sincronizado desde backend -> {backend_mode}")
+
         state = payload.get("overall_state")
         if state:
             self.gpio.set_global_state(state)

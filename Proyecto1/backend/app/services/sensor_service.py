@@ -66,6 +66,12 @@ def update_system_status(updates: dict) -> dict:
         new_status.update(updates)
         new_status["updated_at"] = _now()
 
+    # Re-leer modo desde el registro más reciente para evitar que datos
+    # obsoletos (race condition con process_reading) reviertan el modo.
+    current = db.system_status.find_one(sort=[("updated_at", -1)])
+    if current and current.get("mode") in ("auto", "manual"):
+        new_status["mode"] = current["mode"]
+
     new_status["source"] = "api"
     db.system_status.insert_one(new_status)
 

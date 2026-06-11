@@ -595,11 +595,21 @@ class GreenhouseDevice:
         except Exception:
             payload = {"raw": message.payload.decode("utf-8", errors="replace")}
 
-        # Si el backend publica un cambio de estado global, actualizar LEDs
+        # Si el backend publica un cambio de estado global, actualizar LEDs y actuadores
         if message.topic.endswith("estado/global"):
             state = payload.get("overall_state")
             if state:
                 self.gpio.set_global_state(state)
+            # Sincronizar actuadores según lo que el backend decidió
+            act_map = {
+                "fan_active": ("fan", "on" if payload.get("fan_active") else "off"),
+                "pump_active": ("pump", "on" if payload.get("pump_active") else "off"),
+                "lights_active": ("lights", "on" if payload.get("lights_active") else "off"),
+                "buzzer_active": ("buzzer", "on" if payload.get("buzzer_active") else "off"),
+            }
+            for key, (actuator, act_state) in act_map.items():
+                if key in payload:
+                    self.gpio.set_actuator(actuator, act_state, payload.get("area"))
             return
 
         actuator = (payload.get("target") or payload.get("actuator")

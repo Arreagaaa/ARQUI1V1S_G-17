@@ -75,7 +75,7 @@ def handle_actuator_message(topic: str, payload: dict) -> None:
     try:
         db = get_database()
         actuator = payload.get("actuator")
-        action = payload.get("action")
+        action = payload.get("action") or payload.get("state")
         source = payload.get("source", "mqtt")
         if not actuator or not action:
             logger.warning("MQTT actuator message sin actuator/action: %s", payload)

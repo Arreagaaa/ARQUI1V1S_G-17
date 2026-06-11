@@ -61,24 +61,35 @@ Publicado: T=25.2°C H=53.5% S1=52.6% S2=42.6% L=50.7 lux G=78.4 ppm
 
 ## 4. ARM64 (módulos de análisis)
 
-### Compilar
+Los módulos ARM64 leen `arm64/lecturas.csv` (30 registros reales desde MongoDB).
+
+### 1. Generar lecturas.csv desde MongoDB (opcional — actualizar datos)
+```bash
+cd Proyecto1/backend
+source .venv/bin/activate
+python3 generate_lecturas.py --from-db
+```
+Esto sobreescribe `arm64/lecturas.csv` con los últimos 30 registros de MongoDB.
+
+### 2. Compilar
 ```bash
 cd Proyecto1/arm64
 make all
 ```
 
-### Ejecutar individualmente (vía QEMU)
+### 3. Ejecutar individualmente (vía QEMU)
 ```bash
-make run1   # Media
-make run2   # Varianza
-make run3   # Anomalías
-make run4   # Predicción
-make run5   # Tendencia
+make run1   # Media ponderada
+make run2   # Varianza y desv. estándar
+make run3   # Detección de anomalías
+make run4   # Predicción lineal
+make run5   # Tendencia acumulada
 ```
 
-### Enviar resultados al backend
+### 4. Enviar resultados al backend
 ```bash
 cd Proyecto1/raspberry
+source ../backend/.venv/bin/activate
 python3 arm_executor.py --parse-only --dir ../arm64 --url http://localhost:8000
 ```
 

@@ -174,11 +174,11 @@ O usar módulos relé activos por HIGH (comunes en IoT).
 ## Configuración Inicial en Raspberry Pi
 
 ```bash
-# 1. Habilitar SPI
-sudo raspi-config
-# → Interfacing Options → SPI → Enable
+# 1. NO habilitar SPI (el código usa software bit-banging con RPi.GPIO)
+#    Si activas SPI por hardware, los pines GPIO 9/10/11 serán controlados
+#    por el periférico SPI y el bit-bang dejará de funcionar.
 
-# 2. (Opcional) Deshabilitar consola serial si usas GPIO 14/15
+# 2. Deshabilitar consola serial (libera GPIO 14/15 para botones)
 sudo raspi-config
 # → Interfacing Options → Serial Port → NO (login shell) → YES (hardware)
 

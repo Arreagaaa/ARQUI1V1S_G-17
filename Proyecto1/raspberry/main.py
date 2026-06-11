@@ -382,7 +382,7 @@ class GpioController:
             return
         if I2CLCD:
             try:
-                self._lcd_i2c = I2CLCD(address=0x27, bus=1, cols=16, rows=2, backlight=True)
+                self._lcd_i2c = I2CLCD(address=0x27, bus=1)
                 print("[lcd] I2C LCD listo")
                 return
             except Exception as exc:

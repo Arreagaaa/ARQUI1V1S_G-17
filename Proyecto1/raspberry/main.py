@@ -331,8 +331,9 @@ class GpioController:
         self.current_state: str = "NORMAL"
         self.mode: str = "auto"  # auto | manual
 
-        # ADC & LCD (inicializados bajo demanda)
+        # ADC, DHT & LCD (inicializados bajo demanda)
         self._adc: MCP3008 | None = None
+        self._dht: Any = None
         self._lcd_i2c: Any = None
         self._lcd_parallel: ParallelLCD | None = None
 
@@ -369,6 +370,13 @@ class GpioController:
             settings.button_silence,
         ):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+        # Inicializar DHT11 (una sola instancia)
+        if adafruit_dht and board:
+            try:
+                self._dht = adafruit_dht.DHT11(getattr(board, f"D{settings.dht_gpio}"))
+            except Exception as exc:
+                print(f"[dht] init error: {exc}")
 
         # Inicializar LCD (I2C preferido, paralelo fallback)
         self._init_lcd()
@@ -518,13 +526,11 @@ class GpioController:
     # --- Sensores -------------------------------------------------------
 
     def read_dht(self) -> tuple[float | None, float | None]:
-        if not (self.available and adafruit_dht and board):
+        if self._dht is None:
             return None, None
         try:
-            dht = adafruit_dht.DHT11(getattr(board, f"D{self.s.dht_gpio}"))
-            temp = dht.temperature
-            hum = dht.humidity
-            dht.exit()
+            temp = self._dht.temperature
+            hum = self._dht.humidity
             return temp, hum
         except Exception as exc:
             print(f"[dht] error: {exc}")
@@ -543,6 +549,11 @@ class GpioController:
     # --- Limpieza -------------------------------------------------------
 
     def cleanup(self) -> None:
+        if self._dht:
+            try:
+                self._dht.exit()
+            except Exception:
+                pass
         if self.available:
             GPIO.cleanup()
 
@@ -816,10 +827,18 @@ class GreenhouseDevice:
         print(f"[device] {self.settings.device_id} listo "
               f"(GPIO={'on' if self.gpio.available else 'dry-run'})")
 
+        last_sensor_read = 0.0
+
         try:
             while True:
-                time.sleep(self.settings.poll_interval_seconds)
+                time.sleep(0.1)
                 self._handle_buttons()
+
+                now = time.time()
+                if now - last_sensor_read < self.settings.poll_interval_seconds:
+                    continue
+                last_sensor_read = now
+
                 readings = self.read_sensors()
 
                 # Publicar cada sensor por MQTT

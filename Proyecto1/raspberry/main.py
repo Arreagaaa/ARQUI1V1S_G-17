@@ -623,6 +623,10 @@ class GreenhouseDevice:
         state = payload.get("payload", {}).get("state") or payload.get("state") or "on"
         area = payload.get("payload", {}).get("area") or payload.get("area")
 
+        # Descartar estado global pendiente: un comando directo tiene prioridad
+        self._pending_global = None
+        self._last_global_update = time.time()
+
         result = self.gpio.set_actuator(actuator, state, area)
         log_payload = {
             "actuator": actuator,

@@ -789,20 +789,26 @@ class GreenhouseDevice:
         def rising(key: str) -> bool:
             return btns[key] and not self._last_btn_state[key]
 
+        # Descarta estado global pendiente para que no sobreescriba el comando manual
+        def clear_pending():
+            self._pending_global = None
+            self._last_global_update = time.time()
+
         if rising("mode"):
             self.gpio.mode = "manual" if self.gpio.mode == "auto" else "auto"
             print(f"[boton] modo -> {self.gpio.mode}")
             self._publish_status()
             self._last_button_time = now
 
-        elif rising("pump") and self.gpio.mode == "manual":
-            # Toggle riego Área 1
+        elif rising("pump"):
+            clear_pending()
             new_state = not self.gpio.pump_on
             result = self.gpio.set_pump_irrigation("area_1", new_state)
             self._publish_actuator("pump", result)
             self._last_button_time = now
 
-        elif rising("lights") and self.gpio.mode == "manual":
+        elif rising("lights"):
+            clear_pending()
             new_state = not self.gpio.lights_on
             result = self.gpio.set_actuator("lights", "on" if new_state else "off")
             self._publish_actuator("lights", result)
@@ -810,6 +816,7 @@ class GreenhouseDevice:
 
         elif rising("silence"):
             if self.gpio.buzzer_on:
+                clear_pending()
                 self.gpio.set_actuator("buzzer", "off")
                 print("[boton] buzzer silenciado")
                 self._last_button_time = now

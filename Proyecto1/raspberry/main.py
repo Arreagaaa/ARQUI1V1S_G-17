@@ -623,6 +623,10 @@ class GreenhouseDevice:
         state = payload.get("payload", {}).get("state") or payload.get("state") or "on"
         area = payload.get("payload", {}).get("area") or payload.get("area")
 
+        # En modo auto ignorar comandos manuales (excepto mode)
+        if self.gpio.mode == "auto" and actuator != "mode":
+            return
+
         # Descartar estado global pendiente: un comando directo tiene prioridad
         self._pending_global = None
         self._last_global_update = time.time()
@@ -800,14 +804,14 @@ class GreenhouseDevice:
             self._publish_status()
             self._last_button_time = now
 
-        elif rising("pump"):
+        elif rising("pump") and self.gpio.mode == "manual":
             clear_pending()
             new_state = not self.gpio.pump_on
             result = self.gpio.set_pump_irrigation("area_1", new_state)
             self._publish_actuator("pump", result)
             self._last_button_time = now
 
-        elif rising("lights"):
+        elif rising("lights") and self.gpio.mode == "manual":
             clear_pending()
             new_state = not self.gpio.lights_on
             result = self.gpio.set_actuator("lights", "on" if new_state else "off")

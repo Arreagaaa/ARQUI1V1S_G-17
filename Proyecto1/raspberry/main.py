@@ -580,9 +580,8 @@ class GreenhouseDevice:
         # Debounce de botones
         self._last_button_time: float = 0.0
         self._last_btn_state: dict[str, bool] = {"mode": False, "pump": False, "lights": False, "silence": False}
-        # Evita que el backend reviente el modo con estado/global obsoleto
+        # Timestamp del último cambio de modo (para control/remoto y botón)
         self._last_mode_change: float = 0.0
-        self._mode_change_cooldown: float = 2.0
         # Throttle para estado/global (evitar saturación: backend publica 6 por ciclo)
         self._last_global_update: float = 0.0
         self._global_update_interval: float = 1.0
@@ -823,6 +822,7 @@ class GreenhouseDevice:
             self.gpio.mode = "manual" if self.gpio.mode == "auto" else "auto"
             print(f"[boton] modo -> {self.gpio.mode}")
             self._last_mode_change = now
+            clear_pending()
             self._publish_status()
             self._last_button_time = now
 
@@ -859,16 +859,13 @@ class GreenhouseDevice:
         self._pending_global = None
         self._last_global_update = now
 
-        # Sincronizar modo desde el backend, pero solo si la Pi no cambió
-        # modo localmente hace menos de _mode_change_cooldown segundos.
+        # NOTA: El modo NO se sincroniza desde estado/global.
+        # El modo solo cambia por:
+        #   1. Botón físico (handle_buttons)
+        #   2. Comando control/remoto (on_message)
+        # estado/global solo transporta estado de actuadores y overall_state.
         # Esto evita que el backend revierta el modo con datos obsoletos
         # cuando las lecturas de sensor llegan antes que el estado/global.
-        backend_mode = payload.get("mode")
-        if backend_mode in ("auto", "manual"):
-            if (self.gpio.mode != backend_mode
-                    and time.time() - self._last_mode_change > self._mode_change_cooldown):
-                self.gpio.mode = backend_mode
-                print(f"[estado] modo sincronizado desde backend -> {backend_mode}")
 
         state = payload.get("overall_state")
         if state:

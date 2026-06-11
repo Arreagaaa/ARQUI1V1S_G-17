@@ -635,11 +635,24 @@ class GreenhouseDevice:
         if self.gpio.mode == "auto" and actuator != "mode":
             return
 
-        # Descartar estado global pendiente: un comando directo tiene prioridad
-        self._pending_global = None
-        self._last_global_update = time.time()
+        # Mode se maneja directamente; no descartar pending_global porque
+        # estado/global trae informacion adicional (overall_state, actuadores)
+        if actuator == "mode":
+            if state in ("auto", "manual"):
+                self.gpio.mode = state
+                self._last_mode_change = time.time()
+                result = {"actuator": "mode", "state": state, "applied": True}
+            else:
+                result = {"actuator": "mode", "state": state, "applied": False,
+                          "reason": "invalid_state"}
+            self._publish_status()
+        else:
+            # Descartar estado global pendiente: un comando directo tiene prioridad
+            self._pending_global = None
+            self._last_global_update = time.time()
 
-        result = self.gpio.set_actuator(actuator, state, area)
+            result = self.gpio.set_actuator(actuator, state, area)
+
         log_payload = {
             "actuator": actuator,
             "action": state,

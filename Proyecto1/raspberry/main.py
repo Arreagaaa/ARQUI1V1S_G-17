@@ -453,7 +453,9 @@ class GpioController:
                     "applied": False, "reason": "valvula_2_no_instalada",
                     "mode": self._mode_str}
         else:
-            return self.set_pump_irrigation(None, False)
+            # Sin válvula — solo enciende la bomba (caso automatización sin área)
+            self._write(self.s.gpio_pump, True)
+            self.pump_on = True
         return {"actuator": "pump", "state": "on", "area": area, "applied": True,
                 "mode": self._mode_str}
 
@@ -600,6 +602,9 @@ class GreenhouseDevice:
             state = payload.get("overall_state")
             if state:
                 self.gpio.set_global_state(state)
+            # Extraer área de riego desde el irrigation_state (backend lo publica)
+            irr_state = payload.get("irrigation_state", "")
+            area = "area_1" if "AREA_1" in irr_state else ("area_2" if "AREA_2" in irr_state else None)
             # Sincronizar actuadores según lo que el backend decidió
             act_map = {
                 "fan_active": ("fan", "on" if payload.get("fan_active") else "off"),
@@ -609,7 +614,7 @@ class GreenhouseDevice:
             }
             for key, (actuator, act_state) in act_map.items():
                 if key in payload:
-                    self.gpio.set_actuator(actuator, act_state, payload.get("area"))
+                    self.gpio.set_actuator(actuator, act_state, area)
             return
 
         actuator = (payload.get("target") or payload.get("actuator")

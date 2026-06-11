@@ -16,6 +16,20 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     db = get_database()
     publisher = MQTTPublisher()
 
+    # En modo auto solo se permite cambiar el modo
+    if actuator != "mode":
+        latest = db.system_status.find_one(sort=[("updated_at", -1)])
+        mode = (latest or {}).get("mode", "auto")
+        if mode == "auto":
+            logger.info("Control ignorado (modo auto): %s -> %s (area=%s)", actuator, state, area)
+            return {
+                "command_id": None,
+                "log_id": None,
+                "mqtt": None,
+                "ignored": True,
+                "reason": "modo_auto_no_permite_control_manual",
+            }
+
     command_document = {
         "command": f"set_{actuator}",
         "target": actuator,

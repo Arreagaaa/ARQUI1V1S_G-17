@@ -579,6 +579,11 @@ class GreenhouseDevice:
 
         # Debounce de botones
         self._last_button_time: float = 0.0
+        self._last_btn_state: dict[str, bool] = {"mode": False, "pump": False, "lights": False, "silence": False}
+        # Throttle para estado/global (evitar saturación: backend publica 6 por ciclo)
+        self._last_global_update: float = 0.0
+        self._global_update_interval: float = 1.0
+        self._pending_global: dict | None = None
 
         # LCD rotation
         self._lcd_cycle: int = 0
@@ -610,22 +615,7 @@ class GreenhouseDevice:
 
         # Si el backend publica un cambio de estado global, actualizar LEDs y actuadores
         if message.topic.endswith("estado/global"):
-            state = payload.get("overall_state")
-            if state:
-                self.gpio.set_global_state(state)
-            # Extraer área de riego desde el irrigation_state (backend lo publica)
-            irr_state = payload.get("irrigation_state", "")
-            area = "area_1" if "AREA_1" in irr_state else ("area_2" if "AREA_2" in irr_state else None)
-            # Sincronizar actuadores según lo que el backend decidió
-            act_map = {
-                "fan_active": ("fan", "on" if payload.get("fan_active") else "off"),
-                "pump_active": ("pump", "on" if payload.get("pump_active") else "off"),
-                "lights_active": ("lights", "on" if payload.get("lights_active") else "off"),
-                "buzzer_active": ("buzzer", "on" if payload.get("buzzer_active") else "off"),
-            }
-            for key, (actuator, act_state) in act_map.items():
-                if key in payload:
-                    self.gpio.set_actuator(actuator, act_state, area)
+            self._pending_global = payload
             return
 
         actuator = (payload.get("target") or payload.get("actuator")
@@ -782,7 +772,7 @@ class GreenhouseDevice:
 
     # --- Manejo de botones ---------------------------------------------
 
-    BUTTON_COOLDOWN = 0.3
+    BUTTON_COOLDOWN = 1.0
 
     def _handle_buttons(self) -> None:
         now = time.time()
@@ -791,30 +781,61 @@ class GreenhouseDevice:
 
         btns = self.gpio.read_buttons()
 
-        if btns["mode"]:
+        # Detección de flanco de subida (False→True): solo dispara al presionar, no al mantener
+        def rising(key: str) -> bool:
+            return btns[key] and not self._last_btn_state[key]
+
+        if rising("mode"):
             self.gpio.mode = "manual" if self.gpio.mode == "auto" else "auto"
             print(f"[boton] modo -> {self.gpio.mode}")
             self._publish_status()
             self._last_button_time = now
 
-        elif btns["pump"] and self.gpio.mode == "manual":
+        elif rising("pump") and self.gpio.mode == "manual":
             # Toggle riego Área 1
             new_state = not self.gpio.pump_on
             result = self.gpio.set_pump_irrigation("area_1", new_state)
             self._publish_actuator("pump", result)
             self._last_button_time = now
 
-        elif btns["lights"] and self.gpio.mode == "manual":
+        elif rising("lights") and self.gpio.mode == "manual":
             new_state = not self.gpio.lights_on
             result = self.gpio.set_actuator("lights", "on" if new_state else "off")
             self._publish_actuator("lights", result)
             self._last_button_time = now
 
-        elif btns["silence"]:
+        elif rising("silence"):
             if self.gpio.buzzer_on:
                 self.gpio.set_actuator("buzzer", "off")
                 print("[boton] buzzer silenciado")
                 self._last_button_time = now
+
+        self._last_btn_state = btns
+
+    def _apply_pending_global(self) -> None:
+        now = time.time()
+        if now - self._last_global_update < self._global_update_interval:
+            return
+        if self._pending_global is None:
+            return
+        payload = self._pending_global
+        self._pending_global = None
+        self._last_global_update = now
+
+        state = payload.get("overall_state")
+        if state:
+            self.gpio.set_global_state(state)
+        irr_state = payload.get("irrigation_state", "")
+        area = "area_1" if "AREA_1" in irr_state else ("area_2" if "AREA_2" in irr_state else None)
+        act_map = {
+            "fan_active": ("fan", "on" if payload.get("fan_active") else "off"),
+            "pump_active": ("pump", "on" if payload.get("pump_active") else "off"),
+            "lights_active": ("lights", "on" if payload.get("lights_active") else "off"),
+            "buzzer_active": ("buzzer", "on" if payload.get("buzzer_active") else "off"),
+        }
+        for key, (actuator, act_state) in act_map.items():
+            if key in payload:
+                self.gpio.set_actuator(actuator, act_state, area)
 
     # --- Loop principal ------------------------------------------------
 
@@ -833,6 +854,7 @@ class GreenhouseDevice:
             while True:
                 time.sleep(0.1)
                 self._handle_buttons()
+                self._apply_pending_global()
 
                 now = time.time()
                 if now - last_sensor_read < self.settings.poll_interval_seconds:

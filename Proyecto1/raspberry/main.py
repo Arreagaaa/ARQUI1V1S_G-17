@@ -382,26 +382,14 @@ class GpioController:
         ):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-        # Inicializar DHT11 (4 drivers: szazo > pigpio > adafruit-DHT22 > adafruit-DHT11)
+        # Inicializar DHT11 (4 drivers: adafruit-DHT22 > pigpio > szazo > adafruit-DHT11)
+        # Orden: adafruit-DHT22 tiene mejor timing en kernel 6.x que szazo
         self._dht_gpio = settings.dht_gpio
-        self._dht_sz: dht11_lib.DHT11 | None = None  # type: ignore[valid-type]
-        self._dht_pi: pigpio.pi | None = None  # type: ignore[valid-type]
         self._dht_ada22: adafruit_dht.DHT22 | None = None  # type: ignore[valid-type]
+        self._dht_pi: pigpio.pi | None = None  # type: ignore[valid-type]
+        self._dht_sz: dht11_lib.DHT11 | None = None  # type: ignore[valid-type]
         self._dht_ada11: adafruit_dht.DHT11 | None = None  # type: ignore[valid-type]
-        if _HAS_SZ_DHT:
-            try:
-                self._dht_sz = dht11_lib.DHT11(pin=self._dht_gpio)
-                print(f"[dht] dht11-szazo listo en GPIO {self._dht_gpio}")
-            except Exception as exc:
-                print(f"[dht] szazo init error: {exc}")
-        if self._dht_sz is None and _HAS_PIGPIO:
-            try:
-                self._dht_pi = pigpio.pi()  # type: ignore[attr-defined]
-                print(f"[dht] pigpio listo en GPIO {self._dht_gpio}")
-            except Exception as exc:
-                print(f"[dht] pigpio init error: {exc}")
-                self._dht_pi = None
-        if self._dht_sz is None and self._dht_pi is None and _HAS_ADA_DHT:
+        if _HAS_ADA_DHT:
             try:
                 self._dht_ada22 = adafruit_dht.DHT22(  # type: ignore[attr-defined]
                     getattr(board, f"D{settings.dht_gpio}"),
@@ -411,7 +399,20 @@ class GpioController:
             except Exception as exc:
                 print(f"[dht] adafruit-DHT22 init error: {exc}")
                 self._dht_ada22 = None
-        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and _HAS_ADA_DHT:
+        if self._dht_ada22 is None and _HAS_PIGPIO:
+            try:
+                self._dht_pi = pigpio.pi()  # type: ignore[attr-defined]
+                print(f"[dht] pigpio listo en GPIO {self._dht_gpio}")
+            except Exception as exc:
+                print(f"[dht] pigpio init error: {exc}")
+                self._dht_pi = None
+        if self._dht_ada22 is None and self._dht_pi is None and _HAS_SZ_DHT:
+            try:
+                self._dht_sz = dht11_lib.DHT11(pin=self._dht_gpio)
+                print(f"[dht] dht11-szazo listo en GPIO {self._dht_gpio}")
+            except Exception as exc:
+                print(f"[dht] szazo init error: {exc}")
+        if self._dht_ada22 is None and self._dht_pi is None and self._dht_sz is None and _HAS_ADA_DHT:
             try:
                 self._dht_ada11 = adafruit_dht.DHT11(  # type: ignore[attr-defined]
                     getattr(board, f"D{settings.dht_gpio}"),
@@ -421,7 +422,7 @@ class GpioController:
             except Exception as exc:
                 print(f"[dht] adafruit-DHT11 init error: {exc}")
                 self._dht_ada11 = None
-        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and self._dht_ada11 is None:
+        if self._dht_ada22 is None and self._dht_pi is None and self._dht_sz is None and self._dht_ada11 is None:
             print("[dht] no disponible")
 
         # Inicializar LCD (I2C preferido, paralelo fallback)
@@ -580,36 +581,12 @@ class GpioController:
     def _dht_reinit(self) -> None:
         """Reinicia el sensor DHT después de errores consecutivos."""
         print("[dht] re-inicializando sensor...")
+        self._dht_ada22 = None
+        self._dht_pi = None
         self._dht_sz = None
-        if self._dht_pi is not None:
-            self._dht_pi.stop()  # type: ignore[attr-defined]
-            self._dht_pi = None
-        if self._dht_ada22 is not None:
-            try:
-                self._dht_ada22.exit()
-            except Exception:
-                pass
-            self._dht_ada22 = None
-        if self._dht_ada11 is not None:
-            try:
-                self._dht_ada11.exit()
-            except Exception:
-                pass
-            self._dht_ada11 = None
+        self._dht_ada11 = None
         time.sleep(1)
-        if _HAS_SZ_DHT:
-            try:
-                self._dht_sz = dht11_lib.DHT11(pin=self._dht_gpio)
-                print("[dht] szazo re-inicializado")
-            except Exception:
-                self._dht_sz = None
-        if self._dht_sz is None and _HAS_PIGPIO:
-            try:
-                self._dht_pi = pigpio.pi()  # type: ignore[attr-defined]
-                print("[dht] pigpio re-inicializado")
-            except Exception:
-                self._dht_pi = None
-        if self._dht_sz is None and self._dht_pi is None and _HAS_ADA_DHT:
+        if _HAS_ADA_DHT:
             try:
                 self._dht_ada22 = adafruit_dht.DHT22(  # type: ignore[attr-defined]
                     getattr(board, f"D{self._dht_gpio}"),
@@ -618,7 +595,19 @@ class GpioController:
                 print("[dht] adafruit-DHT22 re-inicializado")
             except Exception:
                 self._dht_ada22 = None
-        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and _HAS_ADA_DHT:
+        if self._dht_ada22 is None and _HAS_PIGPIO:
+            try:
+                self._dht_pi = pigpio.pi()  # type: ignore[attr-defined]
+                print("[dht] pigpio re-inicializado")
+            except Exception:
+                self._dht_pi = None
+        if self._dht_ada22 is None and self._dht_pi is None and _HAS_SZ_DHT:
+            try:
+                self._dht_sz = dht11_lib.DHT11(pin=self._dht_gpio)
+                print("[dht] szazo re-inicializado")
+            except Exception:
+                self._dht_sz = None
+        if self._dht_ada22 is None and self._dht_pi is None and self._dht_sz is None and _HAS_ADA_DHT:
             try:
                 self._dht_ada11 = adafruit_dht.DHT11(  # type: ignore[attr-defined]
                     getattr(board, f"D{self._dht_gpio}"),
@@ -629,14 +618,15 @@ class GpioController:
                 self._dht_ada11 = None
 
     def read_dht(self) -> tuple[float | None, float | None]:
-        # Try szazo dht11 (simple RPi.GPIO bitbang)
-        if self._dht_sz is not None:
+        # Try adafruit DHT22 (best timing, may read DHT11 too)
+        if self._dht_ada22 is not None:
             for attempt in range(self.DHT_RETRIES):
                 try:
-                    result = self._dht_sz.read()
-                    if result.is_valid():
-                        return float(result.temperature), float(result.humidity)
-                except Exception:
+                    temp = self._dht_ada22.temperature
+                    hum = self._dht_ada22.humidity
+                    if temp is not None and hum is not None and temp > 0 and hum > 0:
+                        return temp, hum
+                except RuntimeError:
                     pass
                 time.sleep(self.DHT_RETRY_DELAY)
 
@@ -654,15 +644,14 @@ class GpioController:
                     pass
                 time.sleep(self.DHT_RETRY_DELAY)
 
-        # Try adafruit DHT22 (better timing, may read DHT11 too)
-        if self._dht_ada22 is not None:
+        # Try szazo dht11 (simple RPi.GPIO bitbang)
+        if self._dht_sz is not None:
             for attempt in range(self.DHT_RETRIES):
                 try:
-                    temp = self._dht_ada22.temperature
-                    hum = self._dht_ada22.humidity
-                    if temp is not None and hum is not None and temp > 0 and hum > 0:
-                        return temp, hum
-                except RuntimeError:
+                    result = self._dht_sz.read()
+                    if result.is_valid() and float(result.temperature) > 5:
+                        return float(result.temperature), float(result.humidity)
+                except Exception:
                     pass
                 time.sleep(self.DHT_RETRY_DELAY)
 

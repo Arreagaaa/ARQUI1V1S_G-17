@@ -34,7 +34,7 @@
 
 > **IMPORTANTE**: El código usa numeración **BCM** (GPIOxx). La numeración física del header es diferente.
 >
-> El ADC usa **ADS1115/ADS1015 por I2C** (no SPI). GPIO 9, 10, 11, 7 quedan libres.
+> El ADC usa **ADS1115/ADS1015 por I2C** (no SPI/MCP3008). GPIO 9, 10, 11, 7 quedan libres.
 
 ---
 
@@ -109,7 +109,7 @@
 
 **Divisor de voltaje para LDR:**
 ```
-3.3V ──┬── LDR ──┬── a CH0 del MCP3008
+3.3V ──┬── LDR ──┬── a CH0 del ADS1115
        │         │
        └─ 10kΩ ──┘
                  │
@@ -118,7 +118,7 @@
 
 **Conexión MQ-2/135:**
 - Pin DO (digital) → sin usar (usamos salida analógica)
-- Pin AO (analógico) → CH3 del MCP3008
+- Pin AO (analógico) → CH3 del ADS1115
 - VCC → 5V
 - GND → GND
 - *Tiempo de pre-calentamiento: ~30 segundos*
@@ -145,7 +145,7 @@ O usar módulos relé activos por HIGH (comunes en IoT).
 |---|---|
 | 1 | Raspberry Pi 3 (o 4) |
 | 1 | DHT11 o DHT22 (temperatura + humedad) |
-| 1 | MCP3008 (ADC 8-canales 10-bit) |
+| 1 | ADS1115 (ADC 4-canales 16-bit por I2C) |
 | 1 | LDR (fotorresistencia) |
 | 2 | Higrómetro de suelo (FC-28 o YL-69) |
 | 1 | MQ-2 o MQ-135 (sensor de gas) |
@@ -153,7 +153,7 @@ O usar módulos relé activos por HIGH (comunes en IoT).
 | 1 | Bomba de agua 12V + fuente |
 | 1 | Válvula solenoide 12V (Área 1) |
 | 1 | Ventilador DC 5V/12V |
-| 1 | Buzzer activo 5V |
+| 1 | Buzzer pasivo 5V (manejo por PWM) |
 | 3 | LED 5mm (verde, amarillo, rojo) |
 | 3 | Resistor 220Ω (LEDs) |
 | 1 | Resistor 10kΩ (pull-up DHT) |

@@ -98,9 +98,7 @@ $(UTILS_O): $(UTILS) | $(BUILD)
 # ----------------------------------------------------------------------------
 # Módulo 1 — Media aritmética ponderada (LISTO)
 # ----------------------------------------------------------------------------
-# media.s es 100% auto-contenido: no usa `.extern` ni símbolos de utils.s.
-# El enlace con utils.o es por compatibilidad con el Makefile multi-módulo
-# del auxiliar; si utils.s no compila, este target sigue funcionando.
+# media.s usa utils.s (open_csv, read_int_column, etc.).
 $(M1_O): $(M1_S) | $(BUILD)
 	$(AS) $(ASFLAGS) -o $@ $<
 
@@ -162,26 +160,31 @@ modulo5: $(M5_BIN)
 # Ejecución y depuración con QEMU
 # ----------------------------------------------------------------------------
 run1: $(M1_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_media.txt
 
 run2: $(M2_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_varianza.txt
 
 run3: $(M3_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_anomalias.txt
 
 run4: $(M4_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_prediccion.txt
 
 run5: $(M5_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_tendencia.txt

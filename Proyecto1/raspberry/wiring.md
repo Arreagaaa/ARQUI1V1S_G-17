@@ -18,10 +18,10 @@
 | 13  | GPIO27 |VALVE_A1|  GND   | 14  |
 | 15  | GPIO22 |VALVE_A2| GPIO23 | 16  | → FAN
 | 17  |   —    | 3.3V   | GPIO24 | 18  | → LIGHTS
-| 19  | GPIO10 |SPI_MOSI|  GND   | 20  |
-| 21  | GPIO9  |SPI_MISO| GPIO25 | 22  | → BUZZER
-| 23  | GPIO11 |SPI_SCLK| GPIO8  | 24  | → BTN_PUMP
-| 25  |   —    | GND    | GPIO7  | 26  | → SPI_CE (MCP3008)
+| 19  | GPIO10 |  libre |  GND   | 20  |
+| 21  | GPIO9  |  libre | GPIO25 | 22  | → BUZZER
+| 23  | GPIO11 |  libre | GPIO8  | 24  | → BTN_PUMP
+| 25  |   —    | GND    | GPIO7  | 26  | → libre
 | 27  | GPIO0  |LCD_D7  | GPIO1  | 28  | ← libre
 | 29  | GPIO5  |LED_GREEN|  GND  | 30  |
 | 31  | GPIO6  |LED_YELL | GPIO12 | 32  | → LED_RED
@@ -34,7 +34,7 @@
 
 > **IMPORTANTE**: El código usa numeración **BCM** (GPIOxx). La numeración física del header es diferente.
 >
-> SPI se maneja por **software bit-banging** con RPi.GPIO. NO es necesario habilitar SPI en `raspi-config`.
+> El ADC usa **ADS1115/ADS1015 por I2C** (no SPI). GPIO 9, 10, 11, 7 quedan libres.
 
 ---
 
@@ -91,22 +91,21 @@
 | GND (pin 4) | GND |
 | Resistencia pull-up | 10kΩ entre VCC y DATA |
 
-#### MCP3008 — ADC (SPI bit-bang)
+#### ADS1115/ADS1015 — ADC por I2C
 
-| MCP3008 Pin | Conexión |
+| ADS1115 Pin | Conexión |
 |---|---|
-| CH0 | LDR (fotorresistencia + divisor de voltaje 10kΩ) |
-| CH1 | Higrómetro Área 1 |
-| CH2 | Higrómetro Área 2 |
-| CH3 | MQ-2/135 (salida analógica) |
 | VDD | 3.3V |
-| VREF | 3.3V |
-| AGND | GND |
-| DGND | GND |
-| CLK | GPIO 11 (SCLK) — pin 23 |
-| DOUT | GPIO 9 (MISO) — pin 21 |
-| DIN | GPIO 10 (MOSI) — pin 19 |
-| CS | GPIO 7 (CE) — pin 26 |
+| GND | GND |
+| SCL | GPIO 3 (SCL) — pin 5 (I2C compartido con LCD) |
+| SDA | GPIO 2 (SDA) — pin 3 (I2C compartido con LCD) |
+| ADDR | GND (dirección 0x48) o VDD (0x49) |
+| A0 | LDR (fotorresistencia + divisor de voltaje 10kΩ) |
+| A1 | Higrómetro Área 1 |
+| A2 | Higrómetro Área 2 |
+| A3 | MQ-2/135 (salida analógica) |
+
+> Usa **I2C**, no SPI. No requiere configurar nada en `raspi-config` (I2C ya viene habilitado si usás LCD con I2C backpack). El LCD y el ADS1115/ADS1015 comparten el mismo bus I2C. |
 
 **Divisor de voltaje para LDR:**
 ```
@@ -174,25 +173,21 @@ O usar módulos relé activos por HIGH (comunes en IoT).
 ## Configuración Inicial en Raspberry Pi
 
 ```bash
-# 1. NO habilitar SPI (el código usa software bit-banging con RPi.GPIO)
-#    Si activas SPI por hardware, los pines GPIO 9/10/11 serán controlados
-#    por el periférico SPI y el bit-bang dejará de funcionar.
-
-# 2. Deshabilitar consola serial (libera GPIO 14/15 para botones)
+# 1. Deshabilitar consola serial (libera GPIO 14/15 para botones SILENCE y MODE)
 sudo raspi-config
 # → Interfacing Options → Serial Port → NO (login shell) → YES (hardware)
 
-# 3. Instalar dependencias
+# 2. Instalar dependencias
 cd Proyecto1/raspberry
 pip install -r requirements.txt
 
-# 4. Configurar .env
+# 3. Configurar .env
 cp .env.example .env
 nano .env
 # → ENABLE_GPIO=true
 # → BACKEND_URL=http://<IP-del-backend>:8000
 
-# 5. Probar
+# 4. Probar
 python main.py
 ```
 

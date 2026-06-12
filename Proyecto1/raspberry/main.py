@@ -62,9 +62,20 @@ except Exception:
     I2CLCD = None
 
 try:
-    import spidev  # type: ignore[import-untyped]
+    import adafruit_ads1x15.ads1115 as ADS  # type: ignore[import-untyped]
+    from adafruit_ads1x15.analog_in import AnalogIn  # type: ignore[import-untyped]
+    _ADS_CLASS = ADS.ADS1115
+    _HAS_ADS = True
 except Exception:
-    spidev = None
+    try:
+        import adafruit_ads1x15.ads1015 as ADS  # type: ignore[import-untyped]
+        from adafruit_ads1x15.analog_in import AnalogIn  # type: ignore[import-untyped]
+        _ADS_CLASS = ADS.ADS1015
+        _HAS_ADS = True
+    except Exception:
+        _HAS_ADS = False
+        _ADS_CLASS = None
+        AnalogIn = None
 
 load_dotenv()
 
@@ -113,11 +124,8 @@ class Settings:
     soil_adc_ch1: int
     soil_adc_ch2: int
     mq_adc_ch: int
-    # SPI para MCP3008 (software bit-banging)
-    spi_mosi: int
-    spi_miso: int
-    spi_sclk: int
-    spi_ce: int
+    # ADS1115/ADS1015 ADC (I2C)
+    ads_i2c_address: int
 
 
 def load_settings() -> Settings:
@@ -160,11 +168,8 @@ def load_settings() -> Settings:
         soil_adc_ch1=int(os.getenv("SOIL_ADC_CH1", "1")),
         soil_adc_ch2=int(os.getenv("SOIL_ADC_CH2", "2")),
         mq_adc_ch=int(os.getenv("MQ_ADC_CH", "3")),
-        # SPI para MCP3008 (bit-bang)
-        spi_mosi=int(os.getenv("SPI_MOSI", "10")),
-        spi_miso=int(os.getenv("SPI_MISO", "9")),
-        spi_sclk=int(os.getenv("SPI_SCLK", "11")),
-        spi_ce=int(os.getenv("SPI_CE", "7")),
+        # ADS1115/ADS1015 ADC (I2C)
+        ads_i2c_address=int(os.getenv("ADS_I2C_ADDRESS", "0x48"), 16),
     )
 
 
@@ -193,49 +198,37 @@ class BackendClient:
 
 
 # ===================================================================
-# MCP3008 ADC (software SPI bit-banging con RPi.GPIO)
+# ADS1115/ADS1015 ADC (I2C)
 # ===================================================================
 
-class MCP3008:
-    """Driver MCP3008 10-bit ADC vía software SPI bit-banging."""
+class ADS1115ADC:
+    """Driver para ADS1115 (16-bit) o ADS1015 (12-bit) vía I2C."""
 
-    def __init__(self, mosi: int, miso: int, sclk: int, ce: int) -> None:
-        self._mosi = mosi
-        self._miso = miso
-        self._sclk = sclk
-        self._ce = ce
-        if GPIO and self._has_gpio:
-            for p in (mosi, sclk, ce):
-                GPIO.setup(p, GPIO.OUT, initial=GPIO.LOW)
-            GPIO.setup(miso, GPIO.IN)
+    def __init__(self, i2c_address: int = 0x48) -> None:
+        self._channels: dict[int, Any] = {}
+        self._ads: Any = None
+        self._available = _HAS_ADS
+        if not self._available:
+            print("[adc] ADS1115/ADS1015 no disponible (librería no instalada)")
+            return
+        try:
+            import busio  # type: ignore[import-untyped]
+            import board  # type: ignore[import-untyped]
+            i2c = busio.I2C(board.SCL, board.SDA)
+            self._ads = _ADS_CLASS(i2c, address=i2c_address)
+            for ch in range(4):
+                self._channels[ch] = AnalogIn(self._ads, ch)
+            print(f"[adc] ADS1115/ADS1015 listo en dirección 0x{i2c_address:02x}")
+        except Exception as exc:
+            print(f"[adc] error init: {exc}")
+            self._available = False
 
-    @property
-    def _has_gpio(self) -> bool:
-        return GPIO is not None
-
-    def _spi_transfer(self, byte_out: int) -> int:
-        byte_in = 0
-        for i in range(7, -1, -1):
-            GPIO.output(self._sclk, GPIO.LOW)
-            GPIO.output(self._mosi, GPIO.HIGH if (byte_out >> i) & 1 else GPIO.LOW)
-            time.sleep(0.000001)
-            GPIO.output(self._sclk, GPIO.HIGH)
-            if GPIO.input(self._miso):
-                byte_in |= 1 << i
-            time.sleep(0.000001)
-        return byte_in
-
-    def read_channel(self, channel: int) -> int:
-        if channel < 0 or channel > 7:
-            raise ValueError(f"Canal ADC inválido: {channel}")
-        GPIO.output(self._ce, GPIO.LOW)
-        # comando MCP3008: start=1, single=1, canal en bits 2-4
-        cmd = 0x18 | (channel & 0x07)  # 0001 1000 | canal (3 bits)
-        self._spi_transfer(cmd)
-        high = self._spi_transfer(0x00) & 0x03
-        low = self._spi_transfer(0x00)
-        GPIO.output(self._ce, GPIO.HIGH)
-        return (high << 8) | low
+    def read_channel(self, channel: int) -> float:
+        if not self._available or self._ads is None:
+            return 0.0
+        if channel not in self._channels:
+            return 0.0
+        return float(self._channels[channel].value)
 
 
 # ===================================================================
@@ -422,11 +415,11 @@ class GpioController:
     # --- ADC ------------------------------------------------------------
 
     @property
-    def adc(self) -> MCP3008 | None:
+    def adc(self) -> ADS1115ADC | None:
         if not self.available:
             return None
         if self._adc is None:
-            self._adc = MCP3008(self.s.spi_mosi, self.s.spi_miso, self.s.spi_sclk, self.s.spi_ce)
+            self._adc = ADS1115ADC(self.s.ads_i2c_address)
         return self._adc
 
     # --- Actuadores -----------------------------------------------------
@@ -544,9 +537,7 @@ class GpioController:
         adc = self.adc
         if adc is None:
             return 0.0
-        raw = adc.read_channel(channel)
-        # MCP3008 retorna 0-1023
-        return float(raw)
+        return adc.read_channel(channel)
 
     # --- Limpieza -------------------------------------------------------
 
@@ -812,14 +803,15 @@ class GreenhouseDevice:
         soil_2 = self.gpio.read_adc_channel(s.soil_adc_ch2) if gpio_ok else 0.0
         gas = self.gpio.read_adc_channel(s.mq_adc_ch) if gpio_ok else 0.0
 
-        # Mapear ADC (0-1023):
-        #   light: invertir → 1023-valor (mayor voltaje = más luz)
-        #   soil: porcentaje (0-1023 → 0-100%), invertir (seco=0%→100%)
-        #   gas: ppm (directo, escalado)
-        light_norm = (1023.0 - light) / 1023.0 * 100.0
-        soil_1_pct = (1023.0 - soil_1) / 1023.0 * 100.0
-        soil_2_pct = (1023.0 - soil_2) / 1023.0 * 100.0
-        gas_ppm = gas / 1023.0 * 1000.0  # 0-1000 ppm aprox
+        # Mapear ADC (0-65535 para ADS1115 16-bit, 0-1023 para MCP3008):
+        ADC_MAX = 65535.0  # ADS1115 es 16-bit; ajustar a 1023 si usás MCP3008
+        #   light: invertir (mayor voltaje = más luz)
+        #   soil: porcentaje, invertir (seco=0% → 100%)
+        #   gas: ppm escalado
+        light_norm = (ADC_MAX - light) / ADC_MAX * 100.0
+        soil_1_pct = (ADC_MAX - soil_1) / ADC_MAX * 100.0
+        soil_2_pct = (ADC_MAX - soil_2) / ADC_MAX * 100.0
+        gas_ppm = gas / ADC_MAX * 1000.0  # 0-1000 ppm aprox
 
         return {
             "temperature": temp or 0.0,

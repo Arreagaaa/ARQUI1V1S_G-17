@@ -347,6 +347,8 @@ class GpioController:
         self._dht: Any = None
         self._lcd_i2c: Any = None
         self._lcd_parallel: ParallelLCD | None = None
+        self._buzzer_pwm: Any = None
+        self._buzzer_freq: int = 2000
 
         if not self.available:
             print("[gpio] dry-run mode (sin GPIO real)")
@@ -372,6 +374,12 @@ class GpioController:
             settings.gpio_led_red,
         ):
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+
+        # Buzzer pasivo: usar PWM en lugar de DC
+        try:
+            self._buzzer_pwm = GPIO.PWM(settings.gpio_buzzer, self._buzzer_freq)
+        except Exception:
+            self._buzzer_pwm = None
 
         # Entradas: botones con pull-up
         for pin in (
@@ -527,7 +535,13 @@ class GpioController:
             self._write(self.s.gpio_lights, is_on)
             self.lights_on = is_on
         elif actuator in {"buzzer", "alarm"}:
-            self._write(self.s.gpio_buzzer, is_on)
+            if is_on and self._buzzer_pwm is not None:
+                self._buzzer_pwm.start(50)
+            elif self._buzzer_pwm is not None:
+                self._buzzer_pwm.stop()
+                self._write(self.s.gpio_buzzer, False)
+            else:
+                self._write(self.s.gpio_buzzer, is_on)
             self.buzzer_on = is_on
         else:
             return {"actuator": actuator, "state": state, "applied": False,
@@ -680,6 +694,11 @@ class GpioController:
     # --- Limpieza -------------------------------------------------------
 
     def cleanup(self) -> None:
+        if self._buzzer_pwm is not None:
+            try:
+                self._buzzer_pwm.stop()
+            except Exception:
+                pass
         if self._dht_pi is not None:
             try:
                 self._dht_pi.stop()  # type: ignore[attr-defined]

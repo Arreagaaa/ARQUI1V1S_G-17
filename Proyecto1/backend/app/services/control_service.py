@@ -53,21 +53,13 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     if updates:
         update_system_status(updates)
 
-    mqtt_result = None
-    if actuator == "mode":
-        mqtt_result = publisher.publish_control_command(
-            command=f"set_{actuator}",
-            target=actuator,
-            state=state,
-            source="web",
-        )
-    else:
-        mqtt_result = publisher.publish_actuator_event(
-            actuator=actuator,
-            action=state,
-            area=area,
-            source="web",
-        )
+    mqtt_result = publisher.publish_control_command(
+        command=f"set_{actuator}",
+        target=actuator,
+        state=state,
+        area=area,
+        source="web",
+    )
 
     logger.info("Control ejecutado: %s -> %s (area=%s)", actuator, state, area)
 

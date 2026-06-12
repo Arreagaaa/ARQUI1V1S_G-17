@@ -883,28 +883,20 @@ class GreenhouseDevice:
         self._pending_global = None
         self._last_global_update = now
 
-        # NOTA: El modo NO se sincroniza desde estado/global.
-        # El modo solo cambia por:
-        #   1. Botón físico (handle_buttons)
-        #   2. Comando control/remoto (on_message)
-        # estado/global solo transporta estado de actuadores y overall_state.
-        # Esto evita que el backend revierta el modo con datos obsoletos
-        # cuando las lecturas de sensor llegan antes que el estado/global.
+        # NOTA sobre estado/global:
+        #   - overall_state: se aplica (LEDs verde/amarillo/rojo y buzzer)
+        #   - Modo: NO se sincroniza desde estado/global (solo botón o control/remoto)
+        #   - Actuadores (pump, fan, lights, buzzer): NO se sincronizan desde
+        #     estado/global porque causa race condition: el usuario envía un
+        #     comando por control/remoto, pero antes de que el Pi publique el
+        #     nuevo estado, el backend re-publica el estado anterior y el Pi
+        #     revierte el actuador. Los actuadores SOLO cambian por:
+        #       1. Botón físico (handle_buttons)
+        #       2. Comando control/remoto (on_message)
 
         state = payload.get("overall_state")
         if state:
             self.gpio.set_global_state(state)
-        irr_state = payload.get("irrigation_state", "")
-        area = "area_1" if "AREA_1" in irr_state else ("area_2" if "AREA_2" in irr_state else None)
-        act_map = {
-            "fan_active": ("fan", "on" if payload.get("fan_active") else "off"),
-            "pump_active": ("pump", "on" if payload.get("pump_active") else "off"),
-            "lights_active": ("lights", "on" if payload.get("lights_active") else "off"),
-            "buzzer_active": ("buzzer", "on" if payload.get("buzzer_active") else "off"),
-        }
-        for key, (actuator, act_state) in act_map.items():
-            if key in payload:
-                self.gpio.set_actuator(actuator, act_state, area)
 
     # --- Loop principal ------------------------------------------------
 

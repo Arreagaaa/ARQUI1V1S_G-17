@@ -4,4 +4,5 @@ requests==2.32.3
 RPi.GPIO>=0.7.0
 pigpio>=1.78
 rpi-lcd>=0.0.1
+adafruit-circuitpython-dht>=3.7.0
 adafruit-circuitpython-ads1x15>=3.0.0

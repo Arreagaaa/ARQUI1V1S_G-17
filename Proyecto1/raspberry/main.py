@@ -581,6 +581,11 @@ class GreenhouseDevice:
         self._last_global_update: float = 0.0
         self._global_update_interval: float = 1.0
         self._pending_global: dict | None = None
+        # Protección contra race condition: después de una acción manual
+        # (botón o control/remoto), ignorar estado/global por N segundos
+        # para evitar que el backend revierta el cambio con datos obsoletos.
+        self._last_manual_action: float = 0.0
+        self._manual_action_cooldown: float = 5.0
 
         # LCD rotation
         self._lcd_cycle: int = 0
@@ -634,21 +639,23 @@ class GreenhouseDevice:
         if self.gpio.mode == "auto" and actuator != "mode":
             return
 
-        # Mode se maneja directamente; no descartar pending_global porque
-        # estado/global trae informacion adicional (overall_state, actuadores)
+        # Mode se maneja directamente; marcar acción manual para evitar
+        # que estado/global revierta el cambio antes del cooldown.
         if actuator == "mode":
             if state in ("auto", "manual"):
                 self.gpio.mode = state
                 self._last_mode_change = time.time()
+                self._last_manual_action = time.time()
                 result = {"actuator": "mode", "state": state, "applied": True}
             else:
                 result = {"actuator": "mode", "state": state, "applied": False,
                           "reason": "invalid_state"}
             self._publish_status()
         else:
-            # Descartar estado global pendiente: un comando directo tiene prioridad
+            # Descartar estado global pendiente y marcar acción manual
             self._pending_global = None
             self._last_global_update = time.time()
+            self._last_manual_action = time.time()
 
             result = self.gpio.set_actuator(actuator, state, area)
 
@@ -848,12 +855,14 @@ class GreenhouseDevice:
             self.gpio.mode = "manual" if self.gpio.mode == "auto" else "auto"
             print(f"[boton] modo -> {self.gpio.mode}")
             self._last_mode_change = now
+            self._last_manual_action = now
             clear_pending()
             self._publish_status()
             self._last_button_time = now
 
         elif rising("pump") and self.gpio.mode == "manual":
             clear_pending()
+            self._last_manual_action = now
             new_state = not self.gpio.pump_on
             result = self.gpio.set_pump_irrigation("area_1", new_state)
             self._publish_actuator("pump", result)
@@ -861,6 +870,7 @@ class GreenhouseDevice:
 
         elif rising("lights") and self.gpio.mode == "manual":
             clear_pending()
+            self._last_manual_action = now
             new_state = not self.gpio.lights_on
             result = self.gpio.set_actuator("lights", "on" if new_state else "off")
             self._publish_actuator("lights", result)
@@ -869,6 +879,7 @@ class GreenhouseDevice:
         elif rising("silence"):
             if self.gpio.buzzer_on:
                 clear_pending()
+                self._last_manual_action = now
                 self.gpio.set_actuator("buzzer", "off")
                 print("[boton] buzzer silenciado")
                 self._last_button_time = now
@@ -886,15 +897,17 @@ class GreenhouseDevice:
         self._last_global_update = now
 
         # NOTA sobre estado/global:
-        #   - overall_state: se aplica (LEDs verde/amarillo/rojo y buzzer)
+        #   - overall_state: se aplica (LEDs verde/amarillo/rojo), PERO con
+        #     cooldown de 5s después de una acción manual (botón o control/remoto)
+        #     para evitar race condition donde el backend re-publica un estado
+        #     obsoleto y revierte el cambio que el usuario acaba de hacer.
         #   - Modo: NO se sincroniza desde estado/global (solo botón o control/remoto)
         #   - Actuadores (pump, fan, lights, buzzer): NO se sincronizan desde
-        #     estado/global porque causa race condition: el usuario envía un
-        #     comando por control/remoto, pero antes de que el Pi publique el
-        #     nuevo estado, el backend re-publica el estado anterior y el Pi
-        #     revierte el actuador. Los actuadores SOLO cambian por:
-        #       1. Botón físico (handle_buttons)
-        #       2. Comando control/remoto (on_message)
+        #     estado/global (misma race condition fixeada antes).
+
+        now = time.time()
+        if now - self._last_manual_action < self._manual_action_cooldown:
+            return
 
         state = payload.get("overall_state")
         if state:

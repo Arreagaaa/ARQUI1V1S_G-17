@@ -50,11 +50,11 @@ except Exception:
     GPIO = None
 
 try:
-    import adafruit_dht  # type: ignore[import-untyped]
-    import board  # type: ignore[import-untyped]
+    import pigpio  # type: ignore[import-untyped]
+    _HAS_PIGPIO = True
 except Exception:
-    adafruit_dht = None
-    board = None
+    pigpio = None
+    _HAS_PIGPIO = False
 
 try:
     from rpi_lcd import LCD as I2CLCD  # type: ignore[import-untyped]
@@ -366,12 +366,16 @@ class GpioController:
         ):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-        # Inicializar DHT11 (una sola instancia)
-        if adafruit_dht and board:
+        # Inicializar DHT11 (pigpio preferido, bitbanging fallback)
+        self._dht_gpio = settings.dht_gpio
+        self._dht_pi: pigpio.pi | None = None  # type: ignore[valid-type]
+        if _HAS_PIGPIO:
             try:
-                self._dht = adafruit_dht.DHT11(getattr(board, f"D{settings.dht_gpio}"))
+                self._dht_pi = pigpio.pi()  # type: ignore[attr-defined]
+                print(f"[dht] pigpio listo en GPIO {self._dht_gpio}")
             except Exception as exc:
-                print(f"[dht] init error: {exc}")
+                print(f"[dht] pigpio init error: {exc}")
+                self._dht_pi = None
 
         # Inicializar LCD (I2C preferido, paralelo fallback)
         self._init_lcd()
@@ -526,27 +530,24 @@ class GpioController:
     DHT_RETRY_DELAY = 0.5
 
     def read_dht(self) -> tuple[float | None, float | None]:
-        if self._dht is None:
-            return None, None
-        last_exc: Exception | None = None
+        if _HAS_PIGPIO and self._dht_pi is not None:
+            return self._read_dht_pigpio()
+        return None, None
+
+    def _read_dht_pigpio(self) -> tuple[float | None, float | None]:
         for attempt in range(self.DHT_RETRIES):
             try:
-                temp = self._dht.temperature
-                hum = self._dht.humidity
-                temp_good = temp is not None and temp > 0
-                hum_good = hum is not None and hum > 0
-                if temp_good and hum_good:
-                    return temp, hum
-                if not temp_good:
-                    print(f"[dht] intento {attempt + 1}: temperatura inválida ({temp})")
-                if not hum_good:
-                    print(f"[dht] intento {attempt + 1}: humedad inválida ({hum})")
+                result = self._dht_pi.read_dht11(self._dht_gpio)  # type: ignore[attr-defined]
+                if isinstance(result, dict):
+                    temp = float(result.get("temp", 0))
+                    hum = float(result.get("hum", 0))
+                    if temp > 0 and hum > 0:
+                        return temp, hum
+                    print(f"[dht] intento {attempt + 1}: inválido (t={temp}, h={hum})")
             except Exception as exc:
-                last_exc = exc
                 print(f"[dht] intento {attempt + 1} error: {exc}")
             time.sleep(self.DHT_RETRY_DELAY)
-        if last_exc:
-            print(f"[dht] error tras {self.DHT_RETRIES} intentos: {last_exc}")
+        print(f"[dht] falló tras {self.DHT_RETRIES} intentos")
         return None, None
 
     def read_adc_channel(self, channel: int) -> float:
@@ -560,9 +561,9 @@ class GpioController:
     # --- Limpieza -------------------------------------------------------
 
     def cleanup(self) -> None:
-        if self._dht:
+        if self._dht_pi is not None:
             try:
-                self._dht.exit()
+                self._dht_pi.stop()  # type: ignore[attr-defined]
             except Exception:
                 pass
         if self.available:

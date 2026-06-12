@@ -382,11 +382,12 @@ class GpioController:
         ):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-        # Inicializar DHT11 (3 drivers: dht11-szazo > pigpio > adafruit)
+        # Inicializar DHT11 (4 drivers: szazo > pigpio > adafruit-DHT22 > adafruit-DHT11)
         self._dht_gpio = settings.dht_gpio
         self._dht_sz: dht11_lib.DHT11 | None = None  # type: ignore[valid-type]
         self._dht_pi: pigpio.pi | None = None  # type: ignore[valid-type]
-        self._dht_ada: adafruit_dht.DHT11 | None = None  # type: ignore[valid-type]
+        self._dht_ada22: adafruit_dht.DHT22 | None = None  # type: ignore[valid-type]
+        self._dht_ada11: adafruit_dht.DHT11 | None = None  # type: ignore[valid-type]
         if _HAS_SZ_DHT:
             try:
                 self._dht_sz = dht11_lib.DHT11(pin=self._dht_gpio)
@@ -402,15 +403,25 @@ class GpioController:
                 self._dht_pi = None
         if self._dht_sz is None and self._dht_pi is None and _HAS_ADA_DHT:
             try:
-                self._dht_ada = adafruit_dht.DHT11(  # type: ignore[attr-defined]
+                self._dht_ada22 = adafruit_dht.DHT22(  # type: ignore[attr-defined]
                     getattr(board, f"D{settings.dht_gpio}"),
                     use_pulseio=False,
                 )
-                print(f"[dht] adafruit listo en GPIO {self._dht_gpio} (bitbanging)")
+                print(f"[dht] adafruit-DHT22 listo en GPIO {self._dht_gpio}")
             except Exception as exc:
-                print(f"[dht] adafruit init error: {exc}")
-                self._dht_ada = None
-        if self._dht_sz is None and self._dht_pi is None and self._dht_ada is None:
+                print(f"[dht] adafruit-DHT22 init error: {exc}")
+                self._dht_ada22 = None
+        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and _HAS_ADA_DHT:
+            try:
+                self._dht_ada11 = adafruit_dht.DHT11(  # type: ignore[attr-defined]
+                    getattr(board, f"D{settings.dht_gpio}"),
+                    use_pulseio=False,
+                )
+                print(f"[dht] adafruit-DHT11 listo en GPIO {self._dht_gpio} (bitbanging)")
+            except Exception as exc:
+                print(f"[dht] adafruit-DHT11 init error: {exc}")
+                self._dht_ada11 = None
+        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and self._dht_ada11 is None:
             print("[dht] no disponible")
 
         # Inicializar LCD (I2C preferido, paralelo fallback)
@@ -573,12 +584,18 @@ class GpioController:
         if self._dht_pi is not None:
             self._dht_pi.stop()  # type: ignore[attr-defined]
             self._dht_pi = None
-        if self._dht_ada is not None:
+        if self._dht_ada22 is not None:
             try:
-                self._dht_ada.exit()
+                self._dht_ada22.exit()
             except Exception:
                 pass
-            self._dht_ada = None
+            self._dht_ada22 = None
+        if self._dht_ada11 is not None:
+            try:
+                self._dht_ada11.exit()
+            except Exception:
+                pass
+            self._dht_ada11 = None
         time.sleep(1)
         if _HAS_SZ_DHT:
             try:
@@ -594,13 +611,22 @@ class GpioController:
                 self._dht_pi = None
         if self._dht_sz is None and self._dht_pi is None and _HAS_ADA_DHT:
             try:
-                self._dht_ada = adafruit_dht.DHT11(  # type: ignore[attr-defined]
+                self._dht_ada22 = adafruit_dht.DHT22(  # type: ignore[attr-defined]
                     getattr(board, f"D{self._dht_gpio}"),
                     use_pulseio=False,
                 )
-                print("[dht] adafruit re-inicializado")
+                print("[dht] adafruit-DHT22 re-inicializado")
             except Exception:
-                self._dht_ada = None
+                self._dht_ada22 = None
+        if self._dht_sz is None and self._dht_pi is None and self._dht_ada22 is None and _HAS_ADA_DHT:
+            try:
+                self._dht_ada11 = adafruit_dht.DHT11(  # type: ignore[attr-defined]
+                    getattr(board, f"D{self._dht_gpio}"),
+                    use_pulseio=False,
+                )
+                print("[dht] adafruit-DHT11 re-inicializado")
+            except Exception:
+                self._dht_ada11 = None
 
     def read_dht(self) -> tuple[float | None, float | None]:
         # Try szazo dht11 (simple RPi.GPIO bitbang)
@@ -628,12 +654,24 @@ class GpioController:
                     pass
                 time.sleep(self.DHT_RETRY_DELAY)
 
-        # Try adafruit (bitbanging fallback)
-        if self._dht_ada is not None:
+        # Try adafruit DHT22 (better timing, may read DHT11 too)
+        if self._dht_ada22 is not None:
             for attempt in range(self.DHT_RETRIES):
                 try:
-                    temp = self._dht_ada.temperature
-                    hum = self._dht_ada.humidity
+                    temp = self._dht_ada22.temperature
+                    hum = self._dht_ada22.humidity
+                    if temp is not None and hum is not None and temp > 0 and hum > 0:
+                        return temp, hum
+                except RuntimeError:
+                    pass
+                time.sleep(self.DHT_RETRY_DELAY)
+
+        # Try adafruit DHT11 (bitbanging fallback)
+        if self._dht_ada11 is not None:
+            for attempt in range(self.DHT_RETRIES):
+                try:
+                    temp = self._dht_ada11.temperature
+                    hum = self._dht_ada11.humidity
                     if temp is not None and hum is not None and temp > 0 and hum > 0:
                         return temp, hum
                 except RuntimeError:
@@ -658,9 +696,14 @@ class GpioController:
                 self._dht_pi.stop()  # type: ignore[attr-defined]
             except Exception:
                 pass
-        if self._dht_ada is not None:
+        if self._dht_ada22 is not None:
             try:
-                self._dht_ada.exit()
+                self._dht_ada22.exit()
+            except Exception:
+                pass
+        if self._dht_ada11 is not None:
+            try:
+                self._dht_ada11.exit()
             except Exception:
                 pass
         if self.available:

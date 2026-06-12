@@ -496,9 +496,11 @@ class GpioController:
         self._write(self.s.gpio_led_green, green)
         self._write(self.s.gpio_led_yellow, yellow)
         self._write(self.s.gpio_led_red, red)
-        if not red:
-            self._write(self.s.gpio_buzzer, False)
-            self.buzzer_on = False
+        # NOTA: El buzzer NO se toca aquí. El buzzer solo se activa por:
+        #   1. EMERGENCIA (backend publica control/remoto buzzer on)
+        #   2. Manual (botón SILENCE o control/remoto buzzer on/off)
+        # Cada ciclo de estado/global con estado no-EMERGENCIA apagaba el
+        # buzzer indebidamente si el usuario lo había activado manualmente.
 
     # --- Botones --------------------------------------------------------
 

@@ -522,16 +522,32 @@ class GpioController:
 
     # --- Sensores -------------------------------------------------------
 
+    DHT_RETRIES = 3
+    DHT_RETRY_DELAY = 0.5
+
     def read_dht(self) -> tuple[float | None, float | None]:
         if self._dht is None:
             return None, None
-        try:
-            temp = self._dht.temperature
-            hum = self._dht.humidity
-            return temp, hum
-        except Exception as exc:
-            print(f"[dht] error: {exc}")
-            return None, None
+        last_exc: Exception | None = None
+        for attempt in range(self.DHT_RETRIES):
+            try:
+                temp = self._dht.temperature
+                hum = self._dht.humidity
+                temp_good = temp is not None and temp > 0
+                hum_good = hum is not None and hum > 0
+                if temp_good and hum_good:
+                    return temp, hum
+                if not temp_good:
+                    print(f"[dht] intento {attempt + 1}: temperatura inválida ({temp})")
+                if not hum_good:
+                    print(f"[dht] intento {attempt + 1}: humedad inválida ({hum})")
+            except Exception as exc:
+                last_exc = exc
+                print(f"[dht] intento {attempt + 1} error: {exc}")
+            time.sleep(self.DHT_RETRY_DELAY)
+        if last_exc:
+            print(f"[dht] error tras {self.DHT_RETRIES} intentos: {last_exc}")
+        return None, None
 
     def read_adc_channel(self, channel: int) -> float:
         if not self.available:

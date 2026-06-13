@@ -45,8 +45,8 @@ def handle_sensor_message(topic: str, payload: dict) -> None:
         # (POST /api/readings) el backend la publica con source "web" y el
         # subscriber la recibe. NO filtramos "raspi-01" porque ese source
         # es el del Raspberry Pi real, que sí debe procesarse.
-        if source in ("web", "api", "dashboard", "backend", "system"):
-            logger.debug("MQTT sensor ignorado (source=self): %s = %s", sensor_type, value)
+        if source in ("web", "api", "dashboard", "backend", "system", "mqtt"):
+            logger.debug("MQTT sensor ignorado (source=%s): %s = %s", source, sensor_type, value)
             return
 
         document = {

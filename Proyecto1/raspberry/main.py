@@ -540,7 +540,11 @@ class GpioController:
                 self._buzzer_pwm.start(50)
             elif self._buzzer_pwm is not None:
                 self._buzzer_pwm.stop()
-                self._write(self.s.gpio_buzzer, False)
+                self._buzzer_pwm = None
+                if self.available:
+                    GPIO.cleanup(self.s.gpio_buzzer)
+                    GPIO.setup(self.s.gpio_buzzer, GPIO.OUT, initial=GPIO.LOW)
+                    self._buzzer_pwm = GPIO.PWM(self.s.gpio_buzzer, self._buzzer_freq)
             else:
                 self._write(self.s.gpio_buzzer, is_on)
             self.buzzer_on = is_on

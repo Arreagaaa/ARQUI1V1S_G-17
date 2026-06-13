@@ -224,6 +224,42 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                 updates["ventilation_state"] = "VENTILACION_ON"
                 updates["fan_active"] = True
 
+    # Iluminación automática según LDR (solo en modo auto)
+    if updates.get("gas_state") != "GAS_EMERGENCIA":
+        prev_lights = latest.get("lights_active", False) if latest else False
+        mode = latest.get("mode", "auto") if latest else "auto"
+        if mode == "auto":
+            if light_val < 30.0 and not prev_lights:
+                updates["lights_active"] = True
+                publisher = MQTTPublisher()
+                publisher.publish_control_command(
+                    command="set_lights", target="lights", state="on", source="automation",
+                )
+                db.events.insert_one({
+                    "event_type": "light_warning",
+                    "message": f"Poca luz detectada ({light_val:.1f}%). Encendiendo iluminación artificial.",
+                    "severity": "info",
+                    "area": "control",
+                    "source": "backend_rules",
+                    "created_at": now,
+                })
+                logger.info("Poca luz (%.1f%%), luces encendidas", light_val)
+            elif light_val > 50.0 and prev_lights:
+                updates["lights_active"] = False
+                publisher = MQTTPublisher()
+                publisher.publish_control_command(
+                    command="set_lights", target="lights", state="off", source="automation",
+                )
+                db.events.insert_one({
+                    "event_type": "light_restored",
+                    "message": f"Luz suficiente ({light_val:.1f}%). Apagando iluminación artificial.",
+                    "severity": "info",
+                    "area": "control",
+                    "source": "backend_rules",
+                    "created_at": now,
+                })
+                logger.info("Luz suficiente (%.1f%%), luces apagadas", light_val)
+
     if updates.get("gas_state") != "GAS_EMERGENCIA":
         pump_blocked_until = latest.get("_pump_blocked_until") if latest else None
         if pump_blocked_until:

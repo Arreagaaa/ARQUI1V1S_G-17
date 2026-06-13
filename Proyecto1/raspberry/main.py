@@ -807,8 +807,9 @@ class GreenhouseDevice:
             self._handle_arm64_run()
             return
 
-        # En modo auto ignorar comandos manuales (excepto mode)
-        if self.gpio.mode == "auto" and actuator != "mode":
+        # En modo auto ignorar comandos manuales (excepto mode y automation)
+        source = payload.get("source", "")
+        if self.gpio.mode == "auto" and actuator != "mode" and source not in ("automation", "backend_rules"):
             return
 
         # Mode se maneja directamente; marcar acción manual para evitar

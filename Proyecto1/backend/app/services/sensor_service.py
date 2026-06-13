@@ -199,8 +199,11 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
         updates["gas_state"] = "GAS_NORMAL"
         if prev_gas == "GAS_EMERGENCIA":
             publisher = MQTTPublisher()
-            publisher.publish_control_command(command="set_fan", target="fan", state="off", source="automation")
             publisher.publish_control_command(command="set_buzzer", target="buzzer", state="off", source="automation")
+        if prev_gas == "GAS_EMERGENCIA" or prev_gas == "GAS_ADVERTENCIA":
+            publisher = MQTTPublisher()
+            if temp <= 30.0:
+                publisher.publish_control_command(command="set_fan", target="fan", state="off", source="automation")
             db.events.insert_one({
                 "event_type": "gas_cleared",
                 "message": "Gas ha vuelto a niveles normales.",

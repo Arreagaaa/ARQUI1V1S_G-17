@@ -135,7 +135,7 @@ class MQTTMockProvider:
 
     def generate_global_state(self, source: str = "raspi-01") -> dict:
         """Genera un estado global coherente basado en el estado actual de los mocks."""
-        gas_critical = self._base_gas > 150
+        gas_critical = self._base_gas > 90
         temp_high = self._base_temp > 30
         soil_dry = self._base_soil_1 < 30 or self._base_soil_2 < 30
 

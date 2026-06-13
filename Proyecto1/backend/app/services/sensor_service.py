@@ -159,7 +159,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
     prev_gas = latest.get("gas_state", "GAS_NORMAL") if latest else "GAS_NORMAL"
     prev_pump = latest.get("pump_active", False) if latest else False
 
-    if gas_val > 150.0:
+    if gas_val > 90.0:
         updates["overall_state"] = "EMERGENCIA"
         updates["gas_state"] = "GAS_EMERGENCIA"
         updates["ventilation_state"] = "VENTILACION_EMERGENCIA"
@@ -175,7 +175,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                 "created_at": now,
             })
             logger.warning("EMERGENCIA: Gas = %.1f ppm", gas_val)
-    elif gas_val > 80.0:
+    elif gas_val > 60.0:
         updates["overall_state"] = "ADVERTENCIA"
         updates["gas_state"] = "GAS_ADVERTENCIA"
         updates["fan_active"] = True

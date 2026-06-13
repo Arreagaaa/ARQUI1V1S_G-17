@@ -55,7 +55,7 @@ class SensorSimulator:
         self._base_soil_1 = 50.0
         self._base_soil_2 = 48.0
         self._base_light = 60.0
-        self._base_gas = 80.0
+        self._base_gas = 60.0
 
         self._mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=CLIENT_ID)
         self._mqtt_client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)

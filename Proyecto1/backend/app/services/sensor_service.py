@@ -219,6 +219,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
             updates["ventilation_state"] = "VENTILACION_ON"
             updates["fan_active"] = True
             if prev_ventilation != "VENTILACION_ON" and latest and latest.get("temperature", 0.0) <= 30.0:
+                publisher = MQTTPublisher()
+                publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
                 db.events.insert_one({
                     "event_type": "temp_warning",
                     "message": f"ADVERTENCIA: Temperatura alta detectada ({temp:.1f} °C). Activando ventilación.",
@@ -232,6 +234,10 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
             if updates.get("gas_state") != "GAS_ADVERTENCIA":
                 updates["ventilation_state"] = "VENTILACION_OFF"
                 if prev_ventilation == "VENTILACION_ON" or prev_ventilation == "VENTILACION_EMERGENCIA":
+                    was_on_by_temp = prev_ventilation == "VENTILACION_ON"
+                    if was_on_by_temp and prev_overall != "MODO_MANUAL":
+                        publisher = MQTTPublisher()
+                        publisher.publish_control_command(command="set_fan", target="fan", state="off", source="automation")
                     updates["fan_active"] = latest.get("fan_active") if prev_overall == "MODO_MANUAL" else False
             else:
                 updates["ventilation_state"] = "VENTILACION_ON"

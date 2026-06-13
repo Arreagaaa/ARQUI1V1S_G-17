@@ -828,10 +828,11 @@ class GreenhouseDevice:
                           "reason": "invalid_state"}
             self._publish_status()
         else:
-            # Descartar estado global pendiente y marcar acción manual
-            self._pending_global = None
-            self._last_global_update = time.time()
-            self._last_manual_action = time.time()
+            # Solo las acciones manuales descartan el estado global pendiente
+            if source not in ("automation", "backend_rules"):
+                self._pending_global = None
+                self._last_global_update = time.time()
+                self._last_manual_action = time.time()
 
             result = self.gpio.set_actuator(actuator, state, area)
 

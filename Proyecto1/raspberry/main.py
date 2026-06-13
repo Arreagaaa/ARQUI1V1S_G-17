@@ -350,7 +350,8 @@ class GpioController:
         self._lcd_parallel: ParallelLCD | None = None
         self._buzzer_pwm: Any = None
         self._buzzer_freq: int = 2000
-        self._adc_buf: dict[int, deque] = {ch: deque([0.0] * 5, maxlen=5) for ch in range(4)}
+        self._adc_buf: dict[int, deque] = {ch: deque(maxlen=5) for ch in range(4)}
+        self._adc_buf_seeded: set[int] = set()
 
         if not self.available:
             print("[gpio] dry-run mode (sin GPIO real)")
@@ -694,7 +695,11 @@ class GpioController:
         raw = adc.read_channel(channel)
         buf = self._adc_buf.get(channel)
         if buf is not None:
-            buf.append(raw)
+            if channel not in self._adc_buf_seeded:
+                buf.extend([raw] * buf.maxlen)
+                self._adc_buf_seeded.add(channel)
+            else:
+                buf.append(raw)
             return sum(buf) / len(buf)
         return raw
 

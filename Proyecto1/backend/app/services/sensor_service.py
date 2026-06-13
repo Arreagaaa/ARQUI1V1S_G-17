@@ -226,8 +226,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
 
     # Iluminación automática según LDR (solo en modo auto)
     # Rango típico: ~96% (luz directa) ~60% (oscuridad total)
-    LIGHT_LOW = 75.0    # por debajo = encender luces
-    LIGHT_HIGH = 85.0   # por encima = apagar luces
+    LIGHT_LOW = 65.0    # por debajo = encender luces
+    LIGHT_HIGH = 65.0   # por encima = apagar luces
     if updates.get("gas_state") != "GAS_EMERGENCIA":
         prev_lights = latest.get("lights_active", False) if latest else False
         mode = latest.get("mode", "auto") if latest else "auto"

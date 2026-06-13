@@ -116,10 +116,23 @@ def upsert_system_status(payload: SystemStatusCreate):
     """
     Inserta un nuevo registro de estado global.
     Utilizado usualmente por la Raspberry Pi para reportar su estado real sincronizado.
+    Se mergea con el último documento para preservar campos de automatización
+    (gas_state, irrigation_state, ventilation_state) que la Pi no envía.
     """
     db = get_database()
-    document = payload.model_dump()
-    document["updated_at"] = document["updated_at"] or _now()
+    updates = payload.model_dump(exclude_unset=True)
+    updates["updated_at"] = updates.get("updated_at") or _now()
+
+    latest = db.system_status.find_one(sort=[("updated_at", -1)])
+    if latest:
+        document = dict(latest)
+        document.pop("_id", None)
+        document.update(updates)
+    else:
+        from ..services.sensor_service import DEFAULT_STATUS
+        document = dict(DEFAULT_STATUS)
+        document.update(updates)
+
     result = db.system_status.insert_one(document)
     doc_safe = {k: str(v) if isinstance(v, ObjectId) else v for k, v in document.items()}
 

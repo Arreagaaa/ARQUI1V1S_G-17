@@ -222,7 +222,6 @@ class ADS1115ADC:
     """Driver para ADS1115 (16-bit) o ADS1015 (12-bit) vía I2C."""
 
     def __init__(self, i2c_address: int = 0x48) -> None:
-        self._channels: dict[int, Any] = {}
         self._ads: Any = None
         self._available = _HAS_ADS
         if not self._available:
@@ -233,8 +232,6 @@ class ADS1115ADC:
             import board  # type: ignore[import-untyped]
             i2c = busio.I2C(board.SCL, board.SDA)
             self._ads = _ADS_CLASS(i2c, address=i2c_address)
-            for ch in range(4):
-                self._channels[ch] = AnalogIn(self._ads, ch)
             print(f"[adc] ADS1115/ADS1015 listo en dirección 0x{i2c_address:02x}")
         except Exception as exc:
             print(f"[adc] error init: {exc}")
@@ -243,9 +240,10 @@ class ADS1115ADC:
     def read_channel(self, channel: int) -> float:
         if not self._available or self._ads is None:
             return 0.0
-        if channel not in self._channels:
+        try:
+            return float(AnalogIn(self._ads, channel).value)
+        except Exception:
             return 0.0
-        return float(self._channels[channel].value)
 
 
 # ===================================================================

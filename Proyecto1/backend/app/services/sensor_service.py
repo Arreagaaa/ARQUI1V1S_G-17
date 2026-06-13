@@ -108,6 +108,8 @@ def process_reading(document: dict) -> dict:
         _apply_automation_rules(db, updates, latest, temp, hum, soil1, soil2, light_val, gas_val)
     else:
         updates["overall_state"] = "MODO_MANUAL"
+        logger.info("DEBUG mode=%s sensor=%s temp=%.1f gas=%.1f mode=%s",
+                     mode, sensor_type, temp, gas_val, mode)
 
     _enforce_pump_limits(db, updates, latest)
     update_system_status(updates)
@@ -215,6 +217,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
 
     if updates.get("gas_state") != "GAS_EMERGENCIA":
         prev_temp = latest.get("temperature", 0.0) if latest else 0.0
+        logger.info("DEBUG temp=%.1f prev_temp=%.1f gas_state=%s mode=%s",
+                     temp, prev_temp, updates.get("gas_state"), latest.get("mode") if latest else "none")
         if temp > 30.0:
             updates["overall_state"] = "ADVERTENCIA"
             updates["ventilation_state"] = "VENTILACION_ON"
@@ -230,7 +234,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                     "source": "backend_rules",
                     "created_at": now,
                 })
-                logger.warning("Temperatura alta: %.1f °C", temp)
+                logger.warning("Temperatura alta: %.1f °C, fan ON enviado", temp)
         else:
             if updates.get("gas_state") != "GAS_ADVERTENCIA":
                 updates["ventilation_state"] = "VENTILACION_OFF"

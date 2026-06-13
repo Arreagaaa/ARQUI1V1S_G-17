@@ -186,6 +186,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
         updates["fan_active"] = True
         publisher = MQTTPublisher()
         if prev_gas == "GAS_EMERGENCIA":
+            updates["buzzer_active"] = False
             publisher.publish_control_command(command="set_buzzer", target="buzzer", state="off", source="automation")
         if prev_gas != "GAS_ADVERTENCIA" and prev_gas != "GAS_EMERGENCIA":
             publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
@@ -200,6 +201,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
     else:
         updates["gas_state"] = "GAS_NORMAL"
         if prev_gas == "GAS_EMERGENCIA":
+            updates["buzzer_active"] = False
             publisher = MQTTPublisher()
             publisher.publish_control_command(command="set_buzzer", target="buzzer", state="off", source="automation")
         if prev_gas == "GAS_EMERGENCIA" or prev_gas == "GAS_ADVERTENCIA":

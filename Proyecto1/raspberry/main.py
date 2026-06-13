@@ -34,6 +34,7 @@ import os
 import subprocess
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -349,6 +350,7 @@ class GpioController:
         self._lcd_parallel: ParallelLCD | None = None
         self._buzzer_pwm: Any = None
         self._buzzer_freq: int = 2000
+        self._adc_buf: dict[int, deque] = {ch: deque([0.0] * 5, maxlen=5) for ch in range(4)}
 
         if not self.available:
             print("[gpio] dry-run mode (sin GPIO real)")
@@ -689,7 +691,12 @@ class GpioController:
         adc = self.adc
         if adc is None:
             return 0.0
-        return adc.read_channel(channel)
+        raw = adc.read_channel(channel)
+        buf = self._adc_buf.get(channel)
+        if buf is not None:
+            buf.append(raw)
+            return sum(buf) / len(buf)
+        return raw
 
     # --- Limpieza -------------------------------------------------------
 

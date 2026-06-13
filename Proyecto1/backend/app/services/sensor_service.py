@@ -225,11 +225,14 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                 updates["fan_active"] = True
 
     # Iluminación automática según LDR (solo en modo auto)
+    # Rango típico: ~96% (luz directa) ~60% (oscuridad total)
+    LIGHT_LOW = 75.0    # por debajo = encender luces
+    LIGHT_HIGH = 85.0   # por encima = apagar luces
     if updates.get("gas_state") != "GAS_EMERGENCIA":
         prev_lights = latest.get("lights_active", False) if latest else False
         mode = latest.get("mode", "auto") if latest else "auto"
         if mode == "auto":
-            if light_val < 30.0 and not prev_lights:
+            if light_val < LIGHT_LOW and not prev_lights:
                 updates["lights_active"] = True
                 publisher = MQTTPublisher()
                 publisher.publish_control_command(
@@ -244,7 +247,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                     "created_at": now,
                 })
                 logger.info("Poca luz (%.1f%%), luces encendidas", light_val)
-            elif light_val > 50.0 and prev_lights:
+            elif light_val > LIGHT_HIGH and prev_lights:
                 updates["lights_active"] = False
                 publisher = MQTTPublisher()
                 publisher.publish_control_command(

@@ -216,29 +216,26 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
             })
 
     if updates.get("gas_state") != "GAS_EMERGENCIA":
-        prev_temp = latest.get("temperature", 0.0) if latest else 0.0
-        logger.info("DEBUG temp=%.1f prev_temp=%.1f gas_state=%s mode=%s",
-                     temp, prev_temp, updates.get("gas_state"), latest.get("mode") if latest else "none")
         if temp > 30.0:
             updates["overall_state"] = "ADVERTENCIA"
             updates["ventilation_state"] = "VENTILACION_ON"
             updates["fan_active"] = True
-            if prev_temp <= 30.0:
-                publisher = MQTTPublisher()
-                publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
-                db.events.insert_one({
-                    "event_type": "temp_warning",
-                    "message": f"ADVERTENCIA: Temperatura alta detectada ({temp:.1f} °C). Activando ventilación.",
-                    "severity": "warning",
-                    "area": "control",
-                    "source": "backend_rules",
-                    "created_at": now,
-                })
-                logger.warning("Temperatura alta: %.1f °C, fan ON enviado", temp)
+            publisher = MQTTPublisher()
+            publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
+            db.events.insert_one({
+                "event_type": "temp_warning",
+                "message": f"ADVERTENCIA: Temperatura alta detectada ({temp:.1f} °C). Activando ventilación.",
+                "severity": "warning",
+                "area": "control",
+                "source": "backend_rules",
+                "created_at": now,
+            })
+            logger.warning("Temperatura alta: %.1f °C, fan ON enviado", temp)
         else:
             if updates.get("gas_state") != "GAS_ADVERTENCIA":
                 updates["ventilation_state"] = "VENTILACION_OFF"
                 updates["fan_active"] = False
+                prev_temp = latest.get("temperature", 0.0) if latest else 0.0
                 if prev_temp > 30.0:
                     publisher = MQTTPublisher()
                     publisher.publish_control_command(command="set_fan", target="fan", state="off", source="automation")

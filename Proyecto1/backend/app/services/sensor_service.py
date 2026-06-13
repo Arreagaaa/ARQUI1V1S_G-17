@@ -166,6 +166,9 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
         updates["fan_active"] = True
         updates["buzzer_active"] = True
         if prev_overall != "EMERGENCIA":
+            publisher = MQTTPublisher()
+            publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
+            publisher.publish_control_command(command="set_buzzer", target="buzzer", state="on", source="automation")
             db.events.insert_one({
                 "event_type": "emergency",
                 "message": f"EMERGENCIA: Gas detectado por encima del límite seguro ({gas_val:.1f} ppm). Alarma y ventilación activadas.",
@@ -179,7 +182,11 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
         updates["overall_state"] = "ADVERTENCIA"
         updates["gas_state"] = "GAS_ADVERTENCIA"
         updates["fan_active"] = True
+        publisher = MQTTPublisher()
+        if prev_gas == "GAS_EMERGENCIA":
+            publisher.publish_control_command(command="set_buzzer", target="buzzer", state="off", source="automation")
         if prev_gas != "GAS_ADVERTENCIA" and prev_gas != "GAS_EMERGENCIA":
+            publisher.publish_control_command(command="set_fan", target="fan", state="on", source="automation")
             db.events.insert_one({
                 "event_type": "gas_warning",
                 "message": f"ADVERTENCIA: Nivel de gas elevado ({gas_val:.1f} ppm). Ventilación activada.",
@@ -191,6 +198,9 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
     else:
         updates["gas_state"] = "GAS_NORMAL"
         if prev_gas == "GAS_EMERGENCIA":
+            publisher = MQTTPublisher()
+            publisher.publish_control_command(command="set_fan", target="fan", state="off", source="automation")
+            publisher.publish_control_command(command="set_buzzer", target="buzzer", state="off", source="automation")
             db.events.insert_one({
                 "event_type": "gas_cleared",
                 "message": "Gas ha vuelto a niveles normales.",

@@ -115,7 +115,7 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
             
         irr_state = "RIEGO_AREA_1" if pump else "RIEGO_OFF"
         vent_state = "VENTILACION_EMERGENCIA" if gas > 90.0 else ("VENTILACION_ON" if fan else "VENTILACION_OFF")
-        gas_state = "GAS_EMERGENCIA" if gas > 90.0 else ("GAS_ADVERTENCIA" if gas > 60.0 else "GAS_NORMAL")
+        gas_state = "GAS_EMERGENCIA" if gas > 90.0 else ("GAS_ADVERTENCIA" if gas > 65.0 else "GAS_NORMAL")
 
         system_status_list.append({
             "mode": "auto",

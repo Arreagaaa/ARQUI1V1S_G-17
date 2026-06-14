@@ -180,7 +180,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                 "created_at": now,
             })
             logger.warning("EMERGENCIA: Gas = %.1f ppm", gas_val)
-    elif gas_val > 60.0:
+    elif gas_val > 65.0:
         updates["overall_state"] = "ADVERTENCIA"
         updates["gas_state"] = "GAS_ADVERTENCIA"
         updates["fan_active"] = True

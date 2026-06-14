@@ -69,7 +69,7 @@ class MQTTMockProvider:
                 "value": round(self._base_soil_1, 1),
                 "unit": "%",
                 "area": "area_1",
-                "status": "warning" if self._base_soil_1 < 30 else "normal",
+                "status": "warning" if self._base_soil_1 < 65 else "normal",
                 "source": source,
                 "timestamp": now.isoformat(),
             }
@@ -81,7 +81,7 @@ class MQTTMockProvider:
                 "value": round(self._base_soil_2, 1),
                 "unit": "%",
                 "area": "area_2",
-                "status": "warning" if self._base_soil_2 < 30 else "normal",
+                "status": "warning" if self._base_soil_2 < 65 else "normal",
                 "source": source,
                 "timestamp": now.isoformat(),
             }
@@ -137,7 +137,7 @@ class MQTTMockProvider:
         """Genera un estado global coherente basado en el estado actual de los mocks."""
         gas_critical = self._base_gas > 90
         temp_high = self._base_temp > 30
-        soil_dry = self._base_soil_1 < 30 or self._base_soil_2 < 30
+        soil_dry = self._base_soil_1 < 65 or self._base_soil_2 < 65
 
         if gas_critical:
             state = "EMERGENCIA"

@@ -335,7 +335,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                     })
 
         if updates.get("irrigation_state") != "BLOQUEADO_POR_SATURACION":
-            if soil1 < 30.0:
+            if soil1 < 65.0:
                 updates["irrigation_state"] = "RIEGO_AREA_1"
                 updates["pump_active"] = True
                 if not prev_pump and pump_blocked_until is None:
@@ -348,7 +348,7 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
-            elif soil2 < 30.0:
+            elif soil2 < 65.0:
                 updates["irrigation_state"] = "RIEGO_AREA_2"
                 updates["pump_active"] = True
                 if not prev_pump and pump_blocked_until is None:

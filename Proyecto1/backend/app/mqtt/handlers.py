@@ -49,11 +49,18 @@ def handle_sensor_message(topic: str, payload: dict) -> None:
             logger.debug("MQTT sensor ignorado (source=%s): %s = %s", source, sensor_type, value)
             return
 
+        area_map = {
+            "soil_1": "area_1", "soil_2": "area_2",
+            "humidity_soil_1": "area_1", "humidity_soil_2": "area_2",
+            "humedad_suelo_area1": "area_1", "humedad_suelo_area2": "area_2",
+        }
+        area = payload.get("area") or area_map.get(sensor_type, "control")
+
         document = {
             "sensor_type": sensor_type,
             "value": float(value),
             "unit": payload.get("unit", ""),
-            "area": payload.get("area", "control"),
+            "area": area,
             "status": payload.get("status", "normal"),
             "source": source,
             "recorded_at": _parse_timestamp(payload.get("timestamp")) or _now(),

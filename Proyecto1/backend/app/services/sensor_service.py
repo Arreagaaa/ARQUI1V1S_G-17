@@ -307,6 +307,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                     "source": "backend_rules",
                     "created_at": now,
                 })
+                publisher = MQTTPublisher()
+                publisher.publish_control_command(command="set_irrigation", target="pump", state="off", source="automation")
         elif soil1_saturated:
             if prev_irrigation == "RIEGO_AREA_1" or (prev_pump and prev_irrigation != "RIEGO_AREA_2"):
                 updates["irrigation_state"] = "BLOQUEADO_POR_SATURACION"
@@ -320,6 +322,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
+                    publisher = MQTTPublisher()
+                    publisher.publish_control_command(command="set_irrigation", target="pump", state="off", source="automation")
         elif soil2_saturated:
             if prev_irrigation == "RIEGO_AREA_2" or (prev_pump and prev_irrigation != "RIEGO_AREA_1"):
                 updates["irrigation_state"] = "BLOQUEADO_POR_SATURACION"
@@ -333,6 +337,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
+                    publisher = MQTTPublisher()
+                    publisher.publish_control_command(command="set_irrigation", target="pump", state="off", source="automation")
 
         if updates.get("irrigation_state") != "BLOQUEADO_POR_SATURACION":
             if soil1 < 65.0:
@@ -348,6 +354,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
+                    publisher = MQTTPublisher()
+                    publisher.publish_control_command(command="set_irrigation", target="pump", state="on", area="area_1", source="automation")
             elif soil2 < 65.0:
                 updates["irrigation_state"] = "RIEGO_AREA_2"
                 updates["pump_active"] = True
@@ -361,6 +369,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
+                    publisher = MQTTPublisher()
+                    publisher.publish_control_command(command="set_irrigation", target="pump", state="on", area="area_2", source="automation")
             else:
                 updates["irrigation_state"] = "RIEGO_OFF"
                 if prev_pump:
@@ -375,6 +385,8 @@ def _apply_automation_rules(db, updates: dict, latest: dict | None,
                         "source": "backend_rules",
                         "created_at": now,
                     })
+                    publisher = MQTTPublisher()
+                    publisher.publish_control_command(command="set_irrigation", target="pump", state="off", source="automation")
 
         if updates.get("irrigation_state") == "BLOQUEADO_POR_SATURACION":
             updates["pump_active"] = False

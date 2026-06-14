@@ -476,7 +476,9 @@ gdb-multiarch build/modulo_4_prediccion
 (gdb) finish         ; Terminar función actual
 ```
 
-[AGREGA CAPTURA DE PANTALLA DE SESIÓN GDB]
+![Sesión GDB - Sesión GDB iniciada](images/M4_1.jpeg)
+![Sesión GDB - Inspección buffer y registros](images/M4_2.jpeg)
+![Sesión GDB - Registros cálculos finales](images/M4_3.jpeg)
 
 ---
 
@@ -511,7 +513,7 @@ NEXT_VALUE=34.56
 $ cat results/resultado_prediccion.txt
 ```
 
-[AGREGA CAPTURA DE PANTALLA DE EJECUCIÓN EXITOSA]
+![Ejecución exitosa - resultado_media.txt](images/M4_4.png)
 
 ---
 

@@ -246,7 +246,8 @@ PINOUT GPIO RASPBERRY PI 4:
 └───────────────────────────┘
 ```
 
-[AGREGA DIAGRAMA DE CIRCUITO ESQUEMÁTICO]
+![Diagrama](images/Raspi.png)
+
 
 ---
 
@@ -545,13 +546,10 @@ graph TB
 
 ### 9.3 Pantallas principales
 
-**[AGREGA CAPTURA DE PANTALLA DEL DASHBOARD PRINCIPAL]**
+![DASHBOARD PRINCIPAL](images/Manual1.jpeg)
+![PANTALLA DE GRÁFICAS](images/Manual2.png)
+![CONTROLES](images/Manual3.jpeg)
 
-**[AGREGA CAPTURA DE PANTALLA DE GRÁFICAS]**
-
-**[AGREGA CAPTURA DE PANTALLA DE CONTROLES]**
-
-**[AGREGA CAPTURA DE PANTALLA DE ANÁLISIS ARM64]**
 
 ---
 

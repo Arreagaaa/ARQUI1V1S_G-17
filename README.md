@@ -44,3 +44,7 @@ cd Proyecto1/frontend && pnpm install && pnpm dev
 ```
 
 Ver `Proyecto1/SETUP.md` para instrucciones detalladas (simulador, ARM64, MQTTX, Raspberry Pi, wiring).
+
+---
+
+Referencia de auditoría: 2026-06-15 00:22:17

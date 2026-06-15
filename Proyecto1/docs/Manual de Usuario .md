@@ -183,7 +183,7 @@ Cada sensor muestra:
 └───────────────────────┘
 ```
 
-[AGREGA CAPTURA DE PANTALLA DE PANEL PRINCIPAL]
+![Panel de control](images/Manual1.jpeg)
 
 ---
 
@@ -229,7 +229,6 @@ Cada sensor muestra:
 - Apagado automático si humedad > 85%
 - Alerta si falla después de 30 segundos
 
-[AGREGA CAPTURA: CONTROL RIEGO]
 
 ### 4.3 Control de Luces
 
@@ -256,7 +255,6 @@ Cada sensor muestra:
 - 50%: ~75W
 - OFF: 0W
 
-[AGREGA CAPTURA: CONTROL LUCES]
 
 ### 4.4 Control de Ventilador
 
@@ -280,7 +278,6 @@ Cada sensor muestra:
 - 50%: ~45 dB (conversación normal)
 - 100%: ~65 dB (tráfico ligero)
 
-[AGREGA CAPTURA: CONTROL VENTILADOR]
 
 ### 4.5 Control de Alarma
 
@@ -301,7 +298,6 @@ Cada sensor muestra:
 
 **Volumen:** ~85 dB (perceptible a ~100m)
 
-[AGREGA CAPTURA: CONTROL ALARMA]
 
 ### 4.6 Control de Modo
 
@@ -328,7 +324,6 @@ Cada sensor muestra:
 - Al cambiar a MANUAL: controles se habilitان
 - Al cambiar a AUTO: sistema vuelve a la lógica automática
 
-[AGREGA CAPTURA: CONTROL MODO]
 
 ### 4.7 Feedback Visual y Audible
 
@@ -342,6 +337,8 @@ Cada sensor muestra:
 - LED del actuador parpadea
 - Sonido de relé activándose
 - Cambio físico (bomba enciende, luz se prende, etc.)
+
+![Estado](images/Manual2.png)
 
 ---
 
@@ -472,7 +469,7 @@ TEMP (°C)          HUMEDAD (%)
 | Exportar CSV | Descargar datos en CSV para análisis |
 | Actualizar | Forzar actualización manual |
 
-[AGREGA CAPTURA: PANTALLA DE GRÁFICAS]
+![Gráficas](images/Manual3.jpeg)
 
 ---
 

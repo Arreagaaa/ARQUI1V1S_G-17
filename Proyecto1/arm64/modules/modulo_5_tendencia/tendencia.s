@@ -65,13 +65,14 @@ _start:
 	bl   utils_open_csv
 	mov  x19, x0
 
-	// Leer columna configurada
-	mov  x0, #5
-	bl   utils_read_column_config
-	mov  x1, x0
+	// Leer columna 5 (GAS) de linea 1 a 30
 	mov  x0, x19
-	adr  x2, values_buf
+	mov  x1, #5
+	ldr  x2, =values_buf
+	mov  x3, #1
+	mov  x4, #N_VALUES
 	bl   utils_read_int_column
+	// utils_read_int_column devuelve cuantos valores leyo
 	cmp  x0, #N_VALUES
 	b.ne error_exit
 

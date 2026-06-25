@@ -11,6 +11,9 @@ Modos de uso:
   Raspberry Pi (ejecución nativa):
     python arm_executor.py --pi --dir ../arm64
 
+  Obtener datos desde el backend (CSV + columna config) y ejecutar:
+    python arm_executor.py --fetch --url http://<backend>:8000 --pi --dir ../arm64
+
   Solo parsear (si los módulos ya se ejecutaron con make run1..run5):
     python arm_executor.py --parse-only --dir ../arm64
 
@@ -73,10 +76,22 @@ def parse_args() -> argparse.Namespace:
         help="Modo Raspberry Pi: ejecuta binarios nativamente (sin QEMU)",
     )
     parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="Descargar lecturas.csv y column_config.txt desde el backend",
+    )
+    parser.add_argument(
         "--parse-only",
         action="store_true",
         help="Solo parsea archivos de salida (no ejecuta los binarios)",
     )
+    for i in range(1, 6):
+        parser.add_argument(
+            f"--col{i}",
+            type=int,
+            default=None,
+            help=f"Columna para módulo {i} (0-based, default: 1 para M1-M3,M5, 4 para M4)",
+        )
     return parser.parse_args()
 
 
@@ -164,6 +179,46 @@ def _coerce(v: str) -> Any:
     return v
 
 
+def fetch_from_backend(url: str, arm_dir: Path) -> bool:
+    """Descarga lecturas.csv y column_config.txt desde el backend."""
+    base = url.rstrip("/")
+
+    # Descargar CSV
+    csv_path = arm_dir / "lecturas.csv"
+    try:
+        resp = requests.get(f"{base}/api/arm64/csv", timeout=30)
+        if resp.status_code == 200:
+            csv_path.write_text(resp.text, encoding="utf-8")
+            total = resp.headers.get("X-Total-Records", "?")
+            source = resp.headers.get("X-Source", "?")
+            print(f"  CSV descargado: {csv_path} ({total} registros, fuente: {source})")
+        else:
+            print(f"  Error descargando CSV: HTTP {resp.status_code}")
+            return False
+    except requests.RequestException as exc:
+        print(f"  Error de conexión al descargar CSV: {exc}")
+        return False
+
+    # Descargar column_config
+    config_path = arm_dir / "column_config.txt"
+    try:
+        resp = requests.get(f"{base}/api/arm64/column-config", timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            columns = data.get("columns", {})
+            lines = [f"{k}:{v}" for k, v in sorted(columns.items())]
+            config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"  Config descargada: {config_path} ({len(lines)} módulos)")
+        else:
+            print(f"  Error descargando config: HTTP {resp.status_code}")
+            return False
+    except requests.RequestException as exc:
+        print(f"  Error de conexión al descargar config: {exc}")
+        return False
+
+    return True
+
+
 def main() -> int:
     args = parse_args()
     arm_dir = Path(args.dir).resolve()
@@ -175,11 +230,47 @@ def main() -> int:
         print(f"Directorio ARM64 no encontrado: {arm_dir}")
         return 1
 
+    results_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"ARM64 Executor — Grupo 17")
     print(f"  Directorio: {arm_dir}")
     print(f"  Backend:    {args.url}")
     print(f"  Modo:       {'QEMU' if use_qemu else 'Nativo'}{' (solo parseo)' if args.parse_only else ''}")
+
+    # Fase 0: fetch desde backend
+    if args.fetch:
+        print("Descargando datos desde el backend...")
+        if not fetch_from_backend(args.url, arm_dir):
+            print("Error al descargar datos. Abortando.")
+            return 1
+        print()
+
+    columns = {}
+    for i in range(1, 6):
+        col = getattr(args, f"col{i}")
+        if col is not None:
+            columns[i] = col
+            col_name = {0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1", 4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS"}.get(col, f"col{col}")
+            print(f"  Módulo {i}: columna {col} ({col_name})")
+        else:
+            default_col = 4 if i == 4 else 1
+            col_name = {0: "ID", 1: "TEMP", 2: "HUM_AIRE", 3: "HUM_SUELO_1", 4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS"}.get(default_col, f"col{default_col}")
+            print(f"  Módulo {i}: columna por defecto {default_col} ({col_name})")
     print()
+
+    # Escribir column_config.txt para los módulos ARM64 (si no se fetch)
+    if not args.fetch:
+        config_path = arm_dir / "column_config.txt"
+        try:
+            config_lines = []
+            for i in range(1, 6):
+                col = columns.get(i, 4 if i == 4 else 1)
+                config_lines.append(f"{i}:{col}")
+            config_path.write_text("\n".join(config_lines) + "\n")
+            print(f"Configuración de columnas escrita en {config_path}")
+        except IOError as exc:
+            print(f"Error escribiendo config: {exc}")
+        print()
 
     # Fase 1: ejecutar módulos
     if not args.parse_only:

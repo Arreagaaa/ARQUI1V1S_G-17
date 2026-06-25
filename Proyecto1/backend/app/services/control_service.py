@@ -1,10 +1,3 @@
-"""
-ControlService — Lógica de negocio para control de actuadores.
-
-Centraliza la lógica de control manual que actualiza el estado global,
-registra comandos y logs de actuadores, y publica vía MQTT.
-"""
-
 import logging
 from datetime import datetime, timezone
 
@@ -20,28 +13,23 @@ def _now() -> datetime:
 
 
 def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
-    """
-    Ejecuta un comando de control sobre un actuador.
-
-    1. Registra el comando en la colección `commands`
-    2. Registra un log en la colección `actuator_logs`
-    3. Actualiza el estado global del sistema
-    4. Publica UN SOLO mensaje vía MQTT al topic de actuador correspondiente
-       (el dashboard/raspberry suscrito a `grupo17/invernadero/control/#` se entera
-        del cambio por la actualización de estado global, evitando duplicados)
-
-    Args:
-        actuator: Identificador del actuador (pump, fan, lights, buzzer, mode)
-        state: Estado deseado (on, off, auto, manual, mute)
-        area: Área opcional (area_1, area_2)
-
-    Returns:
-        Diccionario con IDs de los documentos creados y resultado MQTT
-    """
     db = get_database()
     publisher = MQTTPublisher()
 
-    # 1. Registrar comando
+    # En modo auto solo se permite cambiar el modo
+    if actuator != "mode":
+        latest = db.system_status.find_one(sort=[("updated_at", -1)])
+        mode = (latest or {}).get("mode", "auto")
+        if mode == "auto":
+            logger.info("Control ignorado (modo auto): %s -> %s (area=%s)", actuator, state, area)
+            return {
+                "command_id": None,
+                "log_id": None,
+                "mqtt": None,
+                "ignored": True,
+                "reason": "modo_auto_no_permite_control_manual",
+            }
+
     command_document = {
         "command": f"set_{actuator}",
         "target": actuator,
@@ -51,7 +39,6 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     }
     command_result = db.commands.insert_one(command_document)
 
-    # 2. Registrar log de actuador
     log_document = {
         "actuator": actuator,
         "action": state,
@@ -62,20 +49,17 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     }
     log_result = db.actuator_logs.insert_one(log_document)
 
-    # 3. Actualizar estado global según tipo de actuador
-    updates = _compute_status_updates(actuator, state, db)
+    updates = _compute_status_updates(actuator, state, area, db)
     if updates:
         update_system_status(updates)
 
-    # 4. Publicar UN SOLO mensaje MQTT al topic del actuador (no duplicar)
-    mqtt_result = None
-    if actuator != "mode":
-        mqtt_result = publisher.publish_actuator_event(
-            actuator=actuator,
-            action=state,
-            area=area,
-            source="web",
-        )
+    mqtt_result = publisher.publish_control_command(
+        command=f"set_{actuator}",
+        target=actuator,
+        state=state,
+        area=area,
+        source="web",
+    )
 
     logger.info("Control ejecutado: %s -> %s (area=%s)", actuator, state, area)
 
@@ -96,36 +80,52 @@ def execute_control(actuator: str, state: str, area: str | None = None) -> dict:
     }
 
 
-def _compute_status_updates(actuator: str, state: str, db) -> dict:
-    """Calcula las actualizaciones de estado global según el actuador controlado."""
-
+def _compute_status_updates(actuator: str, state: str, area: str | None, db) -> dict:
     updates = {}
+    latest = db.system_status.find_one(sort=[("updated_at", -1)])
 
     if actuator == "mode":
         updates["mode"] = state
         if state == "manual":
             updates["overall_state"] = "MODO_MANUAL"
+            updates["irrigation_state"] = "RIEGO_MANUAL"
+            updates["ventilation_state"] = "VENTILACION_MANUAL"
         elif state == "auto":
             updates["overall_state"] = "NORMAL"
+            updates["irrigation_state"] = "RIEGO_OFF"
+            updates["ventilation_state"] = "VENTILACION_OFF"
 
     elif actuator in ("pump", "irrigation"):
-        updates["pump_active"] = (state == "on")
-        if state == "on":
+        is_on = state == "on"
+        updates["pump_active"] = is_on
+        if is_on:
+            if area == "area_1":
+                updates["irrigation_state"] = "RIEGO_AREA_1"
+            elif area == "area_2":
+                updates["irrigation_state"] = "RIEGO_AREA_2"
+            else:
+                updates["irrigation_state"] = "RIEGO_MANUAL"
+            updates["pump_started_at"] = _now().isoformat()
             updates["overall_state"] = "RIEGO_ACTIVO"
         else:
-            latest = db.system_status.find_one(sort=[("updated_at", -1)])
+            updates["irrigation_state"] = "RIEGO_OFF"
+            updates["pump_started_at"] = None
+            updates["pump_last_stopped_at"] = _now().isoformat()
             mode = latest.get("mode", "auto") if latest else "auto"
             updates["overall_state"] = "MODO_MANUAL" if mode == "manual" else "NORMAL"
 
     elif actuator == "fan":
-        updates["fan_active"] = (state == "on")
+        is_on = state == "on"
+        updates["fan_active"] = is_on
+        mode = latest.get("mode", "auto") if latest else "auto"
+        if mode == "manual":
+            updates["ventilation_state"] = "VENTILACION_ON" if is_on else "VENTILACION_OFF"
 
     elif actuator == "lights":
-        updates["lights_active"] = (state == "on")
+        is_on = state == "on"
+        updates["lights_active"] = is_on
 
     elif actuator in ("buzzer", "alarm"):
-        # Corregido: la lógica anterior tenía un bug donde `state != "mute"`
-        # siempre era True excepto para "mute". Ahora es explícito.
         updates["buzzer_active"] = state in ("on", "active")
 
     return updates

@@ -35,6 +35,9 @@ export type ActuatorLog = {
 export type SystemStatus = {
   mode: string;
   overall_state: string;
+  irrigation_state: string;
+  ventilation_state: string;
+  gas_state: string;
   temperature: number;
   humidity: number;
   soil_1: number;

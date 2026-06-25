@@ -5,24 +5,25 @@
 # Patrón basado en 02_ARM64/tools/makefile-templates/Makefile.qemu.multi
 # del repositorio del auxiliar (D:\Projects\USAC\ARQUI1_1S2026).
 #
-# Estado actual (post-limpieza 2026-06-05):
-#   - modulo_1_media: ✅ IMPLEMENTADO (Integrante 1 — listo para QEMU)
-#   - modulo_2_varianza: ⏳ pendiente (Integrante 2)
-#   - modulo_3_anomalias: ⏳ pendiente (Integrante 3)
-#   - modulo_4_prediccion: ⏳ pendiente (Integrante 4)
-#   - modulo_5_tendencia:  ✅ IMPLEMENTADO (Integrante 5 — listo para QEMU)
-#   - utils: ⏳ pendiente (tarea grupal, opcional — modulo_1 es auto-contenido)
+# Estado actual:
+#   - modulo_1_media:      ✅ IMPLEMENTADO (Integrante 1)
+#   - modulo_2_varianza:   ✅ IMPLEMENTADO (Integrante 2)
+#   - modulo_3_anomalias:  ✅ IMPLEMENTADO (Integrante 3)
+#   - modulo_4_prediccion: ✅ IMPLEMENTADO (Integrante 4)
+#   - modulo_5_tendencia:  ✅ IMPLEMENTADO (Integrante 5)
+#   - utils: ✅ IMPLEMENTADO (biblioteca común con 11 subrutinas)
 #
 # Targets:
-#   make all       → compila utils + modulo_1_media (lo único listo)
+#   make all       → compila utils + los 5 módulos
 #   make utils     → solo utils.o
-#   make modulo1   → módulo 1 (media ponderada) — LISTO
-#   make modulo2   → solo módulo 2 (varianza) — pendiente
-#   make modulo3   → solo módulo 3 (anomalías) — pendiente
-#   make modulo4   → solo módulo 4 (predicción) — pendiente
-#   make modulo5   → solo módulo 5 (tendencia) — LISTO
-#   make run1      → ejecuta modulo_1_media con QEMU
-#   make gdb1      → depura modulo_1_media con GDB sobre QEMU
+#   make modulo1   → módulo 1 (media ponderada)
+#   make modulo2   → módulo 2 (varianza)
+#   make modulo3   → módulo 3 (anomalías)
+#   make modulo4   → módulo 4 (predicción)
+#   make modulo5   → módulo 5 (tendencia)
+#   make run1-5    → ejecuta el módulo N con QEMU
+#   make gdb1-5    → depura el módulo N con GDB sobre QEMU
+#   make runall    → ejecuta los 5 módulos secuencialmente
 #   make clean     → borra build/
 #   make info      → muestra toolchain y variables
 #   make status    → muestra qué módulos están listos
@@ -58,27 +59,33 @@ M4_S     = $(M4_DIR)/predicciones.s
 M4_O     = $(BUILD)/modulo_4_prediccion.o
 M4_BIN   = $(BUILD)/modulo_4_prediccion
 
+# Módulo 2 (LISTO)
+M2_DIR   = modules/modulo_2_varianza
+M2_S     = $(M2_DIR)/varianza.s
+M2_O     = $(BUILD)/modulo_2_varianza.o
+M2_BIN   = $(BUILD)/modulo_2_varianza
+
+# Módulo 3 (LISTO)
+M3_DIR   = modules/modulo_3_anomalias
+M3_S     = $(M3_DIR)/anomalias.s
+M3_O     = $(BUILD)/modulo_3_anomalias.o
+M3_BIN   = $(BUILD)/modulo_3_anomalias
+
 # Módulo 5 (LISTO)
 M5_DIR   = modules/modulo_5_tendencia
 M5_S     = $(M5_DIR)/tendencia.s
 M5_O     = $(BUILD)/modulo_5_tendencia.o
 M5_BIN   = $(BUILD)/modulo_5_tendencia
 
-# Módulos 2-3 (PENDIENTES — targets emiten mensaje y salen)
-M2_S     = modules/modulo_2_varianza/varianza.s
-M3_S     = modules/modulo_3_anomalias/anomalias.s
-
 ASFLAGS  = -g
 LDFLAGS  =
 
 .PHONY: all utils modulo1 modulo2 modulo3 modulo4 modulo5 \
-        run1 run4 run5 gdb1 gdb4 gdb5 clean info status
+        run1 run2 run3 run4 run5 runall gdb1 gdb2 gdb3 gdb4 gdb5 clean info status
 
-# Por ahora `all` compila utils + módulos implementados
-all: utils modulo1 modulo4 modulo5
+all: utils modulo1 modulo2 modulo3 modulo4 modulo5
 	@echo
-	@echo "==> Listo: build/modulo_1_media, build/modulo_4_prediccion, build/modulo_5_tendencia"
-	@echo "    Pendientes: modulo_2_varianza, modulo_3_anomalias"
+	@echo "==> Listos: los 5 módulos ARM64"
 
 utils: $(UTILS_O)
 
@@ -91,9 +98,7 @@ $(UTILS_O): $(UTILS) | $(BUILD)
 # ----------------------------------------------------------------------------
 # Módulo 1 — Media aritmética ponderada (LISTO)
 # ----------------------------------------------------------------------------
-# media.s es 100% auto-contenido: no usa `.extern` ni símbolos de utils.s.
-# El enlace con utils.o es por compatibilidad con el Makefile multi-módulo
-# del auxiliar; si utils.s no compila, este target sigue funcionando.
+# media.s usa utils.s (open_csv, read_int_column, etc.).
 $(M1_O): $(M1_S) | $(BUILD)
 	$(AS) $(ASFLAGS) -o $@ $<
 
@@ -116,7 +121,31 @@ modulo4: $(M4_BIN)
 	@echo "==> modulo_4_prediccion compilado: $(M4_BIN)"
 
 # ----------------------------------------------------------------------------
-# Módulo 5 — Tendencia acumulada avanzada (LISTO)
+# Módulo 2 — Varianza y Desviación Estándar (LISTO)
+# ----------------------------------------------------------------------------
+$(M2_O): $(M2_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(M2_BIN): $(M2_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+modulo2: $(M2_BIN)
+	@echo "==> modulo_2_varianza compilado: $(M2_BIN)"
+
+# ----------------------------------------------------------------------------
+# Módulo 3 — Detección de Anomalías (LISTO)
+# ----------------------------------------------------------------------------
+$(M3_O): $(M3_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(M3_BIN): $(M3_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+modulo3: $(M3_BIN)
+	@echo "==> modulo_3_anomalias compilado: $(M3_BIN)"
+
+# ----------------------------------------------------------------------------
+# Módulo 5 — Tendencia Acumulada Avanzada (LISTO)
 # ----------------------------------------------------------------------------
 $(M5_O): $(M5_S) | $(BUILD)
 	$(AS) $(ASFLAGS) -o $@ $<
@@ -128,37 +157,51 @@ modulo5: $(M5_BIN)
 	@echo "==> modulo_5_tendencia compilado: $(M5_BIN)"
 
 # ----------------------------------------------------------------------------
-# Módulos 2-3 — PENDIENTES (mensaje informativo, no fallan el make)
-# ----------------------------------------------------------------------------
-modulo2:
-	@echo "⏳ modulo_2_varianza: PENDIENTE — Implementar Integrante 2"
-	@echo "   Ver enunciado §10.2 y modules/modulo_2_varianza/README.md"
-	@false
-
-modulo3:
-	@echo "⏳ modulo_3_anomalias: PENDIENTE — Implementar Integrante 3"
-	@echo "   Ver enunciado §10.3 y modules/modulo_3_anomalias/README.md"
-	@false
-
-# ----------------------------------------------------------------------------
 # Ejecución y depuración con QEMU
 # ----------------------------------------------------------------------------
 run1: $(M1_BIN)
+	mkdir -p results
 	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_media.txt
+
+run2: $(M2_BIN)
+	mkdir -p results
+	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_varianza.txt
+
+run3: $(M3_BIN)
+	mkdir -p results
+	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_anomalias.txt
 
 run4: $(M4_BIN)
+	mkdir -p results
 	$(QEMU) $<
 	@echo "--- Resultado ---"
 	@cat results/resultado_prediccion.txt
 
 run5: $(M5_BIN)
+	mkdir -p results
 	$(QEMU) $<
+	@echo "--- Resultado ---"
+	@cat results/resultado_tendencia.txt
+
+runall: run1 run2 run3 run4 run5
+	@echo "=== Los 5 módulos ejecutados ==="
 
 gdb1: $(M1_BIN)
 	$(QEMU) -g 1234 $<
 
+gdb2: $(M2_BIN)
+	$(QEMU) -g 1234 $<
+
+gdb3: $(M3_BIN)
+	$(QEMU) -g 1234 $<
+
 gdb4: $(M4_BIN)
-	@echo "Iniciando QEMU en puerto 1234..."
 	$(QEMU) -g 1234 $<
 
 gdb5: $(M5_BIN)
@@ -180,14 +223,15 @@ info:
 	@echo "  QEMU  = $(QEMU)"
 	@echo "  GDB   = $(GDB)"
 	@echo
-	@echo "Módulos listos:"
-	@echo "  M1    = $(M1_BIN)  (media ponderada) ✅"
-	@echo "  M4    = $(M4_BIN)  (predicción) ✅"
-	@echo "  M5    = $(M5_BIN)  (tendencia) ✅"
+	@echo "Biblioteca común:"
+	@echo "  utils = $(UTILS_O)     (11 subrutinas)      ✅"
 	@echo
-	@echo "Módulos pendientes (no compilan aún):"
-	@echo "  M2    = modulo_2_varianza  ⏳"
-	@echo "  M3    = modulo_3_anomalias ⏳"
+	@echo "Módulos (los 5 listos):"
+	@echo "  M1    = $(M1_BIN)  (media ponderada)      ✅"
+	@echo "  M2    = $(M2_BIN)  (varianza)              ✅"
+	@echo "  M3    = $(M3_BIN)  (anomalías)             ✅"
+	@echo "  M4    = $(M4_BIN)  (predicción)            ✅"
+	@echo "  M5    = $(M5_BIN)  (tendencia)             ✅"
 
 status:
 	@echo "=== Estado de los 5 módulos ARM64 ==="
@@ -198,4 +242,4 @@ status:
 	@if [ -f "$(M4_S)" ]; then echo "✅  M4  predicciones.s     (Integrante 4)"; else echo "❌  M4  predicciones.s"; fi
 	@if [ -f "$(M5_S)" ]; then echo "✅  M5  tendencia.s        (Integrante 5)"; else echo "⏳  M5  tendencia.s        (Integrante 5) — PENDIENTE"; fi
 	@echo
-	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o"; else echo "⏳  utils.s (biblioteca común) — tarea grupal PENDIENTE"; fi
+	@if [ -f "$(UTILS_O)" ]; then echo "✅  utils.o (biblioteca común con 11 subrutinas)"; else echo "⏳  utils.s — PENDIENTE"; fi

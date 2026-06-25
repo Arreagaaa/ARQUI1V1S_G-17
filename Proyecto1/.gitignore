@@ -7,3 +7,7 @@ __pycache__/
 .env
 .DS_Store
 *.tsbuildinfo
+arm64/build/
+arm64/results/
+arm64/column_config.txt
+backend/lecturas.csv

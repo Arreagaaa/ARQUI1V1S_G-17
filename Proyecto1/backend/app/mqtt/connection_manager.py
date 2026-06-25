@@ -59,6 +59,7 @@ class MQTTConnectionManager:
         if self._username:
             self._client.username_pw_set(self._username, self._password)
 
+        self._client.reconnect_delay_set(min_delay=1, max_delay=30)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message

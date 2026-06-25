@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity,
   AlertTriangle,
   Cloud,
   Droplets,
+  Lock,
+  LogOut,
   Radio,
   Rocket,
   Wifi,
@@ -12,6 +14,7 @@ import {
   Cpu,
   RefreshCw,
   Sun,
+  Settings2,
 } from 'lucide-react';
 import {
   createEvent,
@@ -21,13 +24,19 @@ import {
   getHealth,
   getARM64Results,
   generateMockARM64Results,
+  generateARM64CSV,
+  triggerARM64Run,
   seedDatabase,
   controlMode,
   controlIrrigation,
   controlLights,
   controlFan,
   controlAlarm,
+  getARM64ColumnConfig,
+  setARM64ColumnConfig,
+  baseUrl,
 } from './lib/api';
+import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
 import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, ARM64Result } from './types';
 
 type DashboardState = {
@@ -91,7 +100,12 @@ export default function App() {
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const arm64PollRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('temperature');
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState('');
+  const [pumpArea, setPumpArea] = useState<string>('area_1');
 
   const [reading, setReading] = useState<ReadingState>({
     area: 'area_1',
@@ -110,6 +124,56 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
+    // Conectar MQTT para tiempo real
+    mqttClient.connect();
+
+    mqttClient.onConnect(() => {
+      if (!active) return;
+      setMqttStatus({ enabled: true, connected: true });
+    });
+
+    mqttClient.onDisconnect(() => {
+      if (!active) return;
+      setMqttStatus({ enabled: true, connected: false });
+    });
+
+    // Suscribir a topics de sensores y estado global
+    mqttClient.subscribe('sensores/#', (topic, payload) => {
+      if (!active) return;
+      setDashboard((prev) => ({
+        ...prev,
+        recent_readings: [
+          { sensor_type: payload.sensor_type as string, value: payload.value as number, unit: payload.unit as string, area: payload.area as string, recorded_at: payload.timestamp as string },
+          ...prev.recent_readings,
+        ].slice(0, 30),
+      }));
+    });
+
+    mqttClient.subscribe('estado/global', (_topic, payload) => {
+      if (!active) return;
+      setDashboard((prev) => ({
+        ...prev,
+        status: {
+          mode: payload.mode as string,
+          overall_state: payload.overall_state as string,
+          irrigation_state: payload.irrigation_state as string || 'RIEGO_OFF',
+          ventilation_state: payload.ventilation_state as string || 'VENTILACION_OFF',
+          gas_state: payload.gas_state as string || 'GAS_NORMAL',
+          temperature: payload.temperature as number,
+          humidity: payload.humidity as number,
+          soil_1: payload.soil_1 as number,
+          soil_2: payload.soil_2 as number,
+          light: payload.light as number,
+          gas: payload.gas as number,
+          pump_active: payload.pump_active as boolean,
+          fan_active: payload.fan_active as boolean,
+          lights_active: payload.lights_active as boolean,
+          buzzer_active: payload.buzzer_active as boolean,
+          updated_at: payload.timestamp as string,
+        },
+      }));
+    });
+
     async function load() {
       try {
         const [health, data, arm64] = await Promise.all([getHealth(), getDashboard(), getARM64Results()]);
@@ -124,10 +188,6 @@ export default function App() {
           apiStatus: health.status,
           arm64_results: arm64,
         });
-        setMqttStatus({
-          enabled: health.mqtt_enabled,
-          connected: health.mqtt_connected,
-        });
       } catch {
         if (!active) return;
         setDashboard((current) => ({ ...current, apiStatus: 'Sin conexión' }));
@@ -139,6 +199,8 @@ export default function App() {
     return () => {
       active = false;
       window.clearInterval(interval);
+      if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
+      mqttClient.disconnect();
     };
   }, []);
 
@@ -171,6 +233,26 @@ export default function App() {
     setBusy(key);
     setNotice('');
     try {
+      // Publicar comando vía MQTT también
+      mqttClient.publish('control/remoto', {
+        command: `set_${nextAction.actuator}`,
+        target: nextAction.actuator,
+        source: 'dashboard',
+        payload: { state: nextAction.state, area: nextAction.area },
+        timestamp: new Date().toISOString(),
+      });
+
+      // Los cambios de modo también se publican en control/manual (topic dedicado)
+      if (nextAction.actuator === 'mode') {
+        mqttClient.publish('control/manual', {
+          command: `set_${nextAction.actuator}`,
+          target: nextAction.actuator,
+          source: 'dashboard',
+          payload: { state: nextAction.state, area: nextAction.area },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       if (nextAction.actuator === 'mode') {
         await controlMode(nextAction.state as 'auto' | 'manual');
       } else if (nextAction.actuator === 'pump') {
@@ -260,6 +342,43 @@ export default function App() {
     }
   }
 
+  async function handlePrepareARM64Data() {
+    setBusy('arm64-prep');
+    setNotice('');
+    try {
+      const res = await generateARM64CSV();
+      setNotice(res.message);
+    } catch {
+      setNotice('Error al preparar datos ARM64.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRunARM64() {
+    setBusy('arm64-run');
+    setNotice('');
+    if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
+    try {
+      const res = await triggerARM64Run();
+      setNotice(res.message);
+      let count = 0;
+      arm64PollRef.current = window.setInterval(async () => {
+        count++;
+        await refresh();
+        if (count >= 20) {
+          if (arm64PollRef.current) window.clearInterval(arm64PollRef.current);
+          arm64PollRef.current = null;
+          setBusy(null);
+          setNotice('Análisis ARM64 finalizado. Refresca la página para confirmar todos los resultados.');
+        }
+      }, 3000);
+    } catch {
+      setNotice('Error al ejecutar análisis ARM64 en la Pi.');
+      setBusy(null);
+    }
+  }
+
   // Map sensor select option to pre-populate units
   const handleSensorTypeChange = (type: string) => {
     let unit = '';
@@ -276,10 +395,8 @@ export default function App() {
   const quickActions = [
     { label: 'Modo automático', actuator: 'mode', state: 'auto' },
     { label: 'Modo manual', actuator: 'mode', state: 'manual' },
-    { label: 'Bomba Área 1 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_1' },
-    { label: 'Bomba Área 1 OFF', actuator: 'pump', state: 'off', area: 'area_1' },
-    { label: 'Bomba Área 2 ON (compartida)', actuator: 'pump', state: 'on', area: 'area_2' },
-    { label: 'Bomba Área 2 OFF', actuator: 'pump', state: 'off', area: 'area_2' },
+    { label: `Riego ${pumpArea === 'area_1' ? 'Área 1' : 'Área 2'} ON`, actuator: 'pump', state: 'on', area: pumpArea },
+    { label: `Riego ${pumpArea === 'area_1' ? 'Área 1' : 'Área 2'} OFF`, actuator: 'pump', state: 'off', area: pumpArea },
     { label: 'Apagar bomba (sin área)', actuator: 'pump', state: 'off' },
     { label: 'Ventilación ON', actuator: 'fan', state: 'on' },
     { label: 'Ventilación OFF', actuator: 'fan', state: 'off' },
@@ -288,6 +405,10 @@ export default function App() {
     { label: 'Silenciar buzzer', actuator: 'buzzer', state: 'mute' },
     { label: 'Activar buzzer', actuator: 'buzzer', state: 'on' },
   ];
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={(user) => { setIsAuthenticated(true); setAuthUser(user); }} />;
+  }
 
   return (
     <main className="min-h-screen bg-[var(--bg)] text-slate-100 pb-12">
@@ -340,6 +461,14 @@ export default function App() {
                   value={!mqttStatus.enabled ? 'Off' : mqttStatus.connected ? 'OK' : 'Sync'}
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => { setIsAuthenticated(false); setAuthUser(''); }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/60 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
+              </button>
             </div>
           </div>
           {notice ? (
@@ -422,9 +551,35 @@ export default function App() {
               <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
               <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />
             </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Riego</span>
+                <p className="mt-1 font-semibold text-white">{status?.irrigation_state ?? '—'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Ventilación</span>
+                <p className="mt-1 font-semibold text-white">{status?.ventilation_state ?? '—'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400">Gas</span>
+                <p className="mt-1 font-semibold text-white">{status?.gas_state ?? '—'}</p>
+              </div>
+            </div>
 
             <section className="grid gap-4 lg:grid-cols-2">
               <Panel title="Acciones rápidas (Control manual)">
+                <div className="mb-3 flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">Área riego:</span>
+                  <select
+                    value={pumpArea}
+                    onChange={(e) => setPumpArea(e.target.value)}
+                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-white outline-none focus:border-emerald-300/40"
+                  >
+                    <option value="area_1">Área 1</option>
+                    <option value="area_2">Área 2</option>
+                  </select>
+                  <span className="text-slate-500">(1 bomba compartida)</span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
                   {quickActions.map((item) => {
                     const key = `${item.actuator}-${item.state}-${item.area || ''}`;
@@ -587,19 +742,16 @@ export default function App() {
         <ARM64ResultsSection
           results={dashboard.arm64_results}
           onGenerateMock={() => void handleGenerateMockARM64()}
+          onPrepareData={() => void handlePrepareARM64Data()}
+          onRunAnalysis={() => void handleRunARM64()}
           loading={busy === 'arm64-mock'}
+          preparing={busy === 'arm64-prep'}
+          running={busy === 'arm64-run'}
+          backendUrl={baseUrl}
         />
 
-        {/* Nota MQTT */}
-        <footer className="rounded-3xl border border-emerald-400/15 bg-emerald-500/10 p-5 sm:p-6 backdrop-blur">
-          <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-emerald-400 animate-spin-slow shrink-0" />
-            <span>Fase Pre-ARM y Pre-Maqueta Completada</span>
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-emerald-50/80">
-            Toda la arquitectura web está lista. El backend tiene implementada la lógica de automatización y umbrales para simular las lecturas y activar el estado global de MongoDB. Cuando se conecte la Raspberry Pi por MQTT, el sistema operará automáticamente. El contrato MQTT ha quedado documentado.
-          </p>
-        </footer>
+        {/* Espaciado final */}
+        <div className="h-4" />
       </section>
     </main>
   );
@@ -617,7 +769,14 @@ function StatusPill({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
+function classifySoil(value: number): { label: string; color: string } {
+  if (value < 30) return { label: 'SECO', color: 'text-rose-400' };
+  if (value > 80) return { label: 'SATURADO', color: 'text-cyan-400' };
+  return { label: 'NORMAL', color: 'text-emerald-400' };
+}
+
 function MetricCard({ label, value, unit, active, onClick }: { label: string; value: number; unit: string; active: boolean; onClick: () => void }) {
+  const soilClass = label.includes('Suelo') ? classifySoil(value) : null;
   return (
     <article
       onClick={onClick}
@@ -632,6 +791,9 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
         {value !== undefined ? (typeof value === 'number' ? value.toFixed(1).replace('.0', '') : value) : '0'}
         <span className="ml-1 text-xs sm:text-sm font-medium text-slate-400">{unit}</span>
       </p>
+      {soilClass && (
+        <p className={`mt-1 text-[10px] font-bold uppercase ${soilClass.color}`}>{soilClass.label}</p>
+      )}
     </article>
   );
 }
@@ -866,15 +1028,130 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
   );
 }
 
+function LoginPage({ onLogin }: { onLogin: (user: string) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin123') {
+      onLogin(username);
+    } else {
+      setError('Usuario o contrasena incorrectos');
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[var(--bg)] text-slate-100 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-dashboard-grid bg-[size:24px_24px] opacity-35" />
+      <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.22),_transparent_60%)]" />
+      <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-glow backdrop-blur">
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="rounded-2xl bg-emerald-400/15 p-3 mb-4">
+            <Lock className="h-6 w-6 text-emerald-300" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/90">Invernadero Inteligente IoT</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            Panel de control y monitoreo inteligente
+          </h1>
+          <p className="mt-2 text-sm text-slate-400">
+            Ingrese sus credenciales para acceder al sistema
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/80 mb-1.5">
+              Usuario
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(''); }}
+              className={inputClass}
+              placeholder="admin"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/80 mb-1.5">
+              Contrasena
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(''); }}
+              className={inputClass}
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error ? (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {error}
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            className="w-full rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+          >
+            Iniciar sesion
+          </button>
+        </form>
+
+        <p className="mt-6 text-[10px] text-center text-slate-500">
+          Grupo 17 - Arquitectura de Computadores y Ensambladores 1 USAC
+        </p>
+      </div>
+    </main>
+  );
+}
+
+const COLUMN_LABELS: Record<number, string> = {
+  0: 'ID', 1: 'TEMP', 2: 'HUM_AIRE', 3: 'HUM_SUELO_1',
+  4: 'HUM_SUELO_2', 5: 'LUZ', 6: 'GAS',
+};
+
+const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
+
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 };
+
 function ARM64ResultsSection({
   results,
   onGenerateMock,
-  loading
+  onPrepareData,
+  onRunAnalysis,
+  loading,
+  preparing,
+  running,
+  backendUrl,
 }: {
   results: Record<string, ARM64Result> | null;
   onGenerateMock: () => void;
+  onPrepareData: () => void;
+  onRunAnalysis: () => void;
   loading: boolean;
+  preparing: boolean;
+  running: boolean;
+  backendUrl: string;
 }) {
+  const [columnConfig, setColumnConfig] = useState<Record<number, number>>(DEFAULT_COLUMNS);
+  const [savingCol, setSavingCol] = useState(false);
+
+  useEffect(() => {
+    getARM64ColumnConfig().then(data => {
+      if (data.columns) setColumnConfig(data.columns);
+    }).catch(() => {});
+  }, []);
+
+  const handleColumnChange = (moduleId: number, colIdx: number) => {
+    const next = { ...columnConfig, [moduleId]: colIdx };
+    setColumnConfig(next);
+    setSavingCol(true);
+    setARM64ColumnConfig(next).finally(() => setSavingCol(false));
+  };
+
   const modulesList = [
     {
       key: 'WEIGHTED_MEAN',
@@ -962,20 +1239,74 @@ function ARM64ResultsSection({
             Resultados calculados en ensamblador AArch64 ejecutados localmente en la Raspberry Pi 3.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onGenerateMock}
-          disabled={loading}
-          className="w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Generando...' : 'Generar datos de prueba ARM64'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onPrepareData}
+            disabled={preparing}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {preparing ? 'Generando...' : 'Preparar datos desde MongoDB'}
+          </button>
+          <button
+            type="button"
+            onClick={onRunAnalysis}
+            disabled={running}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {running ? 'Ejecutando...' : 'Ejecutar análisis en la Pi'}
+          </button>
+          <button
+            type="button"
+            onClick={onGenerateMock}
+            disabled={loading}
+            className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Generando...' : 'Datos de prueba (mock)'}
+          </button>
+        </div>
+      </div>
+
+      {running && (
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+          <p className="text-xs text-emerald-300 flex items-center gap-2">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Ejecutando módulos ARM64 en la Raspberry Pi...
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-white/10 bg-white/4 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5 text-slate-400" />
+            Columnas del CSV por módulo
+            {savingCol && <span className="text-[9px] text-slate-500 ml-1">guardando...</span>}
+          </h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[1, 2, 3, 4, 5].map((modId) => (
+            <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
+              <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
+              <select
+                value={columnConfig[modId] ?? DEFAULT_COLUMNS[modId]}
+                onChange={(e) => handleColumnChange(modId, Number(e.target.value))}
+                className="appearance-none bg-slate-800 text-[10px] text-slate-200 rounded border border-white/10 px-1.5 py-0.5
+                           focus:outline-none focus:border-emerald-400/50 cursor-pointer hover:bg-slate-700 transition"
+              >
+                {COLUMN_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
       </div>
 
       {!hasData ? (
         <div className="flex flex-col items-center justify-center py-10 px-4 rounded-2xl border border-dashed border-white/10 bg-slate-950/30">
           <p className="text-xs text-slate-400 text-center max-w-sm">
-            Ningún análisis ARM64 ha sido reportado en MongoDB. Presiona el botón superior para poblar la colección y previsualizar la interfaz.
+            Ningún análisis ARM64 ha sido reportado en MongoDB. Prepara los datos desde MongoDB y ejecuta los módulos en la Raspberry Pi para obtener resultados reales.
           </p>
         </div>
       ) : (

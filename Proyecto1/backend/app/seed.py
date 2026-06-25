@@ -101,21 +101,28 @@ def seed_database(clear_existing: bool = False) -> Dict[str, Any]:
         gas = 60.0 + (i * 3.0) % 110.0
         
         # Reglas simples para inferir estado
-        pump = soil1 < 30.0 or soil2 < 30.0
-        fan = temp > 30.0 or gas > 150.0
+        pump = soil1 < 65.0 or soil2 < 65.0
+        fan = temp > 30.0 or gas > 90.0
         lights = light < 30.0
-        buzzer = gas > 150.0
+        buzzer = gas > 90.0
         
-        if gas > 150.0:
+        if gas > 90.0:
             state = "EMERGENCIA"
-        elif temp > 30.0 or soil1 < 30.0 or soil2 < 30.0:
+        elif temp > 30.0 or soil1 < 65.0 or soil2 < 65.0:
             state = "ADVERTENCIA" if temp > 30.0 else "RIEGO_ACTIVO"
         else:
             state = "NORMAL"
             
+        irr_state = "RIEGO_AREA_1" if pump else "RIEGO_OFF"
+        vent_state = "VENTILACION_EMERGENCIA" if gas > 90.0 else ("VENTILACION_ON" if fan else "VENTILACION_OFF")
+        gas_state = "GAS_EMERGENCIA" if gas > 90.0 else ("GAS_ADVERTENCIA" if gas > 65.0 else "GAS_NORMAL")
+
         system_status_list.append({
             "mode": "auto",
             "overall_state": state,
+            "irrigation_state": irr_state,
+            "ventilation_state": vent_state,
+            "gas_state": gas_state,
             "temperature": round(temp, 1),
             "humidity": round(hum, 1),
             "soil_1": round(soil1, 1),

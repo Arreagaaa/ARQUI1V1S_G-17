@@ -7,21 +7,20 @@
 .extern utils_i64_to_str
 .extern utils_exit
 
-.equ N_VALUES, 30
-.equ WEIGHT_SUM, 465
+.equ MAX_VALUES, 30
 
 .data
 out_path:   .asciz "results/resultado_media.txt"
 mod_name:   .asciz "MODULE=WEIGHTED_MEAN\n"
-total_v:    .asciz "TOTAL_VALUES=30\n"
+total_v:    .asciz "TOTAL_VALUES="
 lbl_sumx:   .asciz "SUM_X="
-lbl_wsum:   .asciz "WEIGHT_SUM=465\n"
+lbl_wsum:   .asciz "WEIGHT_SUM="
 lbl_mean:   .asciz "WEIGHTED_MEAN="
 nl:         .asciz "\n"
 
 .bss
 values_buf: 
-    .skip 8 * N_VALUES
+    .skip 8 * MAX_VALUES
 
 out_buf:
     .skip 256
@@ -31,19 +30,30 @@ _start:
     bl utils_open_csv
     mov x19, x0 // Guardar el file descriptor del archivo CSV en x19
 
-    mov x1, #1 // Columna 1 (índice 0)
-    mov x0, x19 // File descriptor del archivo CSV
+    mov x0, x19
+    mov x1, #1 // Columna 1 (TEMP)
     ldr x2, =values_buf
-    bl utils_read_int_column // Leer la columna de enteros y almacenarla en values_buf
+    mov x3, #1 // linea inicial (primer dato)
+    mov x4, #MAX_VALUES // linea final
+    bl utils_read_int_column
+    mov x20, x0 // x20 = N (cantidad de valores leidos)
 
     mov x0, x19
     bl utils_close_csv // Cerrar el archivo CSV
 
+    // Calcular WEIGHT_SUM = N * (N + 1) / 2
+    add x1, x20, #1 // x1 = N + 1
+    mul x23, x20, x1 // x23 = N * (N + 1)
+    mov x0, #2
+    sdiv x23, x23, x0 // x23 = N * (N + 1) / 2
+
     ldr x0, =values_buf
+    mov x1, x20
     bl sum_values // Calcular la suma de los valores
     mov x21, x0 // Guardar la suma en x21
 
     ldr x0, =values_buf
+    mov x1, x20
     bl weighted_mean // Calcular la media ponderada
     mov x22, x0 // Guardar la media ponderada en x22
 
@@ -73,6 +83,22 @@ copy_total:
     b copy_total // repetir el proceso hasta que se termine de copiar el total de valores
 
 copy_total_end:
+    mov x0, x20 // Mover N a x0 para convertirlo a cadena
+    mov x1, x9
+    bl utils_i64_to_str
+    mov x9, x0
+
+    ldr x0, =nl
+
+copy_nl_tot:
+    ldrb w2, [x0]
+    cbz w2, copy_nl_tot_end
+    strb w2, [x9]
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_nl_tot
+
+copy_nl_tot_end:
     ldr x0, =lbl_sumx // Copiar la etiqueta de la suma al buffer de salida
 
 copy_sumx:
@@ -113,6 +139,22 @@ copy_wsum:
     b copy_wsum
 
 copy_wsum_end:
+    mov x0, x23 // Mover WEIGHT_SUM a x0 para convertirlo a cadena
+    mov x1, x9
+    bl utils_i64_to_str
+    mov x9, x0
+
+    ldr x0, =nl
+
+copy_nl_ws:
+    ldrb w2, [x0]
+    cbz w2, copy_nl_ws_end
+    strb w2, [x9]
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_nl_ws
+
+copy_nl_ws_end:
     ldr x0, =lbl_mean
 
 copy_mean:
@@ -157,14 +199,14 @@ copy_nl2_end:
 sum_values:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-    mov x1, x0 // x0 contiene la dirección del buffer de valores
+    mov x5, x0 // x5 contiene la dirección del buffer de valores
+    mov x6, x1 // x6 contiene N (cantidad de valores a sumar)
     mov x2, #0 // Inicializar la suma en 0
     mov x3, #0 // Inicializar el índice en 0
-    mov x6, #N_VALUES // Cargar el número total de valores en x6 --por ahora es 30
 
 sum_loop:
     cbz x6, sum_done 
-    ldr x4, [x1, x2, lsl #3] // Cargar el valor actual (8 bytes por valor)
+    ldr x4, [x5, x2, lsl #3] // Cargar el valor actual (8 bytes por valor)
     add x3, x3, x4 // Sumar el valor actual a la suma
     add x2, x2, #1 // Incrementar el índice
     sub x6, x6, #1 // Decrementar el contador de valores restantes
@@ -180,23 +222,28 @@ sum_done:
 weighted_mean:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
-    mov x1, x0 // x0 contiene la dirección del buffer de valores
+    mov x5, x0 // x5 contiene la dirección del buffer de valores
+    mov x6, x1 // x6 contiene N (cantidad de valores)
     mov x2, #0 // Inicializar la suma ponderada en 0
     mov x3, #0 // Inicializar el índice en 0
-    mov x6, #N_VALUES // Cargar el número total de valores en x6
 
 wm_loop:
     cbz x6, wm_done
-    ldr x4, [x1, x2, lsl #3] // Cargar el valor actual (8 bytes por valor)
-    add x5, x2, #1 // Calcular el peso correspondiente (índice + 1)
-    mul x4, x4, x5 // Multiplicar el valor por su peso
+    ldr x4, [x5, x2, lsl #3] // Cargar el valor actual (8 bytes por valor)
+    add x7, x2, #1 // Calcular el peso correspondiente (índice + 1)
+    mul x4, x4, x7 // Multiplicar el valor por su peso
     add x3, x3, x4 // Sumar el valor ponderado a la suma total
     add x2, x2, #1
     sub x6, x6, #1 // Decrementar el contador de valores restantes
     b wm_loop
 
 wm_done:
-    mov x4, #WEIGHT_SUM
-    sdiv x0, x3, x4
+    // Calcular WEIGHT_SUM = N * (N + 1) / 2
+    mov x4, x1 // x4 = N original
+    add x7, x4, #1 // x7 = N + 1
+    mul x7, x4, x7 // x7 = N * (N + 1)
+    mov x8, #2
+    sdiv x7, x7, x8 // x7 = N * (N + 1) / 2
+    sdiv x0, x3, x7 // weighted_mean = suma_ponderada / weight_sum
     ldp x29, x30, [sp], #16
     ret

@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   Cloud,
   Droplets,
+  Lock,
+  LogOut,
   Radio,
   Rocket,
   Wifi,
@@ -101,6 +103,8 @@ export default function App() {
   const arm64PollRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('temperature');
 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState('');
   const [pumpArea, setPumpArea] = useState<string>('area_1');
 
   const [reading, setReading] = useState<ReadingState>({
@@ -402,6 +406,10 @@ export default function App() {
     { label: 'Activar buzzer', actuator: 'buzzer', state: 'on' },
   ];
 
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={(user) => { setIsAuthenticated(true); setAuthUser(user); }} />;
+  }
+
   return (
     <main className="min-h-screen bg-[var(--bg)] text-slate-100 pb-12">
       <div className="absolute inset-0 bg-dashboard-grid bg-[size:24px_24px] opacity-35" />
@@ -453,6 +461,14 @@ export default function App() {
                   value={!mqttStatus.enabled ? 'Off' : mqttStatus.connected ? 'OK' : 'Sync'}
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => { setIsAuthenticated(false); setAuthUser(''); }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/60 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
+              </button>
             </div>
           </div>
           {notice ? (
@@ -1009,6 +1025,86 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
         </svg>
       </div>
     </div>
+  );
+}
+
+function LoginPage({ onLogin }: { onLogin: (user: string) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin123') {
+      onLogin(username);
+    } else {
+      setError('Usuario o contrasena incorrectos');
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-[var(--bg)] text-slate-100 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-dashboard-grid bg-[size:24px_24px] opacity-35" />
+      <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.22),_transparent_60%)]" />
+      <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-glow backdrop-blur">
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="rounded-2xl bg-emerald-400/15 p-3 mb-4">
+            <Lock className="h-6 w-6 text-emerald-300" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/90">Invernadero Inteligente IoT</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+            Panel de control y monitoreo inteligente
+          </h1>
+          <p className="mt-2 text-sm text-slate-400">
+            Ingrese sus credenciales para acceder al sistema
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/80 mb-1.5">
+              Usuario
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(''); }}
+              className={inputClass}
+              placeholder="admin"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/80 mb-1.5">
+              Contrasena
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(''); }}
+              className={inputClass}
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error ? (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {error}
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            className="w-full rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+          >
+            Iniciar sesion
+          </button>
+        </form>
+
+        <p className="mt-6 text-[10px] text-center text-slate-500">
+          Grupo 17 - Arquitectura de Computadores y Ensambladores 1 USAC
+        </p>
+      </div>
+    </main>
   );
 }
 

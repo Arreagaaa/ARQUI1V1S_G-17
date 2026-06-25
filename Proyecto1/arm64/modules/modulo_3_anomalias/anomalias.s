@@ -1,8 +1,9 @@
 // anomalias.s — Integrante 3 — Grupo 17
-.equ N_VALUES, 30
+.equ MAX_VALUES, 1000
 
 .extern utils_open_csv
 .extern utils_read_int_column
+.extern utils_parse_i64
 .extern utils_close_csv
 .extern utils_write_result
 .extern utils_i64_to_str
@@ -12,7 +13,7 @@
 .align 3
 out_path:   .asciz "results/resultado_anomalias.txt"
 lbl_module: .asciz "MODULE=ANOMALY_DETECTION\n"
-lbl_total:  .asciz "TOTAL_VALUES=30\n"
+lbl_total:  .asciz "TOTAL_VALUES="
 lbl_mean:   .asciz "MEAN="
 lbl_std:    .asciz "STD_DEV="
 lbl_anom:   .asciz "ANOMALIES="
@@ -24,23 +25,47 @@ str_high:   .asciz "HIGH"
 
 .section .bss
 .align 3
-values_buf:  .skip 8 * N_VALUES
+values_buf:  .skip 8 * MAX_VALUES
 out_buf:     .skip 512
 
 .section .text
 .global _start
 
 _start:
+    ldr  x0, [sp]
+    cmp  x0, #5
+    blt  error_exit
+
+    ldr  x20, [sp, #24]
+    ldr  x21, [sp, #32]
+    ldr  x22, [sp, #40]
+
+    mov  x0, x20
+    bl   utils_parse_i64
+    mov  x20, x0
+
+    mov  x0, x21
+    bl   utils_parse_i64
+    mov  x21, x0
+
+    mov  x0, x22
+    bl   utils_parse_i64
+    mov  x22, x0
+
     bl   utils_open_csv
     mov  x19, x0            // x19 = File Descriptor
 
     mov  x0, x19
-    mov  x1, #1             // x1 = Columna 1
+    mov  x1, x22
     adr  x2, values_buf
+    mov  x3, x20
+    mov  x4, x21
     bl   utils_read_int_column
     
     cmp  x0, #0             // Validar lectura nueva utils
-    b.ne error_exit
+    ble  error_exit
+    
+    mov  x25, x0
 
     mov  x0, x19
     bl   utils_close_csv
@@ -50,22 +75,21 @@ _start:
     mov x11, #0             // x11 = suma total
     adr x12, values_buf
 ciclo_media:
-    cmp x10, #30
+    cmp x10, x25
     b.ge fin_media
     ldr x14, [x12, x10, lsl #3]
     add x11, x11, x14       // Acumular
     add x10, x10, #1
     b ciclo_media
 fin_media:
-    mov x15, #30
-    udiv x21, x11, x15      // x21 = Media
+    udiv x21, x11, x25      // x21 = Media
 
     // CALCULO DESVIACIÓN
     mov x10, #0
     mov x11, #0
     adr x12, values_buf
 ciclo_varianza:
-    cmp x10, #30
+    cmp x10, x25
     b.ge fin_varianza
     ldr x14, [x12, x10, lsl #3]
     sub x15, x14, x21       // (Xi - media)
@@ -74,8 +98,7 @@ ciclo_varianza:
     add x10, x10, #1
     b ciclo_varianza
 fin_varianza:
-    mov x15, #30
-    udiv x17, x11, x15      // x17 = Varianza
+    udiv x17, x11, x25      // x17 = Varianza
     mov x22, #0             // x22 = StdDev
 ciclo_raiz:
     mul x18, x22, x22
@@ -95,7 +118,7 @@ desviacion_lista:
     mov x10, #0
     adr x12, values_buf
 ciclo_zscore:
-    cmp x10, #30
+    cmp x10, x25
     b.ge fin_zscore
     ldr x14, [x12, x10, lsl #3]
     sub x15, x14, x21       // X_i - media
@@ -132,6 +155,14 @@ fin_riesgo:
     mov  x26, x0
 
     adr  x0, lbl_total
+    mov  x1, x26
+    bl   copy_str
+    mov  x26, x0
+    mov  x0, x25
+    mov  x1, x26
+    bl   utils_i64_to_str
+    mov  x26, x0
+    adr  x0, nl
     mov  x1, x26
     bl   copy_str
     mov  x26, x0

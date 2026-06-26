@@ -4,6 +4,7 @@
 .extern utils_validate_range
 .extern utils_validate_column
 .extern utils_read_int_column
+.extern utils_count_lines
 .extern utils_i64_to_str
 .extern utils_write_result
 .extern utils_exit
@@ -17,7 +18,7 @@ lbl_col:  .asciz "COLUMN="
 lbl_ws:   .asciz "WINDOW_START="
 lbl_we:   .asciz "WINDOW_END="
 lbl_cnt:  .asciz "COUNT="
-lbl_ideal: .asciz "IDEAL_VALUE="
+lbl_ideal: .asciz "IDEAL="
 lbl_sse:  .asciz "SUM_SQUARED_ERROR="
 lbl_mse:  .asciz "MSE="
 lbl_rmse: .asciz "RMSE="
@@ -32,6 +33,31 @@ msg_err_col: .ascii "STATUS=ERROR\nERROR=INVALID_COLUMN\nDETAIL=COLUMN_MUST_BE_1
 len_err_col = . - msg_err_col
 msg_err_opn: .ascii "STATUS=ERROR\nERROR=FILE_NOT_FOUND\nDETAIL=COULD_NOT_OPEN_FILE\n"
 len_err_opn = . - msg_err_opn
+
+msg_err_start: .ascii "STATUS=ERROR\nERROR=INVALID_RANGE\nDETAIL=START_LINE_MUST_BE_AT_LEAST_1\n"
+len_err_start = . - msg_err_start
+
+msg_err_eof: .ascii "STATUS=ERROR\nERROR=INVALID_RANGE\nDETAIL=END_LINE_EXCEEDS_FILE_LENGTH\n"
+len_err_eof = . - msg_err_eof
+
+msg_err_data: .ascii "STATUS=ERROR\nERROR=INSUFFICIENT_DATA\nDETAIL=RMSE_REQUIRES_AT_LEAST_2_VALUES\n"
+len_err_data = . - msg_err_data
+
+// nombres de columna para salida
+col_names:
+    .quad col_temp
+    .quad col_hum
+    .quad col_soil1
+    .quad col_soil2
+    .quad col_luz
+    .quad col_gas
+
+col_temp:   .asciz "TEMP"
+col_hum:    .asciz "HUM_AIRE"
+col_soil1:  .asciz "SOIL1"
+col_soil2:  .asciz "SOIL2"
+col_luz:    .asciz "LUZ"
+col_gas:    .asciz "GAS"
 
 .bss
 values_buf: .skip 8 * MAX_VALUES
@@ -49,6 +75,10 @@ _start:
     ldr x0, [sp, #24]
     bl utils_parse_i64
     mov x20, x0 // fila inicio
+
+    // validar que inicio sea >= 1
+    cmp x20, #1
+    blt error_start
 
     ldr x0, [sp, #32]
     bl utils_parse_i64
@@ -72,7 +102,7 @@ _start:
     bl utils_validate_column
     cbnz x0, error_column
 
-    // abrir csv
+    // abrir csv para contar lineas
     mov x0, #-100 // AT_FDCWD
     mov x1, x19
     mov x2, #0 // O_RDONLY
@@ -82,8 +112,35 @@ _start:
     cmp x0, #0
     blt error_open
 
-    // leer columna del csv en values_buf
     mov x24, x0 // fd
+
+    // contar lineas (sin header)
+    mov x0, x24
+    bl utils_count_lines
+    mov x26, x0 // total de lineas
+
+    // cerrar csv temporal
+    mov x0, x24
+    mov x8, #57 // close
+    svc #0
+
+    // validar que fin no exceda el total de lineas
+    cmp x21, x26
+    bgt error_eof
+
+    // reabrir csv para leer datos
+    mov x0, #-100 // AT_FDCWD
+    mov x1, x19
+    mov x2, #0 // O_RDONLY
+    mov x3, #0
+    mov x8, #56 // openat
+    svc #0
+    cmp x0, #0
+    blt error_open
+
+    mov x24, x0 // fd
+
+    // leer columna del csv en values_buf
     mov x0, x24
     mov x1, x22
     ldr x2, =values_buf
@@ -96,6 +153,10 @@ _start:
     mov x0, x24
     mov x8, #57 // close
     svc #0
+
+    // validar que haya al menos 2 datos para RMSE
+    cmp x25, #2
+    blt error_data
 
     // calcular rmse
     ldr x0, =values_buf
@@ -118,9 +179,12 @@ _start:
     mov x1, x9
     bl copy_str
     mov x9, x0
-    mov x0, x22
+    // buscar nombre de columna segun indice
+    ldr x0, =col_names
+    sub x1, x22, #1
+    ldr x0, [x0, x1, lsl #3]
     mov x1, x9
-    bl utils_i64_to_str
+    bl copy_str
     mov x9, x0
     ldr x0, =nl
     mov x1, x9
@@ -265,6 +329,33 @@ error_open:
     mov x0, #1
     ldr x1, =msg_err_opn
     mov x2, len_err_opn
+    mov x8, #64 // write
+    svc #0
+    mov x0, #1
+    bl utils_exit
+
+error_start:
+    mov x0, #1
+    ldr x1, =msg_err_start
+    mov x2, len_err_start
+    mov x8, #64 // write
+    svc #0
+    mov x0, #1
+    bl utils_exit
+
+error_eof:
+    mov x0, #1
+    ldr x1, =msg_err_eof
+    mov x2, len_err_eof
+    mov x8, #64 // write
+    svc #0
+    mov x0, #1
+    bl utils_exit
+
+error_data:
+    mov x0, #1
+    ldr x1, =msg_err_data
+    mov x2, len_err_data
     mov x8, #64 // write
     svc #0
     mov x0, #1

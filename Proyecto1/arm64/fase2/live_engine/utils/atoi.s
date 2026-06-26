@@ -1,3 +1,4 @@
+.global atoi_csv
 atoi_csv:
     mov x10, #0
     mov x7, #0

@@ -18,15 +18,25 @@ $(UTILS_O): $(UTILS_S)
 	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) -o $@ $<
 
-LIVE_DIR   = live_engine
-LIVE_S     = $(LIVE_DIR)/live_engine.s
-LIVE_O     = $(BUILD)/live_engine.o
-LIVE_BIN   = $(BUILD)/live_engine
+LIVE_DIR     = live_engine
+LIVE_S       = $(LIVE_DIR)/live_engine.s
+LIVE_O       = $(BUILD)/live_engine.o
+LIVE_ATOI_S  = $(LIVE_DIR)/utils/atoi.s
+LIVE_ATOI_O  = $(BUILD)/atoi.o
+LIVE_ARRAY_S = $(LIVE_DIR)/utils/array.s
+LIVE_ARRAY_O = $(BUILD)/array.o
+LIVE_BIN     = $(BUILD)/live_engine
 
 $(LIVE_O): $(LIVE_S) | $(BUILD)
 	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -o $@ $<
 
-$(LIVE_BIN): $(LIVE_O)
+$(LIVE_ATOI_O): $(LIVE_ATOI_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(LIVE_ARRAY_O): $(LIVE_ARRAY_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(LIVE_BIN): $(LIVE_O) $(LIVE_ATOI_O) $(LIVE_ARRAY_O)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 live_engine: $(LIVE_BIN)

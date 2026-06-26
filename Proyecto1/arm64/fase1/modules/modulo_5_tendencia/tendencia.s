@@ -1,19 +1,23 @@
-.extern utils_open_csv
+.global _start
+
+.extern utils_parse_i64
+.extern utils_validate_range
+.extern utils_validate_column
 .extern utils_read_int_column
-.extern utils_close_csv
-.extern utils_write_result
 .extern utils_i64_to_str
+.extern utils_write_result
 .extern utils_exit
 
 .equ MAX_VALUES, 100
 
-// ---- rodata ----
-.section .rodata
-.align 3
-
+.data
 out_path:	.asciz "results/resultado_tendencia.txt"
 
 lbl_module:	.asciz "MODULE=ADVANCED_TREND\n"
+lbl_col:	.asciz "COLUMN="
+lbl_ws:		.asciz "WINDOW_START="
+lbl_we:		.asciz "WINDOW_END="
+lbl_cnt:	.asciz "COUNT="
 lbl_total:	.asciz "TOTAL_VALUES="
 lbl_incr:	.asciz "INCREMENTS="
 lbl_decr:	.asciz "DECREMENTS="
@@ -24,56 +28,96 @@ lbl_trend:	.asciz "TREND="
 str_up:		.asciz "UP"
 str_down:	.asciz "DOWN"
 str_stable:	.asciz "STABLE"
+lbl_ok:		.asciz "STATUS=OK\n"
 nl:		.asciz "\n"
 minus_sign:	.asciz "-"
 
-// ---- bss ----
-.section .bss
-.align 3
+msg_err_argc: .ascii "STATUS=ERROR\nERROR=INVALID_ARGS\nDETAIL=EXPECTED_4_ARGS\n"
+len_err_argc = . - msg_err_argc
+msg_err_rng: .ascii "STATUS=ERROR\nERROR=INVALID_RANGE\nDETAIL=START_END_INVALID\n"
+len_err_rng = . - msg_err_rng
+msg_err_col: .ascii "STATUS=ERROR\nERROR=INVALID_COLUMN\nDETAIL=COLUMN_MUST_BE_1_TO_6\n"
+len_err_col = . - msg_err_col
+msg_err_opn: .ascii "STATUS=ERROR\nERROR=FILE_NOT_FOUND\nDETAIL=COULD_NOT_OPEN_FILE\n"
+len_err_opn = . - msg_err_opn
 
+.bss
 values_buf:    .skip 8 * MAX_VALUES
 out_buf:       .skip 512
 
-// ---- text ----
-.section .text
-.global _start
+.text
 
-// _start — punto de entrada
-// Flujo:
-//   1. Abrir CSV y leer ventana dinamica de datos
-//   2. Analizar cambios (incrementos, decrementos, rachas)
-//   3. Determinar tendencia (UP / DOWN / STABLE)
-//   4. Construir y escribir archivo de salida
-//
-// Registros de larga vida:
-//   x19 = fd               x20 = INCREMENTS
-//   x21 = DECREMENTS       x22 = MAX_UP_STREAK
-//   x23 = MAX_DOWN_STREAK  x24 = ACCUM_DIFF (con signo)
-//   x25 = ptr string TREND x26 = N (valores leidos)
+// Registros de larga vida en _start:
+//   x19 = path csv / fd      x20 = INCREMENTS
+//   x21 = DECREMENTS         x22 = MAX_UP_STREAK
+//   x23 = MAX_DOWN_STREAK    x24 = ACCUM_DIFF (con signo)
+//   x25 = ptr string TREND   x26 = N (valores leidos)
+//   x27 = columna            x28 = fila inicio
+//   [sp, #0] = fila fin (se guarda en stack)
 _start:
-	bl   utils_open_csv
+	ldr  x0, [sp]
+	cmp  x0, #5
+	blt  error_argc
+
+	ldr  x19, [sp, #16]
+
+	ldr  x0, [sp, #24]
+	bl   utils_parse_i64
+	mov  x28, x0
+
+	ldr  x0, [sp, #32]
+	bl   utils_parse_i64
+	sub  sp, sp, #16
+	str  x0, [sp]              // guardar fila fin en stack
+
+	ldr  x0, [sp, #56]        // argv[4] = columna (sp+16+40)
+	bl   utils_parse_i64
+	mov  x27, x0
+
+	// validar rango
+	mov  x0, x28
+	ldr  x1, [sp]
+	bl   utils_validate_range
+	cbnz x0, error_range
+
+	// validar columna
+	mov  x0, x27
+	bl   utils_validate_column
+	cbnz x0, error_column
+
+	// abrir csv con openat
+	mov  x0, #-100
+	mov  x1, x19
+	mov  x2, #0
+	mov  x3, #0
+	mov  x8, #56
+	svc  #0
+	cmp  x0, #0
+	blt  error_open
+
 	mov  x19, x0
 
-	// Leer columna configurada con ventana dinamica
+	// leer columna del csv
 	mov  x0, x19
-	mov  x1, #1
-	adr  x2, values_buf
-	mov  x3, #1              // linea inicial
-	mov  x4, #MAX_VALUES     // linea final (lee hasta lo que haya)
+	mov  x1, x27
+	ldr  x2, =values_buf
+	mov  x3, x28
+	ldr  x4, [sp]
 	bl   utils_read_int_column
-	mov  x26, x0             // x26 = N valores leidos
+	mov  x26, x0
+
+	// cerrar csv
+	mov  x0, x19
+	mov  x8, #57
+	svc  #0
 
 	cmp  x26, #2
-	b.lt error_exit           // minimo 2 datos para calcular pares
-
-	mov  x0, x19
-	bl   utils_close_csv
+	b.lt error_exit
 
 	// Contar incrementos/decrementos con rachas
-	adr  x0, values_buf
+	ldr  x0, =values_buf
 	mov  x1, x26
 	bl   contar_cambios
-	// x20=INCREMENTS  x21=DECREMENTS  x22=MAX_UP  x23=MAX_DOWN
 
 	// Calcular ACCUM_DIFF y determinar tendencia
 	mov  x0, x20
@@ -83,16 +127,57 @@ _start:
 	mov  x25, x1
 
 	// ---- Construir salida en out_buf ----
-	adr  x9, out_buf
+	ldr  x9, =out_buf
 
-	// MODULE=ADVANCED_TREND
-	adr  x0, lbl_module
+	ldr  x0, =lbl_module
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// TOTAL_VALUES=<N>
-	adr  x0, lbl_total
+	// COLUMN=
+	ldr  x0, =lbl_col
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+	mov  x0, x27
+	mov  x1, x9
+	bl   utils_i64_to_str
+	mov  x9, x0
+	ldr  x0, =nl
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+
+	// WINDOW_START=
+	ldr  x0, =lbl_ws
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+	mov  x0, x28
+	mov  x1, x9
+	bl   utils_i64_to_str
+	mov  x9, x0
+	ldr  x0, =nl
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+
+	// WINDOW_END=
+	ldr  x0, =lbl_we
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+	ldr  x0, [sp]
+	mov  x1, x9
+	bl   utils_i64_to_str
+	mov  x9, x0
+	ldr  x0, =nl
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+
+	// COUNT=
+	ldr  x0, =lbl_cnt
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -100,13 +185,27 @@ _start:
 	mov  x1, x9
 	bl   utils_i64_to_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// INCREMENTS=<valor>
-	adr  x0, lbl_incr
+	// TOTAL_VALUES=
+	ldr  x0, =lbl_total
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+	mov  x0, x26
+	mov  x1, x9
+	bl   utils_i64_to_str
+	mov  x9, x0
+	ldr  x0, =nl
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+
+	// INCREMENTS=
+	ldr  x0, =lbl_incr
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -114,13 +213,13 @@ _start:
 	mov  x1, x9
 	bl   utils_i64_to_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// DECREMENTS=<valor>
-	adr  x0, lbl_decr
+	// DECREMENTS=
+	ldr  x0, =lbl_decr
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -128,13 +227,13 @@ _start:
 	mov  x1, x9
 	bl   utils_i64_to_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// MAX_UP_STREAK=<valor>
-	adr  x0, lbl_maxup
+	// MAX_UP_STREAK=
+	ldr  x0, =lbl_maxup
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -142,13 +241,13 @@ _start:
 	mov  x1, x9
 	bl   utils_i64_to_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// MAX_DOWN_STREAK=<valor>
-	adr  x0, lbl_maxdn
+	// MAX_DOWN_STREAK=
+	ldr  x0, =lbl_maxdn
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -156,19 +255,19 @@ _start:
 	mov  x1, x9
 	bl   utils_i64_to_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// ACCUM_DIFF=<valor> (puede ser negativo)
-	adr  x0, lbl_accum
+	// ACCUM_DIFF= (puede ser negativo)
+	ldr  x0, =lbl_accum
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 	cmp  x24, #0
 	b.ge accum_pos
-	adr  x0, minus_sign
+	ldr  x0, =minus_sign
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -183,13 +282,13 @@ accum_pos:
 	bl   utils_i64_to_str
 	mov  x9, x0
 accum_nl:
-	adr  x0, nl
+	ldr  x0, =nl
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
-	// TREND=<UP|DOWN|STABLE>
-	adr  x0, lbl_trend
+	// TREND=
+	ldr  x0, =lbl_trend
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
@@ -197,19 +296,62 @@ accum_nl:
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
-	adr  x0, nl
+	ldr  x0, =nl
+	mov  x1, x9
+	bl   copy_str
+	mov  x9, x0
+
+	// STATUS=OK
+	ldr  x0, =lbl_ok
 	mov  x1, x9
 	bl   copy_str
 	mov  x9, x0
 
 	// Escribir archivo de resultados
-	adr  x10, out_buf
+	ldr  x10, =out_buf
 	sub  x2, x9, x10
-	adr  x0, out_path
-	adr  x1, out_buf
+	ldr  x0, =out_path
+	ldr  x1, =out_buf
 	bl   utils_write_result
 
 	mov  x0, #0
+	bl   utils_exit
+
+// ---- Manejo de errores ----
+error_argc:
+	mov  x0, #1
+	ldr  x1, =msg_err_argc
+	mov  x2, len_err_argc
+	mov  x8, #64
+	svc  #0
+	mov  x0, #1
+	bl   utils_exit
+
+error_range:
+	mov  x0, #1
+	ldr  x1, =msg_err_rng
+	mov  x2, len_err_rng
+	mov  x8, #64
+	svc  #0
+	mov  x0, #1
+	bl   utils_exit
+
+error_column:
+	mov  x0, #1
+	ldr  x1, =msg_err_col
+	mov  x2, len_err_col
+	mov  x8, #64
+	svc  #0
+	mov  x0, #1
+	bl   utils_exit
+
+error_open:
+	mov  x0, #1
+	ldr  x1, =msg_err_opn
+	mov  x2, len_err_opn
+	mov  x8, #64
+	svc  #0
+	mov  x0, #1
 	bl   utils_exit
 
 error_exit:
@@ -224,18 +366,18 @@ contar_cambios:
 	stp  x29, x30, [sp, #-16]!
 	mov  x29, sp
 
-	mov  x20, #0              // incrementos
-	mov  x21, #0              // decrementos
-	mov  x22, #0              // mejor racha subida
-	mov  x23, #0              // mejor racha bajada
-	mov  x14, #0              // racha actual subida
-	mov  x15, #0              // racha actual bajada
+	mov  x20, #0
+	mov  x21, #0
+	mov  x22, #0
+	mov  x23, #0
+	mov  x14, #0
+	mov  x15, #0
 
-	mov  x9,  x0              // base del arreglo
-	sub  x13, x1, #1          // pares a procesar = N - 1
-	mov  x10, #0              // indice i
+	mov  x9,  x0
+	sub  x13, x1, #1
+	mov  x10, #0
 
-	ldr  x11, [x9]            // primer valor
+	ldr  x11, [x9]
 
 cc_loop:
 	cmp  x10, x13
@@ -243,13 +385,12 @@ cc_loop:
 
 	add  x10, x10, #1
 	lsl  x16, x10, #3
-	ldr  x12, [x9, x16]      // valor[i]
+	ldr  x12, [x9, x16]
 
 	cmp  x12, x11
 	b.gt cc_sube
 	b.lt cc_baja
 
-	// estable: cortar ambas rachas
 	mov  x14, #0
 	mov  x15, #0
 	b    cc_next
@@ -291,13 +432,13 @@ calcular_tendencia:
 	cmp  x0, #0
 	b.gt ct_up
 	b.lt ct_down
-	adr  x1, str_stable
+	ldr  x1, =str_stable
 	b    ct_fin
 ct_up:
-	adr  x1, str_up
+	ldr  x1, =str_up
 	b    ct_fin
 ct_down:
-	adr  x1, str_down
+	ldr  x1, =str_down
 ct_fin:
 	ldp  x29, x30, [sp], #16
 	ret

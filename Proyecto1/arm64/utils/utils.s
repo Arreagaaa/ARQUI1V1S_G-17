@@ -1,99 +1,104 @@
-.equ STDIN, 0 // File descriptor - indica que se va a leer desde la terminal
-.equ STDOUT, 1 // File descriptor - indica que se va a escribir en la terminal
-.equ BUF_SIZE, 256 // Tamaño del buffer para leer una línea
-.equ N_VALUES, 30 // Número máximo de valores a leer
+.equ STDIN, 0
+.equ STDOUT, 1
+.equ BUF_SIZE, 256
 
 .data
-    csv_path:    .asciz "lecturas.csv" // Ruta del archivo CSV
-    msg_nl:      .asciz "\n" // Nueva línea
+    csv_path: .asciz "lecturas.csv"
+    msg_nl:   .asciz "\n"
+    err_open_csv: .ascii "Error: no se pudo abrir el archivo\n"
+    len_err_open_csv = . - err_open_csv
 
 .bss
-    line_buf:    .skip BUF_SIZE // Buffer para almacenar una línea leída
+    line_buf: .skip BUF_SIZE
 
 .text
 .global utils_open_csv
 utils_open_csv:
-    mov x0, #-100
+    mov x0, #-100 // AT_FDCWD, path relativo al directorio actual
     ldr x1, =csv_path
-    mov x2, #0 // Flags: O_RDONLY
+    mov x2, #0 // O_RDONLY
     mov x3, #0
-    mov x8, #56 // syscall: openat
+    mov x8, #56 // openat
     svc #0
-
-    // x0 = file descriptor del archivo abierto (un +N)
     cmp x0, #0
-    blt open_fail // Si x0 < 0, hubo un error al abrir el
+    blt open_fail
     ret
 
 open_fail:
-    mov x0, #1 // Código de error
-    mov x8, #93 // syscall: exit
+    mov x0, #1
+    ldr x1, =err_open_csv
+    mov x2, len_err_open_csv
+    mov x8, #64 // write
+    svc #0
+    mov x0, #1
+    mov x8, #93 // exit
     svc #0
 
+// x0=fd, x1=buf, x2=max_bytes
+// retorna en x0 la cantidad de bytes leidos
 .global utils_read_line
 utils_read_line:
-    mov x5, x0 // Guardar el file descriptor en x5
-    mov x6, x1 // Guardar el buffer en x6
-    mov x3, #0 // Inicializar el contador de bytes leídos en x3
-    sub x4, x2, #1 // Calcular el límite de bytes a leer
+    mov x5, x0 // fd
+    mov x6, x1 // buf
+    mov x3, #0 // indice actual
+    sub x4, x2, #1 // limite (deja espacio para el \0)
 
 read_loop:
-    cmp x3, x4 // Comparar el contador con el límite
-    blt read_more // Si x3 < x4, continuar leyendo
-    b read_done // Si no, terminar la lectura
+    cmp x3, x4
+    blt read_more
+    b read_done
 
 read_more:
     mov x0, x5
-    add x1, x6, x3 // Calcular la dirección del siguiente byte en el buffer
-    mov x2, #1 // Leer un byte a la vez
-    mov x8, #63 // syscall: read
+    add x1, x6, x3
+    mov x2, #1
+    mov x8, #63 // read, un byte a la vez
     svc #0
 
     cmp x0, #0
-    ble read_done // Si x0 <= 0, terminar la lectura
+    bgt read_char
+    b read_done // EOF o error
 
-    ldrb w7, [x6, x3] // Cargar el byte leído en w7
+read_char:
+    ldrb w7, [x6, x3]
     add x3, x3, #1
-
-    cmp w7, #'\n' // Comparar con el carácter de nueva línea
-    beq read_done // Si es nueva línea, terminar la lectura
-
-    b read_loop // Continuar leyendo
+    cmp w7, #'\n'
+    beq read_done
+    b read_loop
 
 read_done:
-    // wzr indica que es un terminador nulo
-    strb wzr, [x6, x3] // Agregar un terminador nulo al final del buffer
-    mov x0, x3 // Devolver el número de bytes leídos
+    strb wzr, [x6, x3] // terminar string con \0
+    mov x0, x3
     ret
 
+// x0=ptr a string, retorna el numero en x0
 .global utils_parse_i64
 utils_parse_i64:
-    mov x1, #0
-    mov x2, #10 // Base decimal
+    mov x1, #0 // acumulador
+    mov x2, #10
 
 up_loop:
-    ldrb w3, [x0] // Cargar el siguiente byte del string
-    
+    ldrb w3, [x0]
     cmp w3, #'0'
     blt up_done
-
     cmp w3, #'9'
     bgt up_done
-
     mul x1, x1, x2
-    sub w3, w3, #'0' // Convertir el carácter a su valor numérico
-    add x1, x1, x3 // Acumular el valor en x1
-    add x0, x0, #1 // Avanzar al siguiente carácter
+    sub w3, w3, #'0'
+    add x1, x1, x3
+    add x0, x0, #1
     b up_loop
 
 up_done:
     mov x0, x1
     ret
 
+// x0=ptr linea, x1=indice de columna (0-based)
+// retorna el valor entero de esa columna
 read_column:
-    mov x2, x0 // Guardar el puntero al buffer en x2
-    mov x3, #0 // Inicializar el contador de columnas en x3
-    mov x4, x1 // Guardar el índice de la columna a leer en x4
+    mov x2, x0 // puntero que avanza
+    mov x3, #0 // columnas saltadas
+    mov x4, x1 // columna destino
 
 skip_column:
     cmp x3, x4
@@ -101,16 +106,14 @@ skip_column:
     b read_value
 
 skip_more:
-    ldrb w5, [x2] // Cargar el siguiente byte del buffer
-    cbz w5, zero_value
-
+    ldrb w5, [x2]
+    cbz w5, zero_value // fin de string
     cmp w5, #'\n'
-    beq zero_value
+    beq zero_value // fin de linea, columna no existe
     cmp w5, #','
     bne skip_next
-
-    add x2, x2, #1
-    add x3, x3, #1
+    add x2, x2, #1 // avanzar puntero
+    add x3, x3, #1 // contar coma = siguiente columna
     b skip_column
 
 skip_next:
@@ -125,111 +128,151 @@ zero_value:
     mov x0, #0
     ret
 
+// x0=fd, x1=col, x2=buf_salida, x3=fila_inicio, x4=fila_fin
+// retorna en x0 la cantidad de valores leidos
 .global utils_read_int_column
 utils_read_int_column:
-    // Teoria de kunosoft: SP es un registro que apunta a la parte superior de la pila
-    // x29 representa el frame pointer, que apunta al inicio del marco de pila actual
-    // x30 es el link register, que almacena la dirección de retorno de la función
-    stp x29, x30, [sp, #-16]! // Guardar el frame pointer y el link register
-    stp x19, x20, [sp, #-16]! // x19 va a ser el file descriptor, x20 va a ser el índice de la columna
-    stp x21, x22, [sp, #-16]! // x21 va a ser el puntero al arreglo de resultados, x22 va a ser el contador de valores leídos
+    stp x29, x30, [sp, #-16]! // salvar fp y lr (x30=direccion de retorno)
+    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+    stp x21, x22, [sp, #-16]!
+    stp x23, x24, [sp, #-16]!
+    stp x25, x26, [sp, #-16]!
 
-    mov x19, x0 // caja fuerte: x19 = file descriptor del archivo CSV
-    mov x20, x1
-    mov x21, x2
-    mov x22, #N_VALUES
-    mov x23, #0
+    mov x19, x0 // fd
+    mov x20, x1 // columna
+    mov x21, x2 // buffer de salida
+    mov x22, x3 // fila inicio
+    mov x23, x4 // fila fin
+    mov x24, #1 // fila actual (empieza en 1, row 0 es header)
+    mov x25, #0 // cantidad guardada
 
-    mov x0, x19 // file descriptor del archivo CSV de nuevo en x0 ya que utils_read_line lo va a usar (en un svc 0)
+    mov x0, x19
     ldr x1, =line_buf
     mov x2, #BUF_SIZE
-    bl utils_read_line
+    bl utils_read_line // saltar header
 
-column_loop:
-    cbz x22, column_done
-
+rc_read_next:
     mov x0, x19
     ldr x1, =line_buf
     mov x2, #BUF_SIZE
     bl utils_read_line
     cmp x0, #0
-    ble column_done
+    bgt rc_check_range
+    b rc_done // EOF
 
+rc_check_range:
+    cmp x24, x22
+    blt rc_skip // todavia no llegamos al rango
+    cmp x24, x23
+    bgt rc_done // ya pasamos el rango
     ldr x0, =line_buf
     mov x1, x20
     bl read_column
+    str x0, [x21, x25, lsl #3] // guardar como i64
+    add x25, x25, #1
 
-    // segun los videos: lsl indica que se hara un offset de 3 bits a la izquierda
-    str x0, [x21, x23, lsl #3] // lsl #3 porque cada valor es de 8 bytes (64 bits)
-    add x23, x23, #1
-    sub x22, x22, #1
-    b column_loop
+rc_skip:
+    add x24, x24, #1
+    b rc_read_next
 
-column_done:
-    mov x0, x22
-
-    // Bloque de restauración de registros y retorno
+rc_done:
+    mov x0, x25 // retorno antes de restaurar, si no ldp pisaria x25
+    ldp x25, x26, [sp], #16 // restaurar en orden inverso al stp
+    ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
+    ldp x29, x30, [sp], #16 // restaurar fp y lr al ultimo
+    ret
+
+// x0=fd, retorna en x0 la cantidad de filas (sin contar header)
+.global utils_count_lines
+utils_count_lines:
+    stp x29, x30, [sp, #-16]! // salvar fp y lr
+    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+
+    mov x19, x0 // fd
+    mov x20, #0 // contador
+
+    ldr x1, =line_buf
+    mov x2, #BUF_SIZE
+    bl utils_read_line // saltar header
+
+ucl_loop:
+    mov x0, x19
+    ldr x1, =line_buf
+    mov x2, #BUF_SIZE
+    bl utils_read_line
+    cmp x0, #0
+    bgt ucl_count
+    b ucl_done
+
+ucl_count:
+    add x20, x20, #1
+    b ucl_loop
+
+ucl_done:
+    mov x0, x20
+    ldp x19, x20, [sp], #16 // restaurar en orden inverso al stp
     ldp x29, x30, [sp], #16
     ret
 
+// x0=fd
 .global utils_close_csv
 utils_close_csv:
-    mov x8, #57
+    mov x8, #57 // close
     svc #0
     ret
 
+// x0=path, x1=buf, x2=len
 .global utils_write_result
 utils_write_result:
-    stp x29, x30, [sp, #-16]!
-    stp x19, x20, [sp, #-16]!
+    stp x29, x30, [sp, #-16]! // salvar fp y lr
+    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
     stp x21, x22, [sp, #-16]!
 
-    mov x19, x0
-    mov x20, x1
-    mov x21, x2
+    mov x19, x0 // path
+    mov x20, x1 // buf
+    mov x21, x2 // len
 
-    mov x0, #-100
+    mov x0, #-100 // AT_FDCWD
     mov x1, x19
-    mov x2, #(1 | 64 | 512) // Flags: O_WRONLY | O_CREAT | O_TRUNC
-    mov x3, #0644
-    mov x8, #56
+    mov x2, #(1 | 64 | 512) // O_WRONLY | O_CREAT | O_TRUNC
+    mov x3, #0644 // permisos rw-r--r--
+    mov x8, #56 // openat
     svc #0
     cmp x0, #0
     blt write_fail
 
-    mov x19, x0
-
+    mov x19, x0 // fd del archivo creado
     mov x0, x19
     mov x1, x20
     mov x2, x21
-    mov x8, #64
+    mov x8, #64 // write
     svc #0
 
     mov x0, x19
-    mov x8, #57
+    mov x8, #57 // close
     svc #0
 
-    // Bloque de restauración de registros y retorno
-    ldp x21, x22, [sp], #16
+    ldp x21, x22, [sp], #16 // restaurar en orden inverso al stp
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
 write_fail:
     mov x0, #1
-    mov x8, #93
+    mov x8, #93 // exit
     svc #0
 
+// x0=numero, x1=buf_destino
+// retorna puntero al byte despues del ultimo digito
 .global utils_i64_to_str
 utils_i64_to_str:
-    stp x29, x30, [sp, #-16]!
-    stp x19, x20, [sp, #-16]!
+    stp x29, x30, [sp, #-16]! // salvar fp y lr
+    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
 
-    mov x19, x0
-    mov x20, x1
-
+    mov x19, x0 // numero
+    mov x20, x1 // buf destino
     cbnz x19, uis_nonzero
     mov w2, #'0'
     strb w2, [x20]
@@ -237,24 +280,23 @@ utils_i64_to_str:
     b uis_done
 
 uis_nonzero:
-    sub sp, sp, #32 // Reservar espacio en la pila para almacenar los dígitos del número
-    mov x2, sp // x2 apunta al espacio reservado en la pila para almacenar los dígitos
-    mov x3, #0 
+    sub sp, sp, #32 // buffer temporal para digitos al reves
+    mov x2, sp
+    mov x3, #0
     mov x4, #10
 
 uis_digit:
-    udiv x5, x19, x4 // Dividir el número entre 10 para obtener el siguiente dígito
-    msub x6, x5, x4, x19 // Calcular el dígito actual (x6 = x19 - x5 * 10)
-    add w6, w6, #'0' // Convertir el dígito a su representación ASCII
-    strb w6, [x2, x3] // Almacenar el dígito en la pila
+    udiv x5, x19, x4
+    msub x6, x5, x4, x19 // x6 = x19 % 10
+    add w6, w6, #'0'
+    strb w6, [x2, x3]
     add x3, x3, #1
     mov x19, x5
-    cbnz x19, uis_digit // Continuar dividiendo hasta que el número sea 0
+    cbnz x19, uis_digit
 
-    mov x7, #0 // Inicializar el índice para copiar los dígitos en orden inverso
+    mov x7, #0
 
-uis_copy:
-    // Copiar los dígitos desde la pila al buffer de salida en orden inverso
+uis_copy: // invertir los digitos al buf destino
     sub x3, x3, #1
     ldrb w6, [x2, x3]
     strb w6, [x20, x7]
@@ -265,17 +307,17 @@ uis_copy:
     add x0, x20, x7
 
 uis_done:
-    // Bloque de restauración de registros y retorno
-    ldp x19, x20, [sp], #16
+    ldp x19, x20, [sp], #16 // restaurar en orden inverso al stp
     ldp x29, x30, [sp], #16
     ret
 
+// x0=buf, x1=len
 .global utils_print_string
 utils_print_string:
     mov x2, x1
     mov x1, x0
     mov x0, #STDOUT
-    mov x8, #64
+    mov x8, #64 // write
     svc #0
     ret
 
@@ -284,29 +326,58 @@ utils_print_newline:
     mov x0, #STDOUT
     ldr x1, =msg_nl
     mov x2, #1
-    mov x8, #64
+    mov x8, #64 // write
     svc #0
     ret
 
+// x0=numero a imprimir
 .global utils_print_i64
 utils_print_i64:
-    stp x29, x30, [sp, #-16]!
+    stp x29, x30, [sp, #-16]! // salvar fp y lr
     sub sp, sp, #32
     mov x2, sp
-
     mov x1, x2
     bl utils_i64_to_str
     mov x1, x2
-    sub x2, x0, x1
+    sub x2, x0, x1 // longitud = ptr_fin - ptr_inicio
     mov x0, #STDOUT
-    mov x8, #64
+    mov x8, #64 // write
     svc #0
-
     add sp, sp, #32
-    ldp x29, x30, [sp], #16
+    ldp x29, x30, [sp], #16 // restaurar fp y lr
+    ret
+
+// x0=inicio_rango, x1=fin_rango
+// retorna 0 si valido, -1 si no
+.global utils_validate_range
+utils_validate_range:
+    cmp x0, #1
+    blt range_invalid
+    cmp x1, x0
+    blt range_invalid
+    mov x0, #0
+    ret
+
+range_invalid:
+    mov x0, #-1
+    ret
+
+// x0=columna (1-6)
+// retorna 0 si valido, -1 si no
+.global utils_validate_column
+utils_validate_column:
+    cmp x0, #1
+    blt col_invalid
+    cmp x0, #6
+    bgt col_invalid
+    mov x0, #0
+    ret
+
+col_invalid:
+    mov x0, #-1
     ret
 
 .global utils_exit
 utils_exit:
-    mov x8, #93
+    mov x8, #93 // exit
     svc #0

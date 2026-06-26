@@ -1,64 +1,124 @@
 .global _start
 
 // llamado de utils para modulo 2
-.extern utils_open_csv          // abrir csv
-.extern utils_read_int_column   // leer numero de columna
-.extern utils_close_csv         // cierra el csv 
+.extern utils_parse_i64
+.extern utils_validate_range    //  para validar el rango
+.extern utils_validate_column   // validar la column
+.extern utils_read_int_column   // para leer la columna
 .extern utils_write_result      // para escribir los resultados
 .extern utils_i64_to_str
 .extern utils_exit              // salida
 
 
 // Constantes
-.equ N_VALUES, 30
-.equ COL_TEMP, 1 // Columna de temperatura
+.equ MAX_VALUES, 100    // la capacidad maxima de valores obtenidos
+// .equ COL_TEMP, 1 // Columna de temperatura esto 
 
 .data
 out_path:   .asciz "results/resultado_varianza.txt"
-mod_name:   .asciz "MODULE=VARIANCE\n"
-total_v:    .asciz "TOTAL_VALUES=30\n"
+lbl_calc:   .asciz "CALC=VARIANCE\n"
+lbl_colum:  .asciz "COLUMN="
+lbl_ws:     .asciz "WINDOW_START="
+lbl_we:     .asciz "WINDOW_END="
+lbl_cnt:    .asciz "COUNT="
+lbl_sumx:   .asciz "SUM_X="
 lbl_mean:   .asciz "MEAN="
 lbl_var:    .asciz "VARIANCE="
 lbl_std:    .asciz "STD_DEV="
-err_read:   .asciz "ERROR: no se pudieron leer los 30 valores\n"
+lbl_ok:     .asciz "STATUS=OK\n"
 nl:         .asciz "\n"
 
+msg_err_argc: .ascii "STATUS=ERROR\nERROR=INVALID_ARGS\nDETAIL=EXPECTED_4_ARGS\n"
+len_err_argc = . - msg_err_argc
+msg_err_rng: .ascii "STATUS=ERROR\nERROR=INVALID_RANGE\nDETAIL=START_END_INVALID\n"
+len_err_rng = . - msg_err_rng
+msg_err_col: .ascii "STATUS=ERROR\nERROR=INVALID_COLUMN\nDETAIL=COLUMN_MUST_BE_1_TO_6\n"
+len_err_col = . - msg_err_col
+msg_err_opn: .ascii "STATUS=ERROR\nERROR=FILE_NOT_FOUND\nDETAIL=COULD_NOT_OPEN_FILE\n"
+len_err_opn = . - msg_err_opn
+
 .bss
-values_buf: .skip 8 * N_VALUES
+values_buf: .skip 8 * MAX_VALUES
 out_buf:   .skip 256   // para el txt de salida
 
 
 .text
 _start:
-    bl utils_open_csv   // hacemos el llamado la funcion
-    mov x19, x0     // guardara el descritor del archivo csv en x19
+    ldr x0, [sp]    // leemos cuantos argumentos llegaron y vemos que sean 4 mas el nombre del programa
+    cmp x0, #5
+    blt error_argc
 
-    mov x1, #COL_TEMP   // copiamos al registro x1 el # de columna
-    mov x0, x19 // descriptor del archivo csv
-    ldr x2, =values_buf // cargamos la direccion de values_buf
+    // leemos cada argumento del stack x19=path, x20=inicio, x21=fin, x22=columna
+    ldr x19, [sp, #16] // direccion del string con el path del csv
+    ldr x0, [sp, #24]
+    bl utils_parse_i64
+    mov x20, x0 // fila de inicio, ya convertida a numero
 
-    // utils_read_int_column devolvera en x0 los valores que faltaron, va en cuenta descendente
-    bl utils_read_int_column    // llamamos a la funcion que lee y almacena en values_buf
-    cbnz x0, error_lectura      // x0 == 0 si x0 != 0 hubo error de lectura
+    ldr x0, [sp, #32]
+    bl utils_parse_i64
+    mov x21, x0 // fila de fin ya convertida a numero
 
-    mov x0, x19
-    bl utils_close_csv // cerramos el csv
+    ldr x0, [sp, #40]
+    bl utils_parse_i64
+    mov x22, x0 // columna para leer ya convertida a numero
 
-    ldr x0, =values_buf
-    bl mean_value   // llamamos la funcion para calcular la media de los valores obtenidos
-    mov x21, x0     // copiamos la media en x21
+    // validamos que el rango tenga sentido que el inicio <= fin
+    mov x0, x20
+    mov x1, x21
+    bl utils_validate_range
+    cbnz x0, error_rango
 
-    ldr x0, =values_buf
-    mov x1, x21     // copiamos en el registro x1 lo de x21
-    bl variance_value   // llamamos la funcion para calcular la varianza
-    mov x22, x0         // copiamos la varianza en el registro x0
-
+    // validamos que la columna este en el rango permitido
     mov x0, x22
-    bl isqrt_value      // llamamos a la funcion para calcular la raiz cuadrada entera de la varianza
-    mov x23, x0         // copiamos la desviacion estandar en el registro x23
+    bl utils_validate_column    // llamamos a la funcion que lee y almacena en values_buf
+    cbnz x0, error_columna      // x0 == 0 si x0 != 0 hubo error de lectura
 
-    ldr x9, =out_buf    // cargamos la direcion del buffer de salida
-    ldr x0, =mod_name   // cargamos el nombre del modulo al buffer de salida
+    // abrimos el archivo usando los parametros que mandamos
+    mov x0, #-100    // AT_FDCWD es para abrir relativo al directorio actual
+    mov x1, x19      // path del csv que guardamos arriba en x19
+    mov x2, #0       // O_RDONLY
+    mov x3, #0
+    mov x8, #56      // syscall openat
+    svc #0
+    cmp x0, #0
+    blt error_open
+
+    mov x23, x0     // copiamos en x23 el descriptor del archivo para que no se pierda
+
+    // ahora para leer la columna se necesitan 5 datos descriptor, column, desnito, (inicio,fin)
+    mov x0, x23              // descriptor del archivo csv, lo regresamos a x0 para pasarlo como parametro
+    mov x1, x22              // columna a leer la que vino de argv
+    ldr x2, =values_buf      // direccion del buffer donde se guardaron los valores
+    mov x3, x20              // fila de inicio
+    mov x4, x21              // fila de fin
+    bl utils_read_int_column //llamamos a la funcion
+    mov x24, x0              // x24 tiene cuantos valores se leyeron realmente
+
+    // ahora cerramos el archivo con syscall close
+    mov x0, x23     // descriptor del archivo
+    mov x8, #57     // cerramos el archivo
+    svc #0
+
+    ldr x0, =values_buf     // cargamos la direcion del buf
+    mov x1, x24     // copiamos los valores que hay 
+    bl mean_value   // llamamos la funcion para calcular la media de los valores obtenidos
+    mov x26, x0     // copiamos el resultado de la media en x26
+    mov x27, x1     // copiamos la suma real en x27
+
+    ldr x0, =values_buf     
+    mov x1, x24              // copiamos otra vez la cantidad N de valores
+    mov x2, x26              // copiamos la media 
+    bl variance_value        // llamamos la funcion para calcular la varianza
+    mov x28, x0              // copiamos la varianza en x28
+
+    mov x0, x28
+    bl isqrt_value           // llamamos a la funcion para calcular la raiz cuadrada entera de la varianza
+    mov x10, x0              // copiamos la desviacion estandar en x10
+
+    ldr x9, =out_buf         // cargamos la direccion del buffer de salida
+    ldr x0, =lbl_calc        // cargamos la etiqueta del modulo al buffer de salida
+
+//falta actualizar las funciones de inicio sigo al rato
 
 // funciones inicio
 

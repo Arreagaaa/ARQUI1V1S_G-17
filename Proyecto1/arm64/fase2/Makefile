@@ -1,24 +1,33 @@
 AS      = aarch64-linux-gnu-as
 LD      = aarch64-linux-gnu-ld
 QEMU    ?= qemu-aarch64
+ASFLAGS = -g
+LDFLAGS =
 
-BUILD   = ../build/fase2
+BUILD   = build
+UTILS_S = ../utils/utils.s
+UTILS_O = ../build/utils.o
 
-.PHONY: all live_engine clean
+.PHONY: all utils live_engine clean
 
-all: live_engine
+all: utils live_engine
 
-# --- Motor en vivo ---
+utils: $(UTILS_O)
+
+$(UTILS_O): $(UTILS_S)
+	@mkdir -p $(dir $@)
+	$(AS) $(ASFLAGS) -o $@ $<
+
 LIVE_DIR   = live_engine
 LIVE_S     = $(LIVE_DIR)/live_engine.s
 LIVE_O     = $(BUILD)/live_engine.o
 LIVE_BIN   = $(BUILD)/live_engine
 
 $(LIVE_O): $(LIVE_S) | $(BUILD)
-	$(AS) -g -o $@ $<
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -o $@ $<
 
-$(LIVE_BIN): $(LIVE_O) | $(BUILD)
-	$(LD) -o $@ $^
+$(LIVE_BIN): $(LIVE_O)
+	$(LD) $(LDFLAGS) -o $@ $^
 
 live_engine: $(LIVE_BIN)
 	@echo "==> live_engine compilado: $(LIVE_BIN)"

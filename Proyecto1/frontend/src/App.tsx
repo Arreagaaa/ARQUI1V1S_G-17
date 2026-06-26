@@ -1115,7 +1115,7 @@ const COLUMN_LABELS: Record<number, string> = {
 
 const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
 
-const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 };
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1 };
 
 function ARM64ResultsSection({
   results,
@@ -1153,6 +1153,24 @@ function ARM64ResultsSection({
   };
 
   const modulesList = [
+    {
+      key: 'RMSE',
+      title: 'RMSE vs valor ideal',
+      responsable: 'Fase 2',
+      file: 'modulo_1_rmse.s',
+      outputFile: 'resultado_rmse.txt',
+      formula: 'RMSE = sqrt(Σ(Y_i - IDEAL)² / N)',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Ventana inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Ventana fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Valor ideal (IDEAL_VALUE)', key: 'IDEAL_VALUE' },
+        { label: 'Suma error² (SUM_SQUARED_ERROR)', key: 'SUM_SQUARED_ERROR' },
+        { label: 'MSE', key: 'MSE' },
+        { label: 'RMSE', key: 'RMSE', highlight: true }
+      ]
+    },
     {
       key: 'WEIGHTED_MEAN',
       title: 'Media ponderada',
@@ -1285,7 +1303,7 @@ function ARM64ResultsSection({
           </h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5].map((modId) => (
+          {[1, 2, 3, 4, 5, 6].map((modId) => (
             <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
               <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
               <select

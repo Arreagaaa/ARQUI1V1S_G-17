@@ -46,7 +46,8 @@ def get_arm64_results():
     """
     Obtiene los últimos resultados de análisis procesados en ensamblador ARM64.
     
-    Retorna el último registro para cada uno de los 5 módulos:
+    Retorna el último registro para cada uno de los módulos:
+      - RMSE
       - WEIGHTED_MEAN
       - VARIANCE
       - ANOMALY_DETECTION
@@ -54,7 +55,7 @@ def get_arm64_results():
       - ADVANCED_TREND
     """
     db = get_database()
-    modules = ["WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND"]
+    modules = ["RMSE", "WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND"]
     results = {}
     for module in modules:
         res = db.arm64_results.find_one({"module": module}, sort=[("created_at", -1)])
@@ -112,6 +113,22 @@ def generate_mock_arm64_results(dev: bool = False):
     now = _now()
 
     mock_data = [
+        {
+            "module": "RMSE",
+            "total_values": 30,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 30,
+                "COUNT": 30,
+                "IDEAL_VALUE": 30,
+                "SUM_SQUARED_ERROR": 145,
+                "MSE": 7,
+                "RMSE": 2
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
         {
             "module": "WEIGHTED_MEAN",
             "total_values": 30,
@@ -208,7 +225,7 @@ COLUMN_LABELS = {
     4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS", 7: "RIEGO_1", 8: "RIEGO_2",
 }
 
-DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1}
+DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1}
 
 
 @router.get("/api/arm64/csv")

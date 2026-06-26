@@ -8,9 +8,9 @@ BUILD   = build
 UTILS_S = ../utils/utils.s
 UTILS_O = ../build/utils.o
 
-.PHONY: all utils live_engine clean
+.PHONY: all utils live_engine rmse clean
 
-all: utils live_engine
+all: utils live_engine rmse
 
 utils: $(UTILS_O)
 
@@ -31,6 +31,20 @@ $(LIVE_BIN): $(LIVE_O)
 
 live_engine: $(LIVE_BIN)
 	@echo "==> live_engine compilado: $(LIVE_BIN)"
+
+RMSE_DIR   = analyzer/modules/modulo_1_rmse
+RMSE_S     = $(RMSE_DIR)/rmse.s
+RMSE_O     = $(BUILD)/rmse.o
+RMSE_BIN   = $(BUILD)/rmse
+
+$(RMSE_O): $(RMSE_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -o $@ $<
+
+$(RMSE_BIN): $(RMSE_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+rmse: $(RMSE_BIN)
+	@echo "==> rmse compilado: $(RMSE_BIN)"
 
 $(BUILD):
 	mkdir -p $(BUILD)

@@ -875,13 +875,15 @@ class GreenhouseDevice:
                     runtime = now - self._pump_start_time
                     if runtime > 30:
                         print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
-                        _all_off()
+                        self.gpio.set_pump_irrigation(None, False)
+                        self.gpio.set_actuator("fan", "off")
+                        self.gpio.set_actuator("buzzer", "off")
+                        self._pump_last_stop_time = now
                         self._pump_start_time = 0.0
                         return
                 else:
                     self._pump_start_time = now
                 self.gpio.set_actuator("fan", "off")
-                self.gpio.set_actuator("lights", "off")
                 self.gpio.set_actuator("buzzer", "off")
                 return
             since_stop = (now - self._pump_last_stop_time) if self._pump_last_stop_time > 0 else 999
@@ -889,7 +891,8 @@ class GreenhouseDevice:
                 print(f"[pump] cooldown {since_stop:.0f}s < 15s, blocked")
                 return
             area = "area_1" if action == "RIEGO_1_ON" else "area_2"
-            _all_off()
+            self.gpio.set_actuator("fan", "off")
+            self.gpio.set_actuator("buzzer", "off")
             self.gpio.set_pump_irrigation(area, True)
             self._pump_start_time = now
         elif action == "FAN_ON":
@@ -897,12 +900,15 @@ class GreenhouseDevice:
         elif action == "LIGHT_ON":
             _all_off(); self.gpio.set_actuator("lights", "on")
         elif action == "ALARM_ON":
-            _all_off()
+            self.gpio.set_pump_irrigation(None, False)
+            self.gpio.set_actuator("lights", "off")
             self.gpio.set_actuator("buzzer", "on")
             self.gpio.set_actuator("fan", "on")
             self.gpio.set_global_state("EMERGENCIA")
         elif action == "GAS_WARNING":
-            _all_off()
+            self.gpio.set_pump_irrigation(None, False)
+            self.gpio.set_actuator("lights", "off")
+            self.gpio.set_actuator("buzzer", "off")
             self.gpio.set_actuator("fan", "on")
             self.gpio.set_global_state("ADVERTENCIA")
         elif action == "LED_GREEN":
@@ -1335,7 +1341,8 @@ class GreenhouseDevice:
             return
 
         state = payload.get("overall_state")
-        if state:
+        # No sobreescribir EMERGENCIA con NORMAL del backend
+        if state and not (self.gpio.current_state == "EMERGENCIA" and state != "EMERGENCIA"):
             self.gpio.set_global_state(state)
 
     # --- Loop principal ------------------------------------------------
@@ -1401,7 +1408,7 @@ class GreenhouseDevice:
                     self._lcd_cycle = (self._lcd_cycle + 1) % 5
                     self._lcd_last_update = now
                 self._last_state_info = {"irrigation_state": "RIEGO_ACTIVO" if self.gpio.pump_on else "RIEGO_OFF",
-                                         "ventilation_state": "VENTILACION_EMERGENCIA" if state == "EMERGENCIA" else ("VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF")}
+                                         "ventilation_state": "VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF"}
 
         except KeyboardInterrupt:
             pass

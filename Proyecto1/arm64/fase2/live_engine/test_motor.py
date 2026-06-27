@@ -1,7 +1,7 @@
 import subprocess
 
 proceso = subprocess.Popen(
-    ["/home/crjav/ARQUI1/Project/ARQUI1V1S_G-17/Proyecto1/arm64/build/live_engine"],
+    ["/home/crjav/ARQUI1/Project/ARQUI1V1S_G-17/Proyecto1/arm64/fase2/build/live_engine"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -21,8 +21,11 @@ for l in lecturas:
     temp = l.split(",")[0]
     proceso.stdin.write(l + "\n")
     proceso.stdin.flush()
-    r = proceso.stdout.readline().strip()
-    print(temp + " -> " + r)
+    print(temp + " ->")
+    for _ in range(7):
+        r = proceso.stdout.readline().strip()
+        if r:
+            print("  " + r)
 
 proceso.stdin.close()
 proceso.wait()

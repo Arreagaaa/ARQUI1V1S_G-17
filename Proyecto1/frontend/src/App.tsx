@@ -388,7 +388,7 @@ export default function App() {
     else if (type.startsWith('soil_')) { unit = '%'; val = '45'; }
     else if (type === 'light') { unit = '%'; val = '50'; }
     else if (type === 'gas') { unit = 'ppm'; val = '120'; }
-    
+
     setReading(curr => ({ ...curr, sensor_type: type, unit, value: val }));
   };
 
@@ -510,11 +510,10 @@ export default function App() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key as string)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition ${
-                    activeTab === tab.key
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition ${activeTab === tab.key
                       ? 'bg-emerald-400 text-slate-950 shadow-glow'
                       : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -780,11 +779,10 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
   return (
     <article
       onClick={onClick}
-      className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${
-        active
+      className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${active
           ? 'border-emerald-400/50 bg-emerald-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-emerald-400/30'
-      }`}
+        }`}
     >
       <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.22em] text-slate-400">{label}</p>
       <p className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-semibold text-white break-words">
@@ -876,26 +874,26 @@ const getChartDataForMetric = (metricKey: string, readings: SensorReading[]) => 
   };
 
   const matches = typeMatches[metricKey] || [metricKey];
-  let filtered = readings.filter(r => 
+  let filtered = readings.filter(r =>
     matches.some(m => r.sensor_type.toLowerCase().includes(m))
   );
 
   if (metricKey === 'soil_1') {
-    filtered = readings.filter(r => 
+    filtered = readings.filter(r =>
       matches.some(m => r.sensor_type.toLowerCase().includes(m)) && r.area === 'area_1'
     );
   } else if (metricKey === 'soil_2') {
-    filtered = readings.filter(r => 
+    filtered = readings.filter(r =>
       matches.some(m => r.sensor_type.toLowerCase().includes(m)) && r.area === 'area_2'
     );
   }
-  
+
   return [...filtered].reverse();
 };
 
 function SensorChart({ readings, metricKey, label, unit }: { readings: SensorReading[], metricKey: string, label: string, unit: string }) {
   const data = getChartDataForMetric(metricKey, readings);
-  
+
   if (data.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-4">
@@ -933,8 +931,8 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
 
   const points = data.map((d, i) => `${getX(i)},${getY(d.value)}`);
   const pathD = points.length > 0 ? `M ${points.join(' L ')}` : '';
-  const areaD = points.length > 0 
-    ? `${pathD} L ${getX(data.length - 1)},${height - paddingBottom} L ${getX(0)},${height - paddingBottom} Z` 
+  const areaD = points.length > 0
+    ? `${pathD} L ${getX(data.length - 1)},${height - paddingBottom} L ${getX(0)},${height - paddingBottom} Z`
     : '';
 
   const colors: Record<string, { stroke: string, fill: string }> = {
@@ -958,28 +956,28 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
         >
           <defs>
             <linearGradient id="gradient-temp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fb7185" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#fb7185" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#fb7185" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#fb7185" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-humidity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-soil" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34d399" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#34d399" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#34d399" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-soil2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-light" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-gas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -1115,7 +1113,7 @@ const COLUMN_LABELS: Record<number, string> = {
 
 const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
 
-const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 };
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1 };
 
 function ARM64ResultsSection({
   results,
@@ -1142,7 +1140,7 @@ function ARM64ResultsSection({
   useEffect(() => {
     getARM64ColumnConfig().then(data => {
       if (data.columns) setColumnConfig(data.columns);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleColumnChange = (moduleId: number, colIdx: number) => {
@@ -1153,6 +1151,24 @@ function ARM64ResultsSection({
   };
 
   const modulesList = [
+    {
+      key: 'RMSE',
+      title: 'RMSE vs valor ideal',
+      responsable: 'Fase 2',
+      file: 'modulo_1_rmse.s',
+      outputFile: 'resultado_rmse.txt',
+      formula: 'RMSE = sqrt(Σ(Y_i - IDEAL)² / N)',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Ventana inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Ventana fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Valor ideal (IDEAL_VALUE)', key: 'IDEAL_VALUE' },
+        { label: 'Suma error² (SUM_SQUARED_ERROR)', key: 'SUM_SQUARED_ERROR' },
+        { label: 'MSE', key: 'MSE' },
+        { label: 'RMSE', key: 'RMSE', highlight: true }
+      ]
+    },
     {
       key: 'WEIGHTED_MEAN',
       title: 'Media ponderada',
@@ -1285,7 +1301,7 @@ function ARM64ResultsSection({
           </h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5].map((modId) => (
+          {[1, 2, 3, 4, 5, 6].map((modId) => (
             <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
               <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
               <select
@@ -1339,12 +1355,11 @@ function ARM64ResultsSection({
                           <div key={f.key} className="flex items-center justify-between text-[10px] border-b border-white/5 pb-1">
                             <span className="text-slate-400">{f.label.split(' (')[0]}</span>
                             {f.badge ? (
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                                val === 'HIGH' || val === 'DOWN' ? 'bg-red-500/20 text-red-300' :
-                                val === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
-                                val === 'NORMAL' || val === 'UP' ? 'bg-emerald-500/20 text-emerald-300' :
-                                'bg-slate-500/20 text-slate-300'
-                              }`}>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${val === 'HIGH' || val === 'DOWN' ? 'bg-red-500/20 text-red-300' :
+                                  val === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
+                                    val === 'NORMAL' || val === 'UP' ? 'bg-emerald-500/20 text-emerald-300' :
+                                      'bg-slate-500/20 text-slate-300'
+                                }`}>
                                 {val ?? 'N/A'}
                               </span>
                             ) : (

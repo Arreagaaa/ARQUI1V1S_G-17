@@ -2,15 +2,19 @@
 .align 3
 
 // umbrales
-.equ GAS_ALTO, 300
-.equ GAS_AMP_ALTA, 50
-.equ SOIL_BAJO, 300
+.equ GAS_CRITICAL, 92
+.equ GAS_WARNING, 66
+.equ GAS_AMP_ALTA, 20
+.equ SOIL_BAJO, 358
+.equ SOIL_SATURATED, 204
 .equ LUZ_BAJA, 500
 .equ TEMP_ALTA, 30
+.equ TEMP_WARN, 25
 .equ INPUT_BUF_SIZE, 64
 .equ NUM_BUF_SIZE, 32
 
 msg_action_alarm_on: .ascii "ACTION=ALARM_ON\n";    len_action_alarm_on = . - msg_action_alarm_on
+msg_action_gas_warning: .ascii "ACTION=GAS_WARNING\n";len_action_gas_warning = . - msg_action_gas_warning
 msg_action_fan_on: .ascii "ACTION=FAN_ON\n";        len_action_fan_on = . - msg_action_fan_on
 msg_action_riego1_on: .ascii "ACTION=RIEGO_1_ON\n"; len_action_riego1_on = . - msg_action_riego1_on
 msg_action_riego2_on: .ascii "ACTION=RIEGO_2_ON\n"; len_action_riego2_on = . - msg_action_riego2_on
@@ -34,7 +38,9 @@ msg_risk_medium: .ascii "RISK=MEDIUM\n";          len_risk_medium = . - msg_risk
 msg_risk_low: .ascii "RISK=LOW\n";                len_risk_low = . - msg_risk_low
 
 msg_reason_gas: .ascii "REASON=GAS_HIGH_OR_AMPLITUDE_HIGH\n";  len_reason_gas = . - msg_reason_gas
+msg_reason_gas_warning: .ascii "REASON=GAS_MODERATE\n";        len_reason_gas_warning = . - msg_reason_gas_warning
 msg_reason_soil: .ascii "REASON=SOIL_LOW_AND_DESCENDING\n";    len_reason_soil = . - msg_reason_soil
+msg_reason_soil_saturated: .ascii "REASON=SOIL_SATURATED\n";    len_reason_soil_saturated = . - msg_reason_soil_saturated
 msg_reason_light: .ascii "REASON=LIGHT_LOW_AND_DESCENDING\n";  len_reason_light = . - msg_reason_light
 msg_reason_temp: .ascii "REASON=TEMP_HIGH_AND_ASCENDING\n";    len_reason_temp = . - msg_reason_temp
 msg_reason_normal: .ascii "REASON=NORMAL_CONDITIONS\n";        len_reason_normal = . - msg_reason_normal
@@ -234,34 +240,63 @@ main_loop_proceed:
     mov x17, x0 // hum amplitud
 
     // cadena de decisiones por prioridad
-    // prioridad 1: gas alto o amplitud de gas alta
-    cmp x20, #GAS_ALTO
+    // prioridad 1: gas critico (>92) o amplitud de gas alta -> ALARM_ON
+    cmp x20, #GAS_CRITICAL
     bgt output_gas_alarm
 
     cmp x28, #GAS_AMP_ALTA
     bgt output_gas_alarm
 
-    // prioridad 2: suelo 1 seco y ascendiendo (pull-up: seco=raw alto)
+    // prioridad 2: gas medio (>71) -> GAS_WARNING (ventilador + LED amarillo)
+    cmp x20, #GAS_WARNING
+    bgt output_gas_warning
+
+    // prioridad 3: suelo 1 seco y ascendiendo (pull-up: seco=raw alto)
+    // si esta saturado (>80% humedad = raw < SOIL_SATURATED), bloquear riego
+    cmp x21, #SOIL_SATURATED
+    blt soil1_saturated
     cmp x21, #SOIL_BAJO
-    bgt check_soil2_low
+    bgt check_soil1_trend
     b check_soil2
 
-check_soil2_low:
+check_soil1_trend:
     cmp x25, #0
     bgt output_riego1
+    b check_soil2
+
+soil1_saturated:
+    mov x0, x21; mov x1, x25
+    ldr x19, =msg_action_led_yellow;         mov x20, len_action_led_yellow
+    ldr x21, =msg_target_soil1;              mov x22, len_target_soil1
+    ldr x23, =msg_risk_low;                  mov x24, len_risk_low
+    ldr x25, =msg_reason_soil_saturated;     mov x26, len_reason_soil_saturated
+    bl output_action
+    b main_loop
 
 check_soil2:
-    // prioridad 3: suelo 2 seco y ascendiendo (pull-up: seco=raw alto)
+    // prioridad 4: suelo 2 seco y ascendiendo (pull-up: seco=raw alto)
+    cmp x22, #SOIL_SATURATED
+    blt soil2_saturated
     cmp x22, #SOIL_BAJO
-    bgt check_soil2_low2
+    bgt check_soil2_trend
     b check_luz
 
-check_soil2_low2:
+check_soil2_trend:
     cmp x26, #0
     bgt output_riego2
+    b check_luz
+
+soil2_saturated:
+    mov x0, x22; mov x1, x26
+    ldr x19, =msg_action_led_yellow;         mov x20, len_action_led_yellow
+    ldr x21, =msg_target_soil2;              mov x22, len_target_soil2
+    ldr x23, =msg_risk_low;                  mov x24, len_risk_low
+    ldr x25, =msg_reason_soil_saturated;     mov x26, len_reason_soil_saturated
+    bl output_action
+    b main_loop
 
 check_luz:
-    // prioridad 4: luz baja y descendiendo
+    // prioridad 5: luz baja y descendiendo
     cmp x23, #LUZ_BAJA
     blt check_luz_low
     b check_temp
@@ -271,9 +306,9 @@ check_luz_low:
     blt output_light_on
 
 check_temp:
-    // prioridad 5: temperatura alta y ascendiendo
+    // prioridad 6: temperatura alta y ascendiendo
     cmp x24, #TEMP_ALTA
-    bge check_temp_high
+    bgt check_temp_high
     b check_mode
 
 check_temp_high:
@@ -281,9 +316,17 @@ check_temp_high:
     bgt output_fan_on
 
 check_mode:
-    // prioridad 6 o 7 segun modo
+    // prioridad 7 u 8 segun modo
     cmp x15, #0
     bne output_no_action
+    // warning: temperatura en ascenso cerca del limite (>25°C) -> LED_YELLOW
+    cmp x24, #TEMP_WARN
+    bgt check_temp_warn_trend
+    b check_soil_warning
+check_temp_warn_trend:
+    cmp x19, #0
+    bgt output_led_yellow
+check_soil_warning:
     // warning: tendencia descendente en suelo o luz -> LED_YELLOW
     cmp x25, #0
     blt output_led_yellow
@@ -291,7 +334,7 @@ check_mode:
     blt output_led_yellow
     cmp x27, #0
     blt output_led_yellow
-    // prioridad 6: estado normal -> LED_GREEN
+    // prioridad 7: estado normal -> LED_GREEN
     b output_led_green
 
 output_gas_alarm:
@@ -300,6 +343,15 @@ output_gas_alarm:
     ldr x21, =msg_target_gas;      mov x22, len_target_gas
     ldr x23, =msg_risk_critical;   mov x24, len_risk_critical
     ldr x25, =msg_reason_gas;      mov x26, len_reason_gas
+    bl output_action
+    b main_loop
+
+output_gas_warning:
+    mov x0, x20; mov x1, x28
+    ldr x19, =msg_action_gas_warning;  mov x20, len_action_gas_warning
+    ldr x21, =msg_target_gas;          mov x22, len_target_gas
+    ldr x23, =msg_risk_medium;         mov x24, len_risk_medium
+    ldr x25, =msg_reason_gas_warning;  mov x26, len_reason_gas_warning
     bl output_action
     b main_loop
 

@@ -445,12 +445,14 @@ class GpioController:
         if not self.available:
             return
         if I2CLCD:
-            try:
-                self._lcd_i2c = I2CLCD(address=0x27, bus=1)
-                print("[lcd] I2C LCD listo")
-                return
-            except Exception as exc:
-                print(f"[lcd] I2C no disponible ({exc}), probando paralelo...")
+            for addr in (0x27, 0x3F):
+                try:
+                    self._lcd_i2c = I2CLCD(address=addr, bus=1)
+                    print(f"[lcd] I2C LCD listo en 0x{addr:02x}")
+                    self._lcd_i2c.clear()
+                    return
+                except Exception as exc:
+                    print(f"[lcd] I2C 0x{addr:02x}: {exc}")
         # Fallback a paralelo
         self._lcd_parallel = ParallelLCD(
             self.s.lcd_rs, self.s.lcd_e,
@@ -462,10 +464,13 @@ class GpioController:
         if not self.available:
             print(f"[lcd] {line1} | {line2}")
             return
+        line1 = line1.ljust(16)[:16]
+        line2 = line2.ljust(16)[:16]
         if self._lcd_i2c:
             try:
-                self._lcd_i2c.text(line1[:16], 1, "left")
-                self._lcd_i2c.text(line2[:16], 2, "left")
+                self._lcd_i2c.clear()
+                self._lcd_i2c.text(line1, 1, "left")
+                self._lcd_i2c.text(line2, 2, "left")
                 return
             except Exception:
                 pass
@@ -771,6 +776,10 @@ class GreenhouseDevice:
         self._lcd_last_update: float = 0.0
         self._lcd_interval: float = 3.0
 
+        # Pump timing (30s max runtime, 15s cooldown)
+        self._pump_start_time: float = 0.0
+        self._pump_last_stop_time: float = 0.0
+
         # ARM64 Fase 2 — motor de decision
         self._arm64_prog = os.path.realpath(
             os.path.join(os.path.dirname(__file__), "..", "arm64", "fase2", "build", "live_engine")
@@ -850,21 +859,49 @@ class GreenhouseDevice:
         if self.gpio.mode != "auto":
             return
         action = decision.get("ACTION", "NO_ACTION")
+        now = time.time()
+
         def _all_off():
+            if self.gpio.pump_on:
+                self._pump_last_stop_time = now
             self.gpio.set_pump_irrigation(None, False)
             self.gpio.set_actuator("fan", "off")
             self.gpio.set_actuator("lights", "off")
             self.gpio.set_actuator("buzzer", "off")
-        if action == "RIEGO_1_ON":
-            _all_off(); self.gpio.set_pump_irrigation("area_1", True)
-        elif action == "RIEGO_2_ON":
-            _all_off(); self.gpio.set_pump_irrigation("area_2", True)
+
+        if action in ("RIEGO_1_ON", "RIEGO_2_ON"):
+            if self.gpio.pump_on:
+                runtime = now - self._pump_start_time
+                if runtime > 30:
+                    print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
+                    _all_off()
+                    self._pump_start_time = 0.0
+                    return
+                self.gpio.set_actuator("fan", "off")
+                self.gpio.set_actuator("lights", "off")
+                self.gpio.set_actuator("buzzer", "off")
+                return
+            since_stop = (now - self._pump_last_stop_time) if self._pump_last_stop_time > 0 else 999
+            if since_stop < 15:
+                print(f"[pump] cooldown {since_stop:.0f}s < 15s, blocked")
+                return
+            area = "area_1" if action == "RIEGO_1_ON" else "area_2"
+            _all_off()
+            self.gpio.set_pump_irrigation(area, True)
+            self._pump_start_time = now
         elif action == "FAN_ON":
             _all_off(); self.gpio.set_actuator("fan", "on")
         elif action == "LIGHT_ON":
             _all_off(); self.gpio.set_actuator("lights", "on")
         elif action == "ALARM_ON":
-            _all_off(); self.gpio.set_actuator("buzzer", "on")
+            _all_off()
+            self.gpio.set_actuator("buzzer", "on")
+            self.gpio.set_actuator("fan", "on")
+            self.gpio.set_global_state("EMERGENCIA")
+        elif action == "GAS_WARNING":
+            _all_off()
+            self.gpio.set_actuator("fan", "on")
+            self.gpio.set_global_state("ADVERTENCIA")
         elif action == "LED_GREEN":
             _all_off(); self.gpio.set_global_state("NORMAL")
         elif action == "LED_YELLOW":
@@ -1180,7 +1217,6 @@ class GreenhouseDevice:
         if state == "EMERGENCIA":
             self._lcd_cycle = 0
             return ("!! EMERGENCIA !!", f"Gas:{readings['gas']:.0f}ppm")
-        self._lcd_cycle = self._lcd_cycle % len(LINES)
         return LINES[self._lcd_cycle]
 
     # --- Lectura de sensores -------------------------------------------
@@ -1354,13 +1390,13 @@ class GreenhouseDevice:
 
                 # Actualizar LCD con rotación cada 3s
                 now = time.time()
-                if now - self._lcd_last_update >= self._lcd_interval:
-                    self._lcd_cycle += 1
-                    self._lcd_last_update = now
                 state = self.gpio.current_state
                 state_info = getattr(self, "_last_state_info", None)
                 line1, line2 = self._get_lcd_screen(readings, state, state_info)
                 self.gpio.update_lcd(line1, line2)
+                if now - self._lcd_last_update >= self._lcd_interval:
+                    self._lcd_cycle = (self._lcd_cycle + 1) % 5
+                    self._lcd_last_update = now
                 self._last_state_info = {"irrigation_state": "RIEGO_ACTIVO" if self.gpio.pump_on else "RIEGO_OFF",
                                          "ventilation_state": "VENTILACION_EMERGENCIA" if state == "EMERGENCIA" else ("VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF")}
 

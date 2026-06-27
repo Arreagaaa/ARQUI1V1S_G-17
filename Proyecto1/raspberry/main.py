@@ -858,65 +858,67 @@ class GreenhouseDevice:
     def _execute_arm64_decision(self, decision: dict) -> None:
         if self.gpio.mode != "auto":
             return
-        action = decision.get("ACTION", "NO_ACTION")
+        try:
+            flags = int(decision.get("ACTION", "0"))
+        except ValueError:
+            flags = 0
         now = time.time()
 
-        def _all_off():
-            if self.gpio.pump_on:
-                self._pump_last_stop_time = now
-            self.gpio.set_pump_irrigation(None, False)
-            self.gpio.set_actuator("fan", "off")
-            self.gpio.set_actuator("lights", "off")
-            self.gpio.set_actuator("buzzer", "off")
+        FLAG_ALARM_ON = 1
+        FLAG_GAS_WARNING = 2
+        FLAG_RIEGO_1_ON = 4
+        FLAG_LIGHT_ON = 8
+        FLAG_FAN_ON = 16
+        FLAG_BLOQUEADO = 32
+        FLAG_LED_YELLOW = 64
+        FLAG_LED_GREEN = 128
+        FLAG_NO_ACTION = 256
 
-        if action in ("RIEGO_1_ON", "RIEGO_2_ON"):
+        # 1. BUZZER (solo con ALARM_ON)
+        self.gpio.set_actuator("buzzer", "on" if (flags & FLAG_ALARM_ON) else "off")
+
+        # 2. FAN (ALARM_ON o GAS_WARNING o FAN_ON)
+        self.gpio.set_actuator("fan", "on" if (flags & (FLAG_ALARM_ON | FLAG_GAS_WARNING | FLAG_FAN_ON)) else "off")
+
+        # 3. LIGHTS (independiente — NO se apaga por ALARM/GAS_WARNING)
+        self.gpio.set_actuator("lights", "on" if (flags & FLAG_LIGHT_ON) else "off")
+
+        # 4. PUMP solo si RIEGO_1_ON y NO hay alarma de gas
+        pump_safety_stop = bool(flags & (FLAG_ALARM_ON | FLAG_GAS_WARNING))
+        if pump_safety_stop:
+            if self.gpio.pump_on:
+                self.gpio.set_pump_irrigation(None, False)
+                self._pump_last_stop_time = now
+                self._pump_start_time = 0.0
+        elif flags & FLAG_RIEGO_1_ON:
             if self.gpio.pump_on:
                 if self._pump_start_time > 0:
                     runtime = now - self._pump_start_time
                     if runtime > 30:
                         print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
                         self.gpio.set_pump_irrigation(None, False)
-                        self.gpio.set_actuator("fan", "off")
-                        self.gpio.set_actuator("buzzer", "off")
                         self._pump_last_stop_time = now
                         self._pump_start_time = 0.0
-                        return
                 else:
                     self._pump_start_time = now
-                self.gpio.set_actuator("fan", "off")
-                self.gpio.set_actuator("buzzer", "off")
-                return
-            since_stop = (now - self._pump_last_stop_time) if self._pump_last_stop_time > 0 else 999
-            if since_stop < 15:
-                print(f"[pump] cooldown {since_stop:.0f}s < 15s, blocked")
-                return
-            area = "area_1" if action == "RIEGO_1_ON" else "area_2"
-            self.gpio.set_actuator("fan", "off")
-            self.gpio.set_actuator("buzzer", "off")
-            self.gpio.set_pump_irrigation(area, True)
-            self._pump_start_time = now
-        elif action == "FAN_ON":
-            _all_off(); self.gpio.set_actuator("fan", "on")
-        elif action == "LIGHT_ON":
-            _all_off(); self.gpio.set_actuator("lights", "on")
-        elif action == "ALARM_ON":
-            self.gpio.set_pump_irrigation(None, False)
-            self.gpio.set_actuator("lights", "off")
-            self.gpio.set_actuator("buzzer", "on")
-            self.gpio.set_actuator("fan", "on")
+            else:
+                since_stop = (now - self._pump_last_stop_time) if self._pump_last_stop_time > 0 else 999
+                if since_stop >= 15:
+                    self.gpio.set_pump_irrigation("area_1", True)
+                    self._pump_start_time = now
+        else:
+            if self.gpio.pump_on:
+                self.gpio.set_pump_irrigation(None, False)
+                self._pump_last_stop_time = now
+                self._pump_start_time = 0.0
+
+        # 5. STATE (prioridad: EMERGENCIA > ADVERTENCIA > NORMAL)
+        if flags & FLAG_ALARM_ON:
             self.gpio.set_global_state("EMERGENCIA")
-        elif action == "GAS_WARNING":
-            self.gpio.set_pump_irrigation(None, False)
-            self.gpio.set_actuator("lights", "off")
-            self.gpio.set_actuator("buzzer", "off")
-            self.gpio.set_actuator("fan", "on")
+        elif flags & (FLAG_GAS_WARNING | FLAG_BLOQUEADO | FLAG_LED_YELLOW):
             self.gpio.set_global_state("ADVERTENCIA")
-        elif action == "LED_GREEN":
-            _all_off(); self.gpio.set_global_state("NORMAL")
-        elif action == "LED_YELLOW":
-            _all_off(); self.gpio.set_global_state("ADVERTENCIA")
-        elif action == "LED_RED":
-            _all_off(); self.gpio.set_global_state("EMERGENCIA")
+        elif flags & FLAG_LED_GREEN:
+            self.gpio.set_global_state("NORMAL")
 
     def _registrar_arm64_en_mongodb(self, decision: dict, readings: dict[str, float]) -> None:
         csv_input = (f"{int(readings.get('temperature',0))},{int(readings.get('humidity',0))},"

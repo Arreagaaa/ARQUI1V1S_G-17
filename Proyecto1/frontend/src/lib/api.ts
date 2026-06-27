@@ -146,4 +146,19 @@ export async function setARM64ColumnConfig(columns: Record<string, number>) {
   });
 }
 
+export async function runHistoricalAnalysis(params: {
+  file: string;
+  start_line: number;
+  end_line: number;
+  column: number;
+  ideal_value: number;
+  module: string;
+}) {
+  return request<{ status: string; message: string }>("/api/arm64/historical-analysis", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+}
+
 

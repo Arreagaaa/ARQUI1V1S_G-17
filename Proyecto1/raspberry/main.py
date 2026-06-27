@@ -814,6 +814,10 @@ class GreenhouseDevice:
             self._handle_arm64_run()
             return
 
+        if actuator == "arm64_historical":
+            self._handle_arm64_historical(payload)
+            return
+
         # En modo auto ignorar comandos manuales (excepto mode y automation)
         source = payload.get("source", "")
         if self.gpio.mode == "auto" and actuator != "mode" and source not in ("automation", "backend_rules"):
@@ -944,6 +948,80 @@ class GreenhouseDevice:
             print(f"[arm64] no encontrado: {executor}")
         except subprocess.TimeoutExpired:
             print("[arm64] timeout (120s) ejecutando módulos ARM64")
+        except Exception as exc:
+            print(f"[arm64] error: {exc}")
+
+    def _handle_arm64_historical(self, mqtt_payload: dict) -> None:
+        params = mqtt_payload.get("payload", mqtt_payload)
+        file = params.get("file", "lecturas.csv")
+        start_line = params.get("start_line", 1)
+        end_line = params.get("end_line", 30)
+        column = params.get("column", 1)
+        ideal_value = params.get("ideal_value", 55)
+        module = params.get("module", "RMSE")
+
+        print(f"[arm64] analisis historico: {module} {file} lineas {start_line}-{end_line} columna {column}")
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        arm_dir = os.path.join(script_dir, "..", "arm64")
+        url = self.settings.backend_url
+
+        executor = os.path.join(script_dir, "arm_executor.py")
+        try:
+            subprocess.run(
+                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir],
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception:
+            pass
+
+        module_map = {
+            "RMSE": ("rmse", None),
+        }
+
+        if module not in module_map:
+            print(f"[arm64] modulo no soportado: {module}")
+            return
+
+        binary_name, _ = module_map[module]
+        binary_path = os.path.join(arm_dir, "fase2", "build", binary_name)
+        csv_path = os.path.join(arm_dir, file) if not file.startswith("/") else file
+
+        if module == "RMSE":
+            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(ideal_value)]
+        else:
+            cmd = [binary_path]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(arm_dir))
+            for line in result.stdout.splitlines():
+                print(f"[arm64] {line}")
+
+            data = {}
+            for line in result.stdout.splitlines():
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    data[k.strip()] = v.strip()
+
+            if data:
+                import requests
+                total_values = int(data.get("COUNT", 0))
+                results = {k: v for k, v in data.items() if k not in ("MODULE",)}
+                try:
+                    resp = requests.post(f"{url}/api/arm64-results", json={
+                        "module": module,
+                        "total_values": total_values,
+                        "results": results,
+                        "source": "raspi-01",
+                    }, timeout=10)
+                    if resp.status_code == 200:
+                        print(f"[arm64] resultado historico enviado al backend")
+                except Exception as exc:
+                    print(f"[arm64] error al enviar resultado: {exc}")
+        except FileNotFoundError:
+            print(f"[arm64] binario no encontrado: {binary_path}")
+        except subprocess.TimeoutExpired:
+            print("[arm64] timeout ejecutando modulo historico")
         except Exception as exc:
             print(f"[arm64] error: {exc}")
 

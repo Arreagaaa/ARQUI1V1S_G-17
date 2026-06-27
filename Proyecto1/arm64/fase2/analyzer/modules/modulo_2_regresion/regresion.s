@@ -19,6 +19,10 @@ lbl_cnt: .ascii "COUNT="; len_cnt = . - lbl_cnt
 lbl_slope: .ascii "SLOPE_X100="; len_slope = . - lbl_slope
 lbl_trend: .ascii "TREND="; len_trend = . - lbl_trend
 lbl_ok: .ascii "STATUS=OK\n"; len_ok = . - lbl_ok
+// para la clasificacion
+trend_asc:  .ascii "ASCENDING\n";  len_trend_asc = . - trend_asc
+trend_desc: .ascii "DESCENDING\n"; len_trend_desc = . - trend_desc
+trend_stbl: .ascii "STABLE\n";     len_trend_stbl = . - trend_stbl
 newline: .ascii "\n"
 minus_sign: .ascii "-"
 
@@ -137,6 +141,39 @@ _start:
     bl regresion_calc
     cbnz x1, error_data // camparamos si el denominador es distinto de 0 si es 0 salta al error
     mov x27, x0 // copiamos a x27 la pendiente 
+
+    // vamos a clasificar la pendiente por medio del signo
+    cmp x27, #0
+    bgt trend_is_asc // si >0 va a ascendente
+    blt trend_is_desc
+
+    ldr x28, =trend_stbl // si no es mayor ni menor a 0 es pendiente 0
+    mov x9, len_trend_stbl // copiamops la longitud exacta 
+    b trend_done    // salata para hacer la clasificacion
+
+// asecendente
+trend_is_asc:
+    ldr x28, =trend_asc // carga la direccion del trend_asc en x28 "TREND=ASCENDING"
+    mov x9, len_trend_asc   // copiamos la longitud en byte de "ASCENDING"
+    b trend_done    // saltamos a
+
+// descendente
+trend_is_desc:      
+    ldr x28, =trend_desc // cargamos la direccion en x28 de "TREND=DECENDING"
+    mov x9, len_trend_desc  // copiamos la longitud en bytes de "DECENDING"
+
+
+// x28 = puntero al string  x9 = su longitud
+trend_done:
+// para probar lo nuevo
+    mov x0, #1  // STDOUT salida 
+    mov x1, x28 // copiamos la salida de x28 en x1 
+    mov x2, x9  //copiamos la cantidad exacta que se va a imprimir
+    mov x8, #64 
+    svc #0
+
+##Fin de clasificacion    
+
 
     mov x0, #0
     mov x8, #93

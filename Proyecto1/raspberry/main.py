@@ -871,12 +871,15 @@ class GreenhouseDevice:
 
         if action in ("RIEGO_1_ON", "RIEGO_2_ON"):
             if self.gpio.pump_on:
-                runtime = now - self._pump_start_time
-                if runtime > 30:
-                    print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
-                    _all_off()
-                    self._pump_start_time = 0.0
-                    return
+                if self._pump_start_time > 0:
+                    runtime = now - self._pump_start_time
+                    if runtime > 30:
+                        print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
+                        _all_off()
+                        self._pump_start_time = 0.0
+                        return
+                else:
+                    self._pump_start_time = now
                 self.gpio.set_actuator("fan", "off")
                 self.gpio.set_actuator("lights", "off")
                 self.gpio.set_actuator("buzzer", "off")

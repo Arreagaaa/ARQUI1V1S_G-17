@@ -7,7 +7,7 @@
 .equ GAS_AMP_ALTA, 20
 .equ SOIL_BAJO, 358
 .equ SOIL_SATURATED, 204
-.equ LUZ_BAJA, 500
+.equ LUZ_BAJA, 665
 .equ TEMP_ALTA, 30
 .equ TEMP_WARN, 25
 .equ INPUT_BUF_SIZE, 64
@@ -240,14 +240,11 @@ main_loop_proceed:
     mov x17, x0 // hum amplitud
 
     // cadena de decisiones por prioridad
-    // prioridad 1: gas critico (>92) o amplitud de gas alta -> ALARM_ON
+    // prioridad 1: gas critico (>92) -> ALARM_ON
     cmp x20, #GAS_CRITICAL
     bgt output_gas_alarm
 
-    cmp x28, #GAS_AMP_ALTA
-    bgt output_gas_alarm
-
-    // prioridad 2: gas medio (>71) -> GAS_WARNING (ventilador + LED amarillo)
+    // prioridad 2: gas medio (>66) -> GAS_WARNING (ventilador + LED amarillo)
     cmp x20, #GAS_WARNING
     bgt output_gas_warning
 

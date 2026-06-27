@@ -133,10 +133,10 @@ def leer_sensores_realtime() -> Optional[str]:
             from adafruit_ads1x15.analog_in import AnalogIn
             i2c = busio.I2C(board.SCL, board.SDA)
             ads = ADS.ADS1115(i2c)
-            soil1 = int((AnalogIn(ads, ADS.P0).value >> 4) * 1023 / 4095)
-            soil2 = int((AnalogIn(ads, ADS.P1).value >> 4) * 1023 / 4095)
-            luz   = int((AnalogIn(ads, ADS.P2).value >> 4) * 1023 / 4095)
-            gas   = int((AnalogIn(ads, ADS.P3).value >> 4) * 1023 / 4095)
+            soil1 = int((AnalogIn(ads, 0).value >> 4) * 1023 / 4095)
+            soil2 = int((AnalogIn(ads, 1).value >> 4) * 1023 / 4095)
+            luz   = int((AnalogIn(ads, 2).value >> 4) * 1023 / 4095)
+            gas   = int((AnalogIn(ads, 3).value >> 4) * 1023 / 4095)
         else:
             t = time.time()
             temp = 27.0 + (t % 10) * 0.5

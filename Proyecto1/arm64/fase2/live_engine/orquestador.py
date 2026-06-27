@@ -43,14 +43,14 @@ API_BASE_DEFAULT = os.environ.get("API_URL", "http://localhost:8000")
 INTERVALO_DEFAULT = 2
 
 ACCIONES = {
-    "ALARM_ON":    {"desc": "Alarma activada por gas critico",            "pin": 17, "actuator": "buzzer"},
-    "RIEGO_1_ON":  {"desc": "Riego del area 1 activado",                 "pin": 18, "actuator": "valve_1"},
-    "RIEGO_2_ON":  {"desc": "Riego del area 2 activado",                 "pin": 19, "actuator": "valve_2"},
-    "FAN_ON":      {"desc": "Ventilador encendido",                      "pin": 20, "actuator": "fan"},
-    "LIGHT_ON":    {"desc": "Iluminacion artificial encendida",          "pin": 21, "actuator": "light"},
-    "LED_GREEN":   {"desc": "Estado normal — todo en parametros",        "pin": 22, "actuator": "led_green"},
-    "LED_YELLOW":  {"desc": "Estado de advertencia",                     "pin": 23, "actuator": "led_yellow"},
-    "LED_RED":     {"desc": "Estado de riesgo alto",                     "pin": 24, "actuator": "led_red"},
+    "ALARM_ON":    {"desc": "Alarma activada por gas critico",            "pin": 25, "actuator": "buzzer"},
+    "RIEGO_1_ON":  {"desc": "Riego del area 1 activado",                 "pin": 17, "actuator": "pump"},
+    "RIEGO_2_ON":  {"desc": "Riego del area 2 activado",                 "pin": 22, "actuator": "valve_2"},
+    "FAN_ON":      {"desc": "Ventilador encendido",                      "pin": 23, "actuator": "fan"},
+    "LIGHT_ON":    {"desc": "Iluminacion artificial encendida",          "pin": 24, "actuator": "light"},
+    "LED_GREEN":   {"desc": "Estado normal — todo en parametros",        "pin": 5,  "actuator": "led_green"},
+    "LED_YELLOW":  {"desc": "Estado de advertencia",                     "pin": 6,  "actuator": "led_yellow"},
+    "LED_RED":     {"desc": "Estado de riesgo alto",                     "pin": 12, "actuator": "led_red"},
     "NO_ACTION":   {"desc": "Sin accion fisica requerida",               "pin": None, "actuator": None},
 }
 

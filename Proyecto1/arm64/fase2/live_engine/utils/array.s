@@ -1,4 +1,3 @@
-.global guardar_dato
 guardar_dato:
     ldr x2, [x1]
 

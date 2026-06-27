@@ -104,12 +104,18 @@ def process_reading(document: dict) -> dict:
     mode = latest.get("mode", "auto") if latest else "auto"
     updates = {status_key: value}
 
-    if mode == "auto":
-        _apply_automation_rules(db, updates, latest, temp, hum, soil1, soil2, light_val, gas_val)
-    else:
-        updates["overall_state"] = "MODO_MANUAL"
-        logger.info("DEBUG mode=%s sensor=%s temp=%.1f gas=%.1f mode=%s",
-                     mode, sensor_type, temp, gas_val, mode)
+    # NOTA: Las reglas de automatización (Fase 1) están desactivadas.
+    # La toma de decisiones ahora la realiza el motor ARM64 en vivo
+    # (orquestador.py + live_engine.s). Este backend solo persiste datos
+    # y expone endpoints. Ver SETUP.md para el flujo actual.
+    #
+    # Si en futuro se quiere reactivar, descomentar:
+    # if mode == "auto":
+    #     _apply_automation_rules(db, updates, latest, temp, hum, soil1, soil2, light_val, gas_val)
+    # else:
+    #     updates["overall_state"] = "MODO_MANUAL"
+
+    updates["overall_state"] = "NORMAL"
 
     _enforce_pump_limits(db, updates, latest)
     update_system_status(updates)

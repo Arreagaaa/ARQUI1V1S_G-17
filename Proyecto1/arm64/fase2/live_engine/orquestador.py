@@ -43,14 +43,14 @@ API_BASE_DEFAULT = os.environ.get("API_URL", "http://localhost:8000")
 INTERVALO_DEFAULT = 2
 
 ACCIONES = {
-    "ALARM_ON":    {"desc": "Alarma activada por gas critico",            "pin": 17, "actuator": "buzzer"},
-    "RIEGO_1_ON":  {"desc": "Riego del area 1 activado",                 "pin": 18, "actuator": "valve_1"},
-    "RIEGO_2_ON":  {"desc": "Riego del area 2 activado",                 "pin": 19, "actuator": "valve_2"},
-    "FAN_ON":      {"desc": "Ventilador encendido",                      "pin": 20, "actuator": "fan"},
-    "LIGHT_ON":    {"desc": "Iluminacion artificial encendida",          "pin": 21, "actuator": "light"},
-    "LED_GREEN":   {"desc": "Estado normal — todo en parametros",        "pin": 22, "actuator": "led_green"},
-    "LED_YELLOW":  {"desc": "Estado de advertencia",                     "pin": 23, "actuator": "led_yellow"},
-    "LED_RED":     {"desc": "Estado de riesgo alto",                     "pin": 24, "actuator": "led_red"},
+    "ALARM_ON":    {"desc": "Alarma activada por gas critico",            "pin": 25, "actuator": "buzzer"},
+    "RIEGO_1_ON":  {"desc": "Riego del area 1 activado",                 "pin": 17, "actuator": "pump"},
+    "RIEGO_2_ON":  {"desc": "Riego del area 2 activado",                 "pin": 22, "actuator": "valve_2"},
+    "FAN_ON":      {"desc": "Ventilador encendido",                      "pin": 23, "actuator": "fan"},
+    "LIGHT_ON":    {"desc": "Iluminacion artificial encendida",          "pin": 24, "actuator": "light"},
+    "LED_GREEN":   {"desc": "Estado normal — todo en parametros",        "pin": 5,  "actuator": "led_green"},
+    "LED_YELLOW":  {"desc": "Estado de advertencia",                     "pin": 6,  "actuator": "led_yellow"},
+    "LED_RED":     {"desc": "Estado de riesgo alto",                     "pin": 12, "actuator": "led_red"},
     "NO_ACTION":   {"desc": "Sin accion fisica requerida",               "pin": None, "actuator": None},
 }
 
@@ -117,20 +117,41 @@ def ejecutar_accion_en_gpio(accion: str):
 def leer_sensores_realtime() -> Optional[str]:
     try:
         if GPIO_AVAILABLE:
-            import Adafruit_DHT
-            hum, temp = Adafruit_DHT.read_retry(Adafruit_DHT.DHT22, 4)
-            if hum is None or temp is None:
-                print("[SENSOR] Error DHT22, usando defaults")
-                temp, hum = 25.0, 55.0
-            import board, busio
+            import adafruit_dht
+            import board
+            dht_pin = 26  # GPIO 26 (igual que raspberry/main.py)
+            dht = None
+            try:
+                dht = adafruit_dht.DHT11(getattr(board, f"D{dht_pin}"), use_pulseio=False)
+                temp = dht.temperature
+                hum = dht.humidity
+                if temp is None or hum is None:
+                    raise RuntimeError("Lectura nula")
+            except Exception:
+                if dht:
+                    try: dht.exit()
+                    except: pass
+                try:
+                    dht = adafruit_dht.DHT22(getattr(board, f"D{dht_pin}"), use_pulseio=False)
+                    temp = dht.temperature
+                    hum = dht.humidity
+                    if temp is None or hum is None:
+                        raise RuntimeError("Lectura nula")
+                except Exception:
+                    if dht:
+                        try: dht.exit()
+                        except: pass
+                    print("[SENSOR] Error DHT11/DHT22, usando defaults")
+                    temp, hum = 25.0, 55.0
+            import busio
             import adafruit_ads1x15.ads1115 as ADS
             from adafruit_ads1x15.analog_in import AnalogIn
             i2c = busio.I2C(board.SCL, board.SDA)
             ads = ADS.ADS1115(i2c)
-            soil1 = int((AnalogIn(ads, ADS.P0).value >> 4) * 1023 / 4095)
-            soil2 = int((AnalogIn(ads, ADS.P1).value >> 4) * 1023 / 4095)
-            luz   = int((AnalogIn(ads, ADS.P2).value >> 4) * 1023 / 4095)
-            gas   = int((AnalogIn(ads, ADS.P3).value >> 4) * 1023 / 4095)
+            soil1 = int((AnalogIn(ads, 0).value >> 4) * 1023 / 4095)
+            soil2 = int((AnalogIn(ads, 1).value >> 4) * 1023 / 4095)
+            luz   = int((AnalogIn(ads, 2).value >> 4) * 1023 / 4095)
+            gas   = int((AnalogIn(ads, 3).value >> 4) * 1023 / 4095)
         else:
             t = time.time()
             temp = 27.0 + (t % 10) * 0.5
@@ -224,18 +245,24 @@ def registrar_en_mongodb(decision: dict, lectura: str, api_url: str):
         "module": "LIVE_ENGINE",
         "total_values": 7,
         "results": {
-            "action": decision["action"],
-            "target": decision["target"],
-            "risk": decision["risk"],
-            "reason": decision["reason"],
-            "value": decision["value"],
-            "indicator": decision["indicator"],
-            "input": lectura,
+            "ACTION": decision["action"],
+            "TARGET": decision["target"],
+            "RISK": decision["risk"],
+            "REASON": decision["reason"],
+            "VALUE": decision["value"],
+            "INDICATOR": decision["indicator"],
+            "STATUS": decision["status"],
+            "INPUT": lectura,
         },
+        "input": lectura,
+        "column": decision.get("target", ""),
+        "decision": decision["action"],
+        "risk": decision["risk"],
+        "status": decision["status"],
         "source": "raspi-01",
     }
     try:
-        resp = requests.post(f"{api_url}/api/arm64-results", json=payload, timeout=5)
+        resp = requests.post(f"{api_url}/api/arm64-results", json=payload, timeout=30)
         if resp.status_code in (200, 201):
             print(f"     [MongoDB] OK id={resp.json().get('inserted_id','?')}")
         else:

@@ -34,8 +34,7 @@ open_fail:
     mov x8, #93 // exit
     svc #0
 
-// x0=fd, x1=buf, x2=max_bytes
-// retorna en x0 la cantidad de bytes leidos
+// read_line(fd, buf, max)
 .global utils_read_line
 utils_read_line:
     mov x5, x0 // fd
@@ -71,7 +70,7 @@ read_done:
     mov x0, x3
     ret
 
-// x0=ptr a string, retorna el numero en x0
+// parse_i64(str)
 .global utils_parse_i64
 utils_parse_i64:
     mov x1, #0 // acumulador
@@ -93,8 +92,7 @@ up_done:
     mov x0, x1
     ret
 
-// x0=ptr linea, x1=indice de columna (0-based)
-// retorna el valor entero de esa columna
+// read_column(line, col_idx)
 read_column:
     mov x2, x0 // puntero que avanza
     mov x3, #0 // columnas saltadas
@@ -128,12 +126,11 @@ zero_value:
     mov x0, #0
     ret
 
-// x0=fd, x1=col, x2=buf_salida, x3=fila_inicio, x4=fila_fin
-// retorna en x0 la cantidad de valores leidos
+// read_int_column(fd, col, buf, start, end)
 .global utils_read_int_column
 utils_read_int_column:
-    stp x29, x30, [sp, #-16]! // salvar fp y lr (x30=direccion de retorno)
-    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
     stp x23, x24, [sp, #-16]!
     stp x25, x26, [sp, #-16]!
@@ -177,18 +174,18 @@ rc_skip:
 
 rc_done:
     mov x0, x25 // retorno antes de restaurar, si no ldp pisaria x25
-    ldp x25, x26, [sp], #16 // restaurar en orden inverso al stp
+    ldp x25, x26, [sp], #16
     ldp x23, x24, [sp], #16
     ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
-    ldp x29, x30, [sp], #16 // restaurar fp y lr al ultimo
+    ldp x29, x30, [sp], #16
     ret
 
-// x0=fd, retorna en x0 la cantidad de filas (sin contar header)
+// count_lines(fd)
 .global utils_count_lines
 utils_count_lines:
-    stp x29, x30, [sp, #-16]! // salvar fp y lr
-    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
 
     mov x19, x0 // fd
     mov x20, #0 // contador
@@ -212,22 +209,21 @@ ucl_count:
 
 ucl_done:
     mov x0, x20
-    ldp x19, x20, [sp], #16 // restaurar en orden inverso al stp
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
-// x0=fd
 .global utils_close_csv
 utils_close_csv:
     mov x8, #57 // close
     svc #0
     ret
 
-// x0=path, x1=buf, x2=len
+// write_result(path, buf, len)
 .global utils_write_result
 utils_write_result:
-    stp x29, x30, [sp, #-16]! // salvar fp y lr
-    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
     stp x21, x22, [sp, #-16]!
 
     mov x19, x0 // path
@@ -254,7 +250,7 @@ utils_write_result:
     mov x8, #57 // close
     svc #0
 
-    ldp x21, x22, [sp], #16 // restaurar en orden inverso al stp
+    ldp x21, x22, [sp], #16
     ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
@@ -264,12 +260,11 @@ write_fail:
     mov x8, #93 // exit
     svc #0
 
-// x0=numero, x1=buf_destino
-// retorna puntero al byte despues del ultimo digito
+// convierte entero a string
 .global utils_i64_to_str
 utils_i64_to_str:
-    stp x29, x30, [sp, #-16]! // salvar fp y lr
-    stp x19, x20, [sp, #-16]! // salvar registros que vamos a usar
+    stp x29, x30, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
 
     mov x19, x0 // numero
     mov x20, x1 // buf destino
@@ -307,11 +302,11 @@ uis_copy: // invertir los digitos al buf destino
     add x0, x20, x7
 
 uis_done:
-    ldp x19, x20, [sp], #16 // restaurar en orden inverso al stp
+    ldp x19, x20, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
-// x0=buf, x1=len
+// print_string(buf, len)
 .global utils_print_string
 utils_print_string:
     mov x2, x1
@@ -330,10 +325,10 @@ utils_print_newline:
     svc #0
     ret
 
-// x0=numero a imprimir
+// print_i64(num)
 .global utils_print_i64
 utils_print_i64:
-    stp x29, x30, [sp, #-16]! // salvar fp y lr
+    stp x29, x30, [sp, #-16]!
     sub sp, sp, #32
     mov x2, sp
     mov x1, x2
@@ -344,11 +339,10 @@ utils_print_i64:
     mov x8, #64 // write
     svc #0
     add sp, sp, #32
-    ldp x29, x30, [sp], #16 // restaurar fp y lr
+    ldp x29, x30, [sp], #16
     ret
 
-// x0=inicio_rango, x1=fin_rango
-// retorna 0 si valido, -1 si no
+// valida rango inicio y fin
 .global utils_validate_range
 utils_validate_range:
     cmp x0, #1
@@ -362,8 +356,7 @@ range_invalid:
     mov x0, #-1
     ret
 
-// x0=columna (1-6)
-// retorna 0 si valido, -1 si no
+// valida columna 1 a 6
 .global utils_validate_column
 utils_validate_column:
     cmp x0, #1

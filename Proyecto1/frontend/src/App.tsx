@@ -34,6 +34,7 @@ import {
   controlAlarm,
   getARM64ColumnConfig,
   setARM64ColumnConfig,
+  runHistoricalAnalysis,
   baseUrl,
 } from './lib/api';
 import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
@@ -119,6 +120,14 @@ export default function App() {
     severity: 'info',
     message: '',
     area: 'area_1',
+  });
+  const [histForm, setHistForm] = useState({
+    file: 'lecturas.csv',
+    start_line: '1',
+    end_line: '30',
+    column: '1',
+    ideal_value: '55',
+    module: 'RMSE',
   });
 
   useEffect(() => {
@@ -375,6 +384,26 @@ export default function App() {
       }, 3000);
     } catch {
       setNotice('Error al ejecutar análisis ARM64 en la Pi.');
+      setBusy(null);
+    }
+  }
+
+  async function handleRunHistoricalAnalysis() {
+    setBusy('hist-analysis');
+    setNotice('');
+    try {
+      const res = await runHistoricalAnalysis({
+        file: histForm.file,
+        start_line: Number(histForm.start_line),
+        end_line: Number(histForm.end_line),
+        column: Number(histForm.column),
+        ideal_value: Number(histForm.ideal_value),
+        module: histForm.module,
+      });
+      setNotice(res.message);
+    } catch {
+      setNotice('Error al enviar solicitud de análisis histórico.');
+    } finally {
       setBusy(null);
     }
   }
@@ -737,6 +766,71 @@ export default function App() {
           </aside>
         </section>
 
+        {/* Motor ARM64 - Decisiones en Vivo */}
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <Activity className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>Motor ARM64 - Decisiones en Vivo</span>
+              </h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Ultima decisión generada por el motor ARM64 en ensamblador AArch64.
+              </p>
+            </div>
+          </div>
+
+          {dashboard.arm64_results?.LIVE_ENGINE ? (
+            (() => {
+              const m = dashboard.arm64_results!.LIVE_ENGINE.results;
+              const risk = (m?.RISK as string) || 'LOW';
+              const riskColor =
+                risk === 'CRITICAL' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                risk === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-400/30' :
+                risk === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300 border-amber-400/30' :
+                'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mt-4">
+                  <div className={`rounded-2xl border ${riskColor} p-3 col-span-2 sm:col-span-1`}>
+                    <p className="text-[9px] uppercase tracking-wider opacity-70">ACCION</p>
+                    <p className="mt-1 text-lg font-bold">{m?.ACTION ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">TARGET</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.TARGET ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">RIESGO</p>
+                    <p className={`mt-1 text-sm font-bold ${risk === 'CRITICAL' ? 'text-red-300' : risk === 'HIGH' ? 'text-rose-300' : risk === 'MEDIUM' ? 'text-amber-300' : 'text-emerald-300'}`}>{risk}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 col-span-2 sm:col-span-1">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">RAZON</p>
+                    <p className="mt-1 text-xs font-semibold text-white break-words">{m?.REASON ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">VALOR</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.VALUE ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">INDICADOR</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.INDICATOR ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">STATUS</p>
+                    <p className={`mt-1 text-sm font-bold ${m?.STATUS === 'OK' ? 'text-emerald-400' : 'text-red-400'}`}>{m?.STATUS ?? '—'}</p>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div className="mt-4 flex flex-col items-center justify-center py-6 px-4 rounded-2xl border border-dashed border-white/10 bg-slate-950/30">
+              <p className="text-xs text-slate-400 text-center max-w-sm">
+                El motor ARM64 aun no ha generado decisiones. Envia lecturas desde la Raspberry Pi para ver los resultados en vivo.
+              </p>
+            </div>
+          )}
+        </section>
+
         {/* Sección Análisis ARM64 */}
         <ARM64ResultsSection
           results={dashboard.arm64_results}
@@ -748,6 +842,98 @@ export default function App() {
           running={busy === 'arm64-run'}
           backendUrl={baseUrl}
         />
+
+        {/* Analizador Historico */}
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <LineChart className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>Analizador Historico ARM64</span>
+              </h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Configura el analisis historico: archivo, rango de lineas y columna del sensor.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <Field label="Archivo CSV">
+              <input
+                value={histForm.file}
+                onChange={(e) => setHistForm(p => ({ ...p, file: e.target.value }))}
+                className={inputClass}
+                placeholder="lecturas.csv"
+              />
+            </Field>
+            <Field label="Linea Inicial">
+              <input
+                type="number"
+                min="1"
+                value={histForm.start_line}
+                onChange={(e) => setHistForm(p => ({ ...p, start_line: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Linea Final">
+              <input
+                type="number"
+                min="1"
+                value={histForm.end_line}
+                onChange={(e) => setHistForm(p => ({ ...p, end_line: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Columna">
+              <select
+                value={histForm.column}
+                onChange={(e) => setHistForm(p => ({ ...p, column: e.target.value }))}
+                className={inputClass}
+              >
+                {COLUMN_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Valor Ideal (RMSE)">
+              <input
+                type="number"
+                value={histForm.ideal_value}
+                onChange={(e) => setHistForm(p => ({ ...p, ideal_value: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Modulo">
+              <select
+                value={histForm.module}
+                onChange={(e) => setHistForm(p => ({ ...p, module: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="RMSE">RMSE</option>
+                <option value="WEIGHTED_MEAN">Media Ponderada</option>
+                <option value="VARIANCE">Varianza</option>
+                <option value="ANOMALY_DETECTION">Anomalias</option>
+                <option value="PREDICTION">Prediccion</option>
+                <option value="ADVANCED_TREND">Tendencia</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void handleRunHistoricalAnalysis()}
+              disabled={busy !== null}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy === 'hist-analysis' ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Enviando...</>
+              ) : (
+                <><Rocket className="h-4 w-4" /> Ejecutar Analisis</>
+              )}
+            </button>
+          </div>
+        </section>
 
         {/* Espaciado final */}
         <div className="h-4" />

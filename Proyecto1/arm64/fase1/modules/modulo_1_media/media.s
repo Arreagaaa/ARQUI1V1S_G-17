@@ -32,6 +32,14 @@ len_err_col = . - msg_err_col
 msg_err_opn: .ascii "STATUS=ERROR\nERROR=FILE_NOT_FOUND\nDETAIL=COULD_NOT_OPEN_FILE\n"
 len_err_opn = . - msg_err_opn
 
+col_temp: .asciz "TEMP"
+col_hum:  .asciz "HUM_AIRE"
+col_s1:   .asciz "SOIL1"
+col_s2:   .asciz "SOIL2"
+col_luz:  .asciz "LUZ"
+col_gas:  .asciz "GAS"
+col_names: .quad col_temp, col_hum, col_s1, col_s2, col_luz, col_gas
+
 .bss
 values_buf: .skip 8 * MAX_VALUES
 out_buf:    .skip 256
@@ -115,9 +123,11 @@ _start:
     mov x1, x9
     bl copy_str
     mov x9, x0
-    mov x0, x22
+    sub x0, x22, #1
+    ldr x1, =col_names
+    ldr x0, [x1, x0, lsl #3]
     mov x1, x9
-    bl utils_i64_to_str
+    bl copy_str
     mov x9, x0
     ldr x0, =nl
     mov x1, x9
@@ -223,7 +233,7 @@ _start:
     mov x0, #0
     bl utils_exit
 
-// manejo de errores, todos imprimen a stderr y salen con codigo 1
+// errores
 error_argc:
     mov x0, #1
     ldr x1, =msg_err_argc
@@ -260,8 +270,7 @@ error_open:
     mov x0, #1
     bl utils_exit
 
-// x0=ptr buffer, x1=cantidad de valores
-// retorna suma simple en x0
+// sum_values(ptr, count)
 sum_values:
     mov x5, x0 // ptr
     mov x6, x1 // contador
@@ -280,9 +289,7 @@ sum_done:
     mov x0, x3
     ret
 
-// x0=ptr buffer, x1=cantidad de valores
-// cada valor se multiplica por su posicion (1-based) antes de sumar
-// retorna media ponderada en x0
+// weighted_mean(ptr, count)
 weighted_mean:
     mov x5, x0 // ptr
     mov x6, x1 // contador
@@ -309,8 +316,7 @@ wm_done:
     sdiv x0, x3, x7
     ret
 
-// x0=src, x1=dst
-// copia string hasta \0, retorna puntero al byte siguiente del ultimo char copiado
+// copia string
 copy_str:
     ldrb w2, [x0]
     cbz w2, copy_end

@@ -34,42 +34,16 @@ pnpm dev
 
 ---
 
-## 3. Simulador de Sensores (pruebas sin Raspberry Pi)
+## 3. ARM64 (módulos de análisis históricos — Fase 1 legacy)
 
-```bash
-cd Proyecto1/backend
-source .venv/bin/activate
-python3 simulador.py --scenario ninguno
-```
+Los módulos ARM64 leen `arm64/lecturas.csv` (30 registros desde MongoDB).
 
-Publica lecturas cada 5 segundos por MQTT. Escenarios disponibles:
-
-| Escenario | Efecto |
-|---|---|
-| `ninguno` | Valores aleatorios normales |
-| `emergencia` | Gas alto (>700ppm) → EMERGENCIA |
-| `seco_area_1` | Suelo área 1 seco (<15%) → RIEGO_ACTIVO |
-| `saturado_area_2` | Suelo área 2 saturado (>85%) → apaga bomba |
-| `poca_luz` | Luz <200 lux → POCA_LUZ |
-
-**Salida esperada:**
-```
-Publicado: T=25.2°C H=53.5% S1=52.6% S2=42.6% L=50.7 lux G=78.4 ppm
-```
-
----
-
-## 4. ARM64 (módulos de análisis)
-
-Los módulos ARM64 leen `arm64/lecturas.csv` (30 registros reales desde MongoDB).
-
-### 1. Generar lecturas.csv desde MongoDB (opcional — actualizar datos)
+### 1. Generar lecturas.csv desde MongoDB
 ```bash
 cd Proyecto1/backend
 source .venv/bin/activate
 python3 generate_lecturas.py --from-db
 ```
-Esto sobreescribe `arm64/lecturas.csv` con los últimos 30 registros de MongoDB.
 
 ### 2. Compilar
 ```bash
@@ -93,40 +67,91 @@ source ../backend/.venv/bin/activate
 python3 arm_executor.py --parse-only --dir ../arm64 --url http://localhost:8000
 ```
 
-### Todo en uno
-```bash
-cd Proyecto1/arm64 && make all && \
-  cd ../raspberry && python3 arm_executor.py --parse-only --dir ../arm64 --url http://localhost:8000
-```
-
 **Requiere:** `aarch64-linux-gnu-as` y `qemu-aarch64` instalados.
 
 ---
 
+## 4. Raspberry Pi — Flujo ARM64 en vivo (Fase 2, RECOMENDADO)
+
+**Este es el flujo principal de Fase 2.** ARM64 toma las decisiones,
+Python solo coordina. El backend solo persiste datos.
+
+### Pipeline
+
+```
+Pi (GPIO: DHT22 + ADS1115)
+  → orquestador.py --mode realtime
+  → stdin → live_engine ARM64 (AArch64)
+  → stdout → ACTION / TARGET / RISK / REASON / VALUE / INDICATOR / STATUS
+  → orquestador ejecuta GPIO (bomba, ventilador, luces, buzzer)
+  → POST /api/arm64-results a backend → MongoDB → Dashboard
+```
+
+### Compilar motor ARM64 (una vez)
+```bash
+cd Proyecto1/arm64
+make all
+```
+Esto compila `arm64/fase2/build/live_engine`.
+
+### Correr en la Pi (loop infinito)
+```bash
+cd Proyecto1/arm64/fase2/live_engine
+python3 orquestador.py --mode realtime --interval 3 --api-url http://<PC_BACKEND>:8000
+```
+
+### Probar sin Pi (simulado)
+```bash
+cd Proyecto1/arm64/fase2/live_engine
+python3 orquestador.py --once --no-gpio --no-mongo
+```
+Usa 13 lecturas de prueba predefinidas, imprime decisiones en consola.
+
+### Modos del orquestador
+| Modo | Comando | Uso |
+|------|---------|-----|
+| test | `orquestador.py` | 13 casos de prueba (default) |
+| realtime | `orquestador.py --mode realtime` | GPIO real en la Pi |
+| file | `orquestador.py --mode file --file data.csv` | Desde archivo CSV |
+
+### Parámetros adicionales
+| Flag | Default | Descripción |
+|------|---------|-------------|
+| `--interval` | 2s | Segundos entre lecturas |
+| `--api-url` | `http://localhost:8000` | URL del backend (IP del PC) |
+| `--no-gpio` | off | Deshabilita GPIO (simulado) |
+| `--no-mongo` | off | No registrar en MongoDB |
+| `--once` | off | Una sola iteración, luego sale |
+
+### Verificar wiring
+Ver `raspberry/wiring.md` para diagrama de pines GPIO.
+
+
 ## 5. Pruebas con MQTTX Web
 
-1. Abrir [MQTTX Web](https://mqttx.app/web)
-2. Conexión:
-    - **Host:** `broker.emqx.io`
-   - **Puerto:** `8884` (WSS)
-   - **Client ID:** `mqttx-test-<random>`
-3. Suscribir: `grupo17/invernadero/#`
-4. Publicar un sensor (ejemplo):
-   ```json
-   {
-     "sensor_type": "temperatura",
-     "value": 34.0,
-     "unit": "°C",
-     "source": "mqttx_web"
-   }
-   ```
-5. Ver el cambio en el dashboard web o en `grupo17/invernadero/estado/global`
+```bash
+# Broker: broker.emqx.io:8884 (WSS)
+# Suscribir: grupo17/invernadero/#
+# Publicar:
+```
+```json
+{
+  "sensor_type": "temperatura",
+  "value": 34.0,
+  "unit": "°C",
+  "source": "mqttx_web"
+}
+```
 
-**Flujo completo:** MQTTX → Broker → Backend → MongoDB → Dashboard
+**Flujo:** MQTTX → Broker → Backend → MongoDB → Dashboard
 
----
 
-## 6. Raspberry Pi (física)
+## 6. Raspberry Pi — main.py legacy (Fase 1, OPCIONAL)
+
+> ⚠️ `main.py` ya NO toma decisiones automáticas. Las reglas de
+> automatización del backend (`_apply_automation_rules`) están
+> desactivadas. Usar solo si se necesita publicar sensores a MQTT
+> o manejar LCD/botones SIN interferir con ARM64.
 
 ```bash
 cd Proyecto1/raspberry
@@ -135,8 +160,6 @@ nano .env   # ENABLE_GPIO=true, ajustar BACKEND_URL
 pip install -r requirements.txt
 python3 main.py
 ```
-
-**Ver `wiring.md`** para el diagrama de conexión de pines GPIO y componentes.
 
 ---
 

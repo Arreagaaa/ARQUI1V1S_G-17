@@ -55,12 +55,12 @@ _start:
     ldr x0, [sp, #24]   //cargamos el argumento 2 linea de inicio en x0 
     bl utils_parse_i64  // llamamos a la funcion
     mov x20, x0     //  copiamos el numero de inicio de la fila en x20
-    cpm x20, #1     // comparamos si el inicio es menor a 1
+    cmp x20, #1     // comparamos si el inicio es menor a 1
     blt error_start 
 
     ldr x0, [sp, #32]   // cargamos la linea final en x0
     bl utils_parse_i64 // llamamos a la funcion 
-    mov x22, x0 // copiamos el valor de la fila final en x22
+    mov x21, x0 // copiamos el valor de la fila final en x21
 
     ldr x0, [sp, #40]   // cargamos lo que es la columna seleccionada
     bl utils_parse_i64
@@ -83,7 +83,7 @@ _start:
     mov x2, #0      // O_RDONLY
     mov x8, #56     // OPENAT   
     svc #0
-    cpm x0, #0      // comparamos el resultado x0
+    cmp x0, #0      // comparamos el resultado x0
     blt error_open  // si falla al abrir error
 
     mov x24, x0     // copiamos el descriptor del archivo en x24
@@ -96,9 +96,42 @@ _start:
     svc #0
 
     // validar que el final no exceda la cantidad de lineas
-    cpm x21, x26    // compara el limite con las lineas del archivo
+    cmp x21, x26    // compara el limite con las lineas del archivo
     bgt error_eof   // salta al error si es mayor 
 
+    // arbimos de nuevo para leer los datos
+    mov x0, #-100  // AT_FDCWD
+    mov x1, x19    // path lo seguimos teniendo guardado
+    mov x2, #0     // O_RDONLY
+    mov x8, #56    // syscall openat
+    svc #0
+    cmp x0, #0
+    blt error_open
+
+    mov x23, x0    // x23 = descriptor del archivo en  la segunda leida
+
+    // vamos a leer la columna dentro del rando de inicio y fin
+    mov x0, x23 // copiampos el dato del descriptor del archvio
+    mov x1, x22 // copiamos la columna guardada en x22 para leer
+    ldr x2, =values_buf // cargamos la direccion del buffer de salida
+    mov x3, x20 // copiamos la fila de inicio
+    mov x4, x21 // copiamos la fila final
+    bl utils_read_int_column    // llamamos a la funcion
+    mov x25, x0 // x25 tendra la cantidad de los valores
+
+    // cerramos el archivo
+    mov x0, x23 // el descriptor del archivo
+    mov x8, #57     // syscall close
+    svc #0
+
+    // vamos a validar 2 valores para probar
+    cmp x25, #2
+    blt error_data
+
+    // para probar
+    mov x0, #0
+    mov x8, #93
+    svc #0
 
 ## ERRORES
 error_argc:

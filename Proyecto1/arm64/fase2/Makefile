@@ -45,6 +45,20 @@ $(RMSE_BIN): $(RMSE_O) $(UTILS_O)
 rmse: $(RMSE_BIN)
 	@echo "==> rmse compilado: $(RMSE_BIN)"
 
+REGRESION_DIR = analyzer/modules/modulo_2_regresion
+REGRESION_S   = $(REGRESION_DIR)/regresion.s
+REGRESION_O   = $(BUILD)/regresion.o
+REGRESION_BIN = $(BUILD)/regresion
+
+$(REGRESION_O): $(REGRESION_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -o $@ $<
+
+$(REGRESION_BIN): $(REGRESION_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+regresion: $(REGRESION_BIN)
+	@echo "==> regresion compilado: $(REGRESION_BIN)"
+
 $(BUILD):
 	mkdir -p $(BUILD)
 

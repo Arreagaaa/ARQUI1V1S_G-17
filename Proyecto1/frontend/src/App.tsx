@@ -34,6 +34,7 @@ import {
   controlAlarm,
   getARM64ColumnConfig,
   setARM64ColumnConfig,
+  runHistoricalAnalysis,
   baseUrl,
 } from './lib/api';
 import { mqttClient, BASE_TOPIC } from './lib/mqttClient';
@@ -119,6 +120,14 @@ export default function App() {
     severity: 'info',
     message: '',
     area: 'area_1',
+  });
+  const [histForm, setHistForm] = useState({
+    file: 'lecturas.csv',
+    start_line: '1',
+    end_line: '30',
+    column: '1',
+    ideal_value: '55',
+    module: 'RMSE',
   });
 
   useEffect(() => {
@@ -379,6 +388,26 @@ export default function App() {
     }
   }
 
+  async function handleRunHistoricalAnalysis() {
+    setBusy('hist-analysis');
+    setNotice('');
+    try {
+      const res = await runHistoricalAnalysis({
+        file: histForm.file,
+        start_line: Number(histForm.start_line),
+        end_line: Number(histForm.end_line),
+        column: Number(histForm.column),
+        ideal_value: Number(histForm.ideal_value),
+        module: histForm.module,
+      });
+      setNotice(res.message);
+    } catch {
+      setNotice('Error al enviar solicitud de análisis histórico.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Map sensor select option to pre-populate units
   const handleSensorTypeChange = (type: string) => {
     let unit = '';
@@ -388,7 +417,7 @@ export default function App() {
     else if (type.startsWith('soil_')) { unit = '%'; val = '45'; }
     else if (type === 'light') { unit = '%'; val = '50'; }
     else if (type === 'gas') { unit = 'ppm'; val = '120'; }
-    
+
     setReading(curr => ({ ...curr, sensor_type: type, unit, value: val }));
   };
 
@@ -510,11 +539,10 @@ export default function App() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key as string)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition ${
-                    activeTab === tab.key
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition ${activeTab === tab.key
                       ? 'bg-emerald-400 text-slate-950 shadow-glow'
                       : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -738,6 +766,71 @@ export default function App() {
           </aside>
         </section>
 
+        {/* Motor ARM64 - Decisiones en Vivo */}
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <Activity className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>Motor ARM64 - Decisiones en Vivo</span>
+              </h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Ultima decisión generada por el motor ARM64 en ensamblador AArch64.
+              </p>
+            </div>
+          </div>
+
+          {dashboard.arm64_results?.LIVE_ENGINE ? (
+            (() => {
+              const m = dashboard.arm64_results!.LIVE_ENGINE.results;
+              const risk = (m?.RISK as string) || 'LOW';
+              const riskColor =
+                risk === 'CRITICAL' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                risk === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-400/30' :
+                risk === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300 border-amber-400/30' :
+                'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mt-4">
+                  <div className={`rounded-2xl border ${riskColor} p-3 col-span-2 sm:col-span-1`}>
+                    <p className="text-[9px] uppercase tracking-wider opacity-70">ACCION</p>
+                    <p className="mt-1 text-lg font-bold">{m?.ACTION ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">TARGET</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.TARGET ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">RIESGO</p>
+                    <p className={`mt-1 text-sm font-bold ${risk === 'CRITICAL' ? 'text-red-300' : risk === 'HIGH' ? 'text-rose-300' : risk === 'MEDIUM' ? 'text-amber-300' : 'text-emerald-300'}`}>{risk}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 col-span-2 sm:col-span-1">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">RAZON</p>
+                    <p className="mt-1 text-xs font-semibold text-white break-words">{m?.REASON ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">VALOR</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.VALUE ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">INDICADOR</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{m?.INDICATOR ?? '—'}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-400">STATUS</p>
+                    <p className={`mt-1 text-sm font-bold ${m?.STATUS === 'OK' ? 'text-emerald-400' : 'text-red-400'}`}>{m?.STATUS ?? '—'}</p>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div className="mt-4 flex flex-col items-center justify-center py-6 px-4 rounded-2xl border border-dashed border-white/10 bg-slate-950/30">
+              <p className="text-xs text-slate-400 text-center max-w-sm">
+                El motor ARM64 aun no ha generado decisiones. Envia lecturas desde la Raspberry Pi para ver los resultados en vivo.
+              </p>
+            </div>
+          )}
+        </section>
+
         {/* Sección Análisis ARM64 */}
         <ARM64ResultsSection
           results={dashboard.arm64_results}
@@ -749,6 +842,98 @@ export default function App() {
           running={busy === 'arm64-run'}
           backendUrl={baseUrl}
         />
+
+        {/* Analizador Historico */}
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                <LineChart className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>Analizador Historico ARM64</span>
+              </h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Configura el analisis historico: archivo, rango de lineas y columna del sensor.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <Field label="Archivo CSV">
+              <input
+                value={histForm.file}
+                onChange={(e) => setHistForm(p => ({ ...p, file: e.target.value }))}
+                className={inputClass}
+                placeholder="lecturas.csv"
+              />
+            </Field>
+            <Field label="Linea Inicial">
+              <input
+                type="number"
+                min="1"
+                value={histForm.start_line}
+                onChange={(e) => setHistForm(p => ({ ...p, start_line: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Linea Final">
+              <input
+                type="number"
+                min="1"
+                value={histForm.end_line}
+                onChange={(e) => setHistForm(p => ({ ...p, end_line: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Columna">
+              <select
+                value={histForm.column}
+                onChange={(e) => setHistForm(p => ({ ...p, column: e.target.value }))}
+                className={inputClass}
+              >
+                {COLUMN_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Valor Ideal (RMSE)">
+              <input
+                type="number"
+                value={histForm.ideal_value}
+                onChange={(e) => setHistForm(p => ({ ...p, ideal_value: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Modulo">
+              <select
+                value={histForm.module}
+                onChange={(e) => setHistForm(p => ({ ...p, module: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="RMSE">RMSE</option>
+                <option value="WEIGHTED_MEAN">Media Ponderada</option>
+                <option value="VARIANCE">Varianza</option>
+                <option value="ANOMALY_DETECTION">Anomalias</option>
+                <option value="PREDICTION">Prediccion</option>
+                <option value="ADVANCED_TREND">Tendencia</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void handleRunHistoricalAnalysis()}
+              disabled={busy !== null}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy === 'hist-analysis' ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Enviando...</>
+              ) : (
+                <><Rocket className="h-4 w-4" /> Ejecutar Analisis</>
+              )}
+            </button>
+          </div>
+        </section>
 
         {/* Espaciado final */}
         <div className="h-4" />
@@ -780,11 +965,10 @@ function MetricCard({ label, value, unit, active, onClick }: { label: string; va
   return (
     <article
       onClick={onClick}
-      className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${
-        active
+      className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 cursor-pointer shadow-glow backdrop-blur transition-all duration-300 ${active
           ? 'border-emerald-400/50 bg-emerald-500/10'
           : 'border-white/10 bg-slate-950/70 hover:border-emerald-400/30'
-      }`}
+        }`}
     >
       <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.22em] text-slate-400">{label}</p>
       <p className="mt-3 sm:mt-4 text-2xl sm:text-3xl font-semibold text-white break-words">
@@ -876,26 +1060,26 @@ const getChartDataForMetric = (metricKey: string, readings: SensorReading[]) => 
   };
 
   const matches = typeMatches[metricKey] || [metricKey];
-  let filtered = readings.filter(r => 
+  let filtered = readings.filter(r =>
     matches.some(m => r.sensor_type.toLowerCase().includes(m))
   );
 
   if (metricKey === 'soil_1') {
-    filtered = readings.filter(r => 
+    filtered = readings.filter(r =>
       matches.some(m => r.sensor_type.toLowerCase().includes(m)) && r.area === 'area_1'
     );
   } else if (metricKey === 'soil_2') {
-    filtered = readings.filter(r => 
+    filtered = readings.filter(r =>
       matches.some(m => r.sensor_type.toLowerCase().includes(m)) && r.area === 'area_2'
     );
   }
-  
+
   return [...filtered].reverse();
 };
 
 function SensorChart({ readings, metricKey, label, unit }: { readings: SensorReading[], metricKey: string, label: string, unit: string }) {
   const data = getChartDataForMetric(metricKey, readings);
-  
+
   if (data.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-4">
@@ -933,8 +1117,8 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
 
   const points = data.map((d, i) => `${getX(i)},${getY(d.value)}`);
   const pathD = points.length > 0 ? `M ${points.join(' L ')}` : '';
-  const areaD = points.length > 0 
-    ? `${pathD} L ${getX(data.length - 1)},${height - paddingBottom} L ${getX(0)},${height - paddingBottom} Z` 
+  const areaD = points.length > 0
+    ? `${pathD} L ${getX(data.length - 1)},${height - paddingBottom} L ${getX(0)},${height - paddingBottom} Z`
     : '';
 
   const colors: Record<string, { stroke: string, fill: string }> = {
@@ -958,28 +1142,28 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
         >
           <defs>
             <linearGradient id="gradient-temp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fb7185" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#fb7185" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#fb7185" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#fb7185" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-humidity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-soil" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34d399" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#34d399" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#34d399" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-soil2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-light" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="gradient-gas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25"/>
-              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0"/>
+              <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -1115,7 +1299,7 @@ const COLUMN_LABELS: Record<number, string> = {
 
 const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
 
-const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1 };
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1 };
 
 function ARM64ResultsSection({
   results,
@@ -1142,7 +1326,7 @@ function ARM64ResultsSection({
   useEffect(() => {
     getARM64ColumnConfig().then(data => {
       if (data.columns) setColumnConfig(data.columns);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleColumnChange = (moduleId: number, colIdx: number) => {
@@ -1153,6 +1337,24 @@ function ARM64ResultsSection({
   };
 
   const modulesList = [
+    {
+      key: 'RMSE',
+      title: 'RMSE vs valor ideal',
+      responsable: 'Fase 2',
+      file: 'modulo_1_rmse.s',
+      outputFile: 'resultado_rmse.txt',
+      formula: 'RMSE = sqrt(Σ(Y_i - IDEAL)² / N)',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Ventana inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Ventana fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Valor ideal (IDEAL_VALUE)', key: 'IDEAL_VALUE' },
+        { label: 'Suma error² (SUM_SQUARED_ERROR)', key: 'SUM_SQUARED_ERROR' },
+        { label: 'MSE', key: 'MSE' },
+        { label: 'RMSE', key: 'RMSE', highlight: true }
+      ]
+    },
     {
       key: 'WEIGHTED_MEAN',
       title: 'Media ponderada',
@@ -1285,7 +1487,7 @@ function ARM64ResultsSection({
           </h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5].map((modId) => (
+          {[1, 2, 3, 4, 5, 6].map((modId) => (
             <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
               <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
               <select
@@ -1339,12 +1541,11 @@ function ARM64ResultsSection({
                           <div key={f.key} className="flex items-center justify-between text-[10px] border-b border-white/5 pb-1">
                             <span className="text-slate-400">{f.label.split(' (')[0]}</span>
                             {f.badge ? (
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                                val === 'HIGH' || val === 'DOWN' ? 'bg-red-500/20 text-red-300' :
-                                val === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
-                                val === 'NORMAL' || val === 'UP' ? 'bg-emerald-500/20 text-emerald-300' :
-                                'bg-slate-500/20 text-slate-300'
-                              }`}>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${val === 'HIGH' || val === 'DOWN' ? 'bg-red-500/20 text-red-300' :
+                                  val === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
+                                    val === 'NORMAL' || val === 'UP' ? 'bg-emerald-500/20 text-emerald-300' :
+                                      'bg-slate-500/20 text-slate-300'
+                                }`}>
                                 {val ?? 'N/A'}
                               </span>
                             ) : (

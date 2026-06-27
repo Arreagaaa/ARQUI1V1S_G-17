@@ -129,12 +129,20 @@ class ActuatorLogCreate(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ARM64ResultCreate(BaseModel):
-    """DTO para almacenar resultados de módulos ARM64."""
+    """DTO para almacenar resultados de módulos ARM64 — conforme a sección 4.21."""
 
-    module: str = Field(min_length=1, description="WEIGHTED_MEAN, VARIANCE, ANOMALY_DETECTION, PREDICTION, ADVANCED_TREND")
+    module: str = Field(min_length=1, description="LIVE_ENGINE, RMSE, WEIGHTED_MEAN, VARIANCE, ANOMALY_DETECTION, PREDICTION, ADVANCED_TREND")
     total_values: int = Field(default=30)
     results: dict = Field(default_factory=dict)
     source: str = Field(default="raspi-01")
+    input: Optional[str] = Field(default=None, description="Datos de entrada usados (lectura CSV)")
+    range_start: Optional[int] = Field(default=None, description="Línea inicial del rango analizado")
+    range_end: Optional[int] = Field(default=None, description="Línea final del rango analizado")
+    column: Optional[str] = Field(default=None, description="Columna analizada (TEMP, HUM_AIRE, etc.)")
+    decision: Optional[str] = Field(default=None, description="Acción recomendada por ARM64 (ALARM_ON, FAN_ON, etc.)")
+    risk: Optional[str] = Field(default=None, description="Nivel de riesgo: LOW, MEDIUM, HIGH, CRITICAL")
+    status: Optional[str] = Field(default="OK", description="Resultado de ejecución: OK o ERROR")
+    error_detail: Optional[str] = Field(default=None, description="Descripción del error si status=ERROR")
     created_at: Optional[datetime] = None
 
 

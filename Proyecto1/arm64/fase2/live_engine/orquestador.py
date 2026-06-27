@@ -56,17 +56,6 @@ ACCIONES = {
 
 _ACCIONES_CON_PIN = {k: v for k, v in ACCIONES.items() if v["pin"] is not None}
 
-# Mapa de bits de flags (mismo orden que live_engine.s) a pines GPIO
-FLAG_TO_PIN = {
-    0b000001: 17,  # RIEGO_1_ON
-    0b000010: 23,  # FAN_ON
-    0b000100: 24,  # LIGHT_ON
-    0b001000: 5,   # LED_GREEN
-    0b010000: 6,   # LED_YELLOW
-    0b100000: 25,  # ALARM_ON
-}
-LED_RED_PIN = 12
-
 # ---------------------------------------------------------------------------
 # GPIO — RPi.GPIO con fallback simulado
 # ---------------------------------------------------------------------------
@@ -102,37 +91,23 @@ def gpio_cleanup():
     print("[GPIO] Pines liberados")
 
 
-def ejecutar_accion_en_gpio(accion: str, value: str):
-    if not GPIO_AVAILABLE:
+_accion_actual: Optional[str] = None
+
+
+def ejecutar_accion_en_gpio(accion: str):
+    global _accion_actual
+    if accion == _accion_actual:
         return
-    try:
-        bitmask = int(value)
-    except ValueError:
-        bitmask = 0
-
-    # LED_RED sigue a ALARM_ON (bit 5 = 32)
-    if bitmask & 0b100000:
-        bitmask |= 1 << 6  # bit 6 = LED_RED
-
-    for flag, pin in FLAG_TO_PIN.items():
-        try:
-            GPIO.output(pin, GPIO.HIGH if (bitmask & flag) else GPIO.LOW)
-        except Exception:
-            pass
-    try:
-        GPIO.output(LED_RED_PIN, GPIO.HIGH if (bitmask & (1 << 6)) else GPIO.LOW)
-    except Exception:
-        pass
-
-    activas = []
-    for nombre, f in [("RIEGO_1_ON", 0b000001), ("FAN_ON", 0b000010),
-                      ("LIGHT_ON", 0b000100), ("LED_GREEN", 0b001000),
-                      ("LED_YELLOW", 0b010000), ("ALARM_ON", 0b100000)]:
-        if bitmask & f:
-            activas.append(nombre)
-    if bitmask & (1 << 6):
-        activas.append("LED_RED")
-    print(f"[GPIO] {accion} -> {activas if activas else 'NINGUNA'}")
+    if GPIO_AVAILABLE:
+        for nombre, info in _ACCIONES_CON_PIN.items():
+            try:
+                GPIO.output(info["pin"], GPIO.HIGH if nombre == accion else GPIO.LOW)
+            except Exception:
+                pass
+        pin = ACCIONES.get(accion, {}).get("pin")
+        if pin is not None:
+            print(f"[GPIO] {accion} -> PIN {pin}")
+    _accion_actual = accion
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +362,7 @@ def _procesar_lectura(lectura: str, proc: subprocess.Popen, args) -> bool:
         print("  -> Omitiendo")
         return True
     _mostrar_decision(decision)
-    ejecutar_accion_en_gpio(decision["action"], decision["value"])
+    ejecutar_accion_en_gpio(decision["action"])
     if not args.no_mongo:
         registrar_en_mongodb(decision, lectura, args.api_url)
     print()

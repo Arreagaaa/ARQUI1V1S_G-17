@@ -445,12 +445,14 @@ class GpioController:
         if not self.available:
             return
         if I2CLCD:
-            try:
-                self._lcd_i2c = I2CLCD(address=0x27, bus=1)
-                print("[lcd] I2C LCD listo")
-                return
-            except Exception as exc:
-                print(f"[lcd] I2C no disponible ({exc}), probando paralelo...")
+            for addr in (0x27, 0x3F):
+                try:
+                    self._lcd_i2c = I2CLCD(address=addr, bus=1)
+                    print(f"[lcd] I2C LCD listo en 0x{addr:02x}")
+                    self._lcd_i2c.clear()
+                    return
+                except Exception as exc:
+                    print(f"[lcd] I2C 0x{addr:02x}: {exc}")
         # Fallback a paralelo
         self._lcd_parallel = ParallelLCD(
             self.s.lcd_rs, self.s.lcd_e,
@@ -462,10 +464,13 @@ class GpioController:
         if not self.available:
             print(f"[lcd] {line1} | {line2}")
             return
+        line1 = line1.ljust(16)[:16]
+        line2 = line2.ljust(16)[:16]
         if self._lcd_i2c:
             try:
-                self._lcd_i2c.text(line1[:16], 1, "left")
-                self._lcd_i2c.text(line2[:16], 2, "left")
+                self._lcd_i2c.clear()
+                self._lcd_i2c.text(line1, 1, "left")
+                self._lcd_i2c.text(line2, 2, "left")
                 return
             except Exception:
                 pass
@@ -771,8 +776,174 @@ class GreenhouseDevice:
         self._lcd_last_update: float = 0.0
         self._lcd_interval: float = 3.0
 
+        # Pump timing (30s max runtime, 15s cooldown)
+        self._pump_start_time: float = 0.0
+        self._pump_last_stop_time: float = 0.0
+
+        # ARM64 Fase 2 — motor de decision
+        self._arm64_prog = os.path.realpath(
+            os.path.join(os.path.dirname(__file__), "..", "arm64", "fase2", "build", "live_engine")
+        )
+        self._arm64_proc: subprocess.Popen | None = None
+        self._last_arm64_decision: dict | None = None
+        self._init_arm64_motor()
+
     def topic(self, suffix: str) -> str:
         return f"{self.settings.mqtt_base_topic}/{suffix}"
+
+    # --- ARM64 Fase 2: motor de decision en vivo -------------------------
+
+    def _init_arm64_motor(self) -> None:
+        if not os.path.exists(self._arm64_prog):
+            print(f"[arm64] binario no encontrado: {self._arm64_prog}")
+            print("[arm64] compila con: make -C ../arm64")
+            return
+        try:
+            self._arm64_proc = subprocess.Popen(
+                [self._arm64_prog],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            print(f"[arm64] motor iniciado PID {self._arm64_proc.pid}")
+        except Exception as exc:
+            print(f"[arm64] error al iniciar motor: {exc}")
+            self._arm64_proc = None
+
+    def _feed_to_arm64(self, readings: dict[str, float], modo: int) -> dict | None:
+        if self._arm64_proc is None:
+            return None
+        s = self.settings
+        raw_adc = {}
+        if self.gpio.available and self.gpio.adc:
+            for ch_name, ch_num in [("soil_1", s.soil_adc_ch1), ("soil_2", s.soil_adc_ch2),
+                                     ("light", s.ldr_adc_ch), ("gas", s.mq_adc_ch)]:
+                raw = self.gpio.read_adc_channel(ch_num)
+                raw_adc[ch_name] = int(raw) >> 6
+        else:
+            raw_adc = {"soil_1": 400, "soil_2": 400, "light": 500, "gas": 100}
+        temp = round(readings.get("temperature", 25))
+        hum = round(readings.get("humidity", 55))
+        soil1 = raw_adc.get("soil_1", 400)
+        soil2 = raw_adc.get("soil_2", 400)
+        luz = 1023 - raw_adc.get("light", 500)  # invertir (pull-up: oscuro=alto)
+        gas = raw_adc.get("gas", 100)
+        csv_line = f"{temp},{hum},{soil1},{soil2},{luz},{gas},{modo}"
+        try:
+            self._arm64_proc.stdin.write(f"{csv_line}\n")
+            self._arm64_proc.stdin.flush()
+            campos = {}
+            for _ in range(7):
+                linea = self._arm64_proc.stdout.readline()
+                if not linea:
+                    break
+                linea = linea.strip()
+                if "=" in linea:
+                    k, _, v = linea.partition("=")
+                    campos[k.strip()] = v.strip()
+            if campos.get("STATUS") == "ERROR":
+                print(f"[arm64] error: {campos.get('ERROR','?')} — {campos.get('DETAIL','?')}")
+                return None
+            if "ACTION" not in campos:
+                return None
+            print(f"[arm64] {campos.get('ACTION','?')} TARGET={campos.get('TARGET','?')} RISK={campos.get('RISK','?')}")
+            return campos
+        except Exception as exc:
+            print(f"[arm64] error comunicacion: {exc}")
+            self._init_arm64_motor()
+            return None
+
+    def _execute_arm64_decision(self, decision: dict) -> None:
+        if self.gpio.mode != "auto":
+            return
+        try:
+            flags = int(decision.get("ACTION", "0"))
+        except ValueError:
+            flags = 0
+        now = time.time()
+
+        FLAG_ALARM_ON = 1
+        FLAG_GAS_WARNING = 2
+        FLAG_RIEGO_1_ON = 4
+        FLAG_LIGHT_ON = 8
+        FLAG_FAN_ON = 16
+        FLAG_BLOQUEADO = 32
+        FLAG_LED_YELLOW = 64
+        FLAG_LED_GREEN = 128
+        FLAG_NO_ACTION = 256
+
+        # 1. BUZZER (solo con ALARM_ON)
+        self.gpio.set_actuator("buzzer", "on" if (flags & FLAG_ALARM_ON) else "off")
+
+        # 2. FAN (ALARM_ON o GAS_WARNING o FAN_ON)
+        self.gpio.set_actuator("fan", "on" if (flags & (FLAG_ALARM_ON | FLAG_GAS_WARNING | FLAG_FAN_ON)) else "off")
+
+        # 3. LIGHTS (independiente — NO se apaga por ALARM/GAS_WARNING)
+        self.gpio.set_actuator("lights", "on" if (flags & FLAG_LIGHT_ON) else "off")
+
+        # 4. PUMP solo si RIEGO_1_ON y NO hay alarma de gas
+        pump_safety_stop = bool(flags & (FLAG_ALARM_ON | FLAG_GAS_WARNING))
+        if pump_safety_stop:
+            if self.gpio.pump_on:
+                self.gpio.set_pump_irrigation(None, False)
+                self._pump_last_stop_time = now
+                self._pump_start_time = 0.0
+        elif flags & FLAG_RIEGO_1_ON:
+            if self.gpio.pump_on:
+                if self._pump_start_time > 0:
+                    runtime = now - self._pump_start_time
+                    if runtime > 30:
+                        print(f"[pump] runtime {runtime:.0f}s > 30s, force stop")
+                        self.gpio.set_pump_irrigation(None, False)
+                        self._pump_last_stop_time = now
+                        self._pump_start_time = 0.0
+                else:
+                    self._pump_start_time = now
+            else:
+                since_stop = (now - self._pump_last_stop_time) if self._pump_last_stop_time > 0 else 999
+                if since_stop >= 15:
+                    self.gpio.set_pump_irrigation("area_1", True)
+                    self._pump_start_time = now
+        else:
+            if self.gpio.pump_on:
+                self.gpio.set_pump_irrigation(None, False)
+                self._pump_last_stop_time = now
+                self._pump_start_time = 0.0
+
+        # 5. STATE (prioridad: EMERGENCIA > ADVERTENCIA > NORMAL)
+        if flags & FLAG_ALARM_ON:
+            self.gpio.set_global_state("EMERGENCIA")
+        elif flags & (FLAG_GAS_WARNING | FLAG_BLOQUEADO | FLAG_LED_YELLOW):
+            self.gpio.set_global_state("ADVERTENCIA")
+        elif flags & FLAG_LED_GREEN:
+            self.gpio.set_global_state("NORMAL")
+
+    def _registrar_arm64_en_mongodb(self, decision: dict, readings: dict[str, float]) -> None:
+        csv_input = (f"{int(readings.get('temperature',0))},{int(readings.get('humidity',0))},"
+                     f"{int(readings.get('soil_1',0))},{int(readings.get('soil_2',0))},"
+                     f"{int(readings.get('light',0))},{int(readings.get('gas',0))},0")
+        payload = {
+            "module": "LIVE_ENGINE", "total_values": 7,
+            "results": {
+                "ACTION": decision.get("ACTION", ""), "TARGET": decision.get("TARGET", ""),
+                "RISK": decision.get("RISK", ""), "REASON": decision.get("REASON", ""),
+                "VALUE": decision.get("VALUE", "0"), "INDICATOR": decision.get("INDICATOR", "0"),
+                "STATUS": decision.get("STATUS", "OK"), "INPUT": csv_input,
+            },
+            "input": csv_input, "column": decision.get("TARGET", ""),
+            "decision": decision.get("ACTION", ""), "risk": decision.get("RISK", ""),
+            "status": decision.get("STATUS", "OK"), "source": self.settings.device_id,
+        }
+        try:
+            resp = requests.post(f"{self.settings.backend_url}/api/arm64-results", json=payload, timeout=10)
+            if resp.status_code in (200, 201):
+                print(f"  [arm64] registrado en MongoDB")
+            else:
+                print(f"  [arm64] HTTP {resp.status_code}")
+        except Exception as exc:
+            print(f"  [arm64] error registro: {exc}")
 
     # --- MQTT callbacks ------------------------------------------------
 
@@ -812,6 +983,10 @@ class GreenhouseDevice:
         # ARM64: ejecutar análisis en la Pi (viene del dashboard)
         if actuator == "arm64_run":
             self._handle_arm64_run()
+            return
+
+        if actuator == "arm64_historical":
+            self._handle_arm64_historical(payload)
             return
 
         # En modo auto ignorar comandos manuales (excepto mode y automation)
@@ -947,6 +1122,84 @@ class GreenhouseDevice:
         except Exception as exc:
             print(f"[arm64] error: {exc}")
 
+    def _handle_arm64_historical(self, mqtt_payload: dict) -> None:
+        params = mqtt_payload.get("payload", mqtt_payload)
+        file = params.get("file", "lecturas.csv")
+        start_line = params.get("start_line", 1)
+        end_line = params.get("end_line", 30)
+        column = params.get("column", 1)
+        ideal_value = params.get("ideal_value", 55)
+        module = params.get("module", "RMSE")
+
+        print(f"[arm64] analisis historico: {module} {file} lineas {start_line}-{end_line} columna {column}")
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        arm_dir = os.path.join(script_dir, "..", "arm64")
+        url = self.settings.backend_url
+
+        executor = os.path.join(script_dir, "arm_executor.py")
+        try:
+            subprocess.run(
+                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir],
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception:
+            pass
+
+        module_map = {
+            "RMSE": ("rmse", None),
+        }
+
+        if module not in module_map:
+            print(f"[arm64] modulo no soportado: {module}")
+            return
+
+        binary_name, _ = module_map[module]
+        binary_path = os.path.join(arm_dir, "fase2", "build", binary_name)
+        csv_path = os.path.join(arm_dir, file) if not file.startswith("/") else file
+
+        if module == "RMSE":
+            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(ideal_value)]
+        else:
+            cmd = [binary_path]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(arm_dir))
+            for line in result.stdout.splitlines():
+                print(f"[arm64] {line}")
+
+            data = {}
+            for line in result.stdout.splitlines():
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    data[k.strip()] = v.strip()
+
+            if data:
+                import requests
+                total_values = int(data.get("COUNT", 0))
+                results = {k: v for k, v in data.items() if k not in ("MODULE",)}
+                try:
+                    resp = requests.post(f"{url}/api/arm64-results", json={
+                        "module": module,
+                        "total_values": total_values,
+                        "results": results,
+                        "column": data.get("COLUMN"),
+                        "range_start": int(data["WINDOW_START"]) if "WINDOW_START" in data else None,
+                        "range_end": int(data["WINDOW_END"]) if "WINDOW_END" in data else None,
+                        "status": data.get("STATUS", "OK"),
+                        "source": "raspi-01",
+                    }, timeout=10)
+                    if resp.status_code == 200:
+                        print(f"[arm64] resultado historico enviado al backend")
+                except Exception as exc:
+                    print(f"[arm64] error al enviar resultado: {exc}")
+        except FileNotFoundError:
+            print(f"[arm64] binario no encontrado: {binary_path}")
+        except subprocess.TimeoutExpired:
+            print("[arm64] timeout ejecutando modulo historico")
+        except Exception as exc:
+            print(f"[arm64] error: {exc}")
+
     @staticmethod
     def _sensor_unit(sensor_type: str) -> str:
         return {
@@ -975,7 +1228,6 @@ class GreenhouseDevice:
         if state == "EMERGENCIA":
             self._lcd_cycle = 0
             return ("!! EMERGENCIA !!", f"Gas:{readings['gas']:.0f}ppm")
-        self._lcd_cycle = self._lcd_cycle % len(LINES)
         return LINES[self._lcd_cycle]
 
     # --- Lectura de sensores -------------------------------------------
@@ -1091,6 +1343,10 @@ class GreenhouseDevice:
             return
 
         state = payload.get("overall_state")
+        # No sobreescribir estados de ARM64 con estado del backend
+        cur = self.gpio.current_state
+        if cur in ("EMERGENCIA", "ADVERTENCIA") and state != cur:
+            return
         if state:
             self.gpio.set_global_state(state)
 
@@ -1124,6 +1380,14 @@ class GreenhouseDevice:
                 for key in ("temperature", "humidity", "soil_1", "soil_2", "light", "gas"):
                     self._publish_sensor(key, readings[key])
 
+                # Fase 2: alimentar motor ARM64 y ejecutar decision en modo auto
+                modo = 0 if self.gpio.mode == "auto" else 1
+                decision = self._feed_to_arm64(readings, modo)
+                if decision:
+                    self._execute_arm64_decision(decision)
+                    self._registrar_arm64_en_mongodb(decision, readings)
+                    self._last_arm64_decision = decision
+
                 # Reportar status al backend
                 try:
                     self.backend.report_status({
@@ -1141,19 +1405,30 @@ class GreenhouseDevice:
 
                 # Actualizar LCD con rotación cada 3s
                 now = time.time()
-                if now - self._lcd_last_update >= self._lcd_interval:
-                    self._lcd_cycle += 1
-                    self._lcd_last_update = now
                 state = self.gpio.current_state
                 state_info = getattr(self, "_last_state_info", None)
                 line1, line2 = self._get_lcd_screen(readings, state, state_info)
                 self.gpio.update_lcd(line1, line2)
+                if now - self._lcd_last_update >= self._lcd_interval:
+                    self._lcd_cycle = (self._lcd_cycle + 1) % 5
+                    self._lcd_last_update = now
                 self._last_state_info = {"irrigation_state": "RIEGO_ACTIVO" if self.gpio.pump_on else "RIEGO_OFF",
-                                         "ventilation_state": "VENTILACION_EMERGENCIA" if state == "EMERGENCIA" else ("VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF")}
+                                         "ventilation_state": "VENTILACION_ON" if self.gpio.fan_on else "VENTILACION_OFF"}
 
         except KeyboardInterrupt:
             pass
         finally:
+            if self._arm64_proc and self._arm64_proc.poll() is None:
+                try:
+                    self._arm64_proc.stdin.close()
+                except Exception:
+                    pass
+                try:
+                    self._arm64_proc.terminate()
+                    self._arm64_proc.wait(timeout=3)
+                except Exception:
+                    self._arm64_proc.kill()
+                print("[arm64] motor detenido")
             self.client.loop_stop()
             self.client.disconnect()
             self.gpio.cleanup()

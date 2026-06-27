@@ -33,7 +33,9 @@ msg_action_led_yellow: .ascii "ACTION=LED_YELLOW\n";len_action_led_yellow = . - 
 msg_action_led_red: .ascii "ACTION=LED_RED\n";      len_action_led_red = . - msg_action_led_red
 msg_action_no_action: .ascii "ACTION=NO_ACTION\n";  len_action_no_action = . - msg_action_no_action
 
-
+msg_label_action: .ascii "ACTION=";               len_label_action = . - msg_label_action
+msg_target_composite: .ascii "TARGET=COMPOSITE\n"; len_target_composite = . - msg_target_composite
+msg_reason_composite: .ascii "REASON=COMPOSITE\n"; len_reason_composite = . - msg_reason_composite
 
 msg_target_gas: .ascii "TARGET=GAS_SENSOR\n";     len_target_gas = . - msg_target_gas
 msg_target_soil1: .ascii "TARGET=SOIL1\n";        len_target_soil1 = . - msg_target_soil1
@@ -243,8 +245,7 @@ main_loop_proceed:
     ldr x0, =gas_array
     ldr x1, =gas_count
     bl calcular_amplitud
-    mov x28, x0  // gas amplitud
-    mov x14, x0  // respaldo gas amplitud (se pierde cuando x28 se reusa como bitmask)
+    mov x28, x0 // gas amplitud
 
     ldr x0, =hum_array
     ldr x1, =hum_count
@@ -255,20 +256,9 @@ main_loop_proceed:
     // x28 = bitmask de flags, x16 = prioridad mas alta (1-9)
     mov x28, #0
     mov x16, #0
-    // valores por defecto: NO_ACTION
-    ldr x5, =msg_action_no_action
-    mov x6, len_action_no_action
-    ldr x7, =msg_target_none
-    mov x9, len_target_none
-    ldr x11, =msg_reason_manual
-    mov x12, len_reason_manual
-    mov x13, #0
 
     // prioridad 1: gas critico (>92) -> ALARM_ON
     cmp x20, #GAS_CRITICAL
-    bgt set_flag_alarm
-    // o amplitud reciente de gas elevada (>GAS_AMP_ALTA)
-    cmp x14, #GAS_AMP_ALTA
     bgt set_flag_alarm
     // prioridad 2: gas medio (>66) -> GAS_WARNING
     cmp x20, #GAS_WARNING
@@ -277,86 +267,41 @@ main_loop_proceed:
 
 set_flag_alarm:
     orr x28, x28, #FLAG_ALARM_ON
-    cmp x16, #0
-    bne done_gas
     mov x16, #1
-    ldr x5, =msg_action_alarm_on
-    mov x6, len_action_alarm_on
-    ldr x7, =msg_target_gas
-    mov x9, len_target_gas
-    ldr x11, =msg_reason_gas
-    mov x12, len_reason_gas
-    mov x13, x20
     b done_gas
 
 set_flag_gas_warning:
     orr x28, x28, #FLAG_GAS_WARNING
-    // solo bandera, no toma prioridad (no es una accion principal segun especificacion)
+    cmp x16, #0
+    bne done_gas
+    mov x16, #2
 
 done_gas:
-    // prioridad 2: suelo 1 seco y ascendiendo
+    // prioridad 3: suelo 1 seco y ascendiendo
     // si esta saturado, bloquear riego
     cmp x21, #SOIL_SATURATED
     blt set_flag_bloqueado
     cmp x21, #SOIL_BAJO
     bgt check_soil1_trend_flg
-    b check_soil2
+    b check_luz
 
 check_soil1_trend_flg:
     cmp x25, #0
     bgt set_flag_riego1
-    b check_soil2
+    b check_luz
 
 set_flag_bloqueado:
     orr x28, x28, #FLAG_BLOQUEADO
     cmp x16, #0
-    bne check_soil2
+    bne check_luz
     mov x16, #9
-    ldr x5, =msg_action_no_action
-    mov x6, len_action_no_action
-    ldr x7, =msg_target_soil1
-    mov x9, len_target_soil1
-    ldr x11, =msg_reason_soil_saturated
-    mov x12, len_reason_soil_saturated
-    mov x13, x21
-    b check_soil2
+    b check_luz
 
 set_flag_riego1:
     orr x28, x28, #FLAG_RIEGO_1_ON
     cmp x16, #0
-    bne check_soil2
-    mov x16, #2
-    ldr x5, =msg_action_riego1_on
-    mov x6, len_action_riego1_on
-    ldr x7, =msg_target_soil1
-    mov x9, len_target_soil1
-    ldr x11, =msg_reason_soil
-    mov x12, len_reason_soil
-    mov x13, x21
-
-    // prioridad 3: suelo 2 seco y ascendiendo -> RIEGO_2_ON
-check_soil2:
-    cmp x22, #SOIL_BAJO
-    bgt check_soil2_trend_flg
-    b check_luz
-
-check_soil2_trend_flg:
-    cmp x26, #0
-    bgt set_flag_riego2
-    b check_luz
-
-set_flag_riego2:
-    orr x28, x28, #FLAG_RIEGO_2_ON
-    cmp x16, #0
     bne check_luz
     mov x16, #3
-    ldr x5, =msg_action_riego2_on
-    mov x6, len_action_riego2_on
-    ldr x7, =msg_target_soil2
-    mov x9, len_target_soil2
-    ldr x11, =msg_reason_soil
-    mov x12, len_reason_soil
-    mov x13, x22
 
 check_luz:
     // luz baja (<65%) -> LIGHT_ON (sin tendencia)
@@ -366,13 +311,6 @@ check_luz:
     cmp x16, #0
     bne check_temp
     mov x16, #4
-    ldr x5, =msg_action_light_on
-    mov x6, len_action_light_on
-    ldr x7, =msg_target_luz
-    mov x9, len_target_luz
-    ldr x11, =msg_reason_light
-    mov x12, len_reason_light
-    mov x13, x23
 
 check_temp:
     cmp x24, #TEMP_ALTA
@@ -389,13 +327,6 @@ set_flag_fan:
     cmp x16, #0
     bne check_mode
     mov x16, #5
-    ldr x5, =msg_action_fan_on
-    mov x6, len_action_fan_on
-    ldr x7, =msg_target_temp
-    mov x9, len_target_temp
-    ldr x11, =msg_reason_temp
-    mov x12, len_reason_temp
-    mov x13, x24
 
 check_mode:
     cmp x15, #0
@@ -422,13 +353,6 @@ set_flag_green:
     cmp x16, #0
     bne output_combined
     mov x16, #7
-    ldr x5, =msg_action_led_green
-    mov x6, len_action_led_green
-    ldr x7, =msg_target_general
-    mov x9, len_target_general
-    ldr x11, =msg_reason_normal
-    mov x12, len_reason_normal
-    mov x13, #0
     b output_combined
 
 set_flag_yellow:
@@ -436,13 +360,6 @@ set_flag_yellow:
     cmp x16, #0
     bne output_combined
     mov x16, #6
-    ldr x5, =msg_action_led_yellow
-    mov x6, len_action_led_yellow
-    ldr x7, =msg_target_soil1
-    mov x9, len_target_soil1
-    ldr x11, =msg_reason_soil
-    mov x12, len_reason_soil
-    mov x13, x21
     b output_combined
 
 set_flag_noact:
@@ -450,31 +367,25 @@ set_flag_noact:
     cmp x16, #0
     bne output_combined
     mov x16, #8
-    ldr x5, =msg_action_no_action
-    mov x6, len_action_no_action
-    ldr x7, =msg_target_none
-    mov x9, len_target_none
-    ldr x11, =msg_reason_manual
-    mov x12, len_reason_manual
-    mov x13, #0
 
 output_combined:
     // x28 = flags bitmask, x16 = highest priority index
-    // x5/x6 = action msg, x7/x9 = target msg, x11/x12 = reason msg, x13 = indicator
     stp x29, x30, [sp, #-16]!
     stp x27, x28, [sp, #-16]!
 
-    // ACTION=<name>
+    // ACTION=<bitmask>
     mov x0, #1
-    mov x1, x5
-    mov x2, x6
+    ldr x1, =msg_label_action
+    mov x2, len_label_action
     mov x8, #64
     svc #0
+    mov x0, x28
+    bl print_uint
 
-    // TARGET=<target>
+    // TARGET=COMPOSITE
     mov x0, #1
-    mov x1, x7
-    mov x2, x9
+    ldr x1, =msg_target_composite
+    mov x2, len_target_composite
     mov x8, #64
     svc #0
 
@@ -483,8 +394,6 @@ output_combined:
     beq risk_crit
     cmp x16, #2
     beq risk_high
-    cmp x16, #3
-    beq risk_med
     cmp x16, #7
     beq risk_low
     cmp x16, #8
@@ -493,29 +402,22 @@ output_combined:
     beq risk_low
     b risk_med
 risk_crit:
-    ldr x1, =msg_risk_critical
-    mov x2, len_risk_critical
-    b print_risk
+    ldr x1, =msg_risk_critical; mov x2, len_risk_critical; b print_risk
 risk_high:
-    ldr x1, =msg_risk_high
-    mov x2, len_risk_high
-    b print_risk
+    ldr x1, =msg_risk_high;     mov x2, len_risk_high;     b print_risk
 risk_low:
-    ldr x1, =msg_risk_low
-    mov x2, len_risk_low
-    b print_risk
+    ldr x1, =msg_risk_low;      mov x2, len_risk_low;      b print_risk
 risk_med:
-    ldr x1, =msg_risk_medium
-    mov x2, len_risk_medium
+    ldr x1, =msg_risk_medium;   mov x2, len_risk_medium
 print_risk:
     mov x0, #1
     mov x8, #64
     svc #0
 
-    // REASON=<reason>
+    // REASON=COMPOSITE
     mov x0, #1
-    mov x1, x11
-    mov x2, x12
+    ldr x1, =msg_reason_composite
+    mov x2, len_reason_composite
     mov x8, #64
     svc #0
 
@@ -527,25 +429,15 @@ print_risk:
     svc #0
     mov x0, x28
     bl print_uint
-    mov x0, #1
-    ldr x1, =newline
-    mov x2, #1
-    mov x8, #64
-    svc #0
 
-    // INDICATOR=<indicator>
+    // INDICATOR=0
     mov x0, #1
     ldr x1, =msg_label_indicator
     mov x2, len_label_indicator
     mov x8, #64
     svc #0
-    mov x0, x13
+    mov x0, #0
     bl print_uint
-    mov x0, #1
-    ldr x1, =newline
-    mov x2, #1
-    mov x8, #64
-    svc #0
 
     // STATUS=OK
     mov x0, #1
@@ -557,6 +449,32 @@ print_risk:
     ldp x27, x28, [sp], #16
     ldp x29, x30, [sp], #16
     b main_loop
+
+// output_action: x0=val, x1=ind; args via x19-x26
+output_action:
+    stp x29, x30, [sp, #-16]!
+    stp x27, x28, [sp, #-16]!
+    mov x27, x0
+    mov x28, x1
+    mov x0, #1
+    mov x1, x19; mov x2, x20; mov x8, #64; svc #0
+    mov x0, #1
+    mov x1, x21; mov x2, x22; mov x8, #64; svc #0
+    mov x0, #1
+    mov x1, x23; mov x2, x24; mov x8, #64; svc #0
+    mov x0, #1
+    mov x1, x25; mov x2, x26; mov x8, #64; svc #0
+    mov x0, #1
+    ldr x1, =msg_label_value;       mov x2, len_label_value;       mov x8, #64; svc #0
+    mov x0, x27; bl print_uint
+    mov x0, #1
+    ldr x1, =msg_label_indicator;   mov x2, len_label_indicator;   mov x8, #64; svc #0
+    mov x0, x28; bl print_uint
+    mov x0, #1
+    ldr x1, =msg_status_ok;         mov x2, len_status_ok;         mov x8, #64; svc #0
+    ldp x27, x28, [sp], #16
+    ldp x29, x30, [sp], #16
+    ret
 
 // imprime error y continua
 print_error:

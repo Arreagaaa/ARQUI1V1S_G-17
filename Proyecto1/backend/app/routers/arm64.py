@@ -46,7 +46,8 @@ def get_arm64_results():
     """
     Obtiene los últimos resultados de análisis procesados en ensamblador ARM64.
     
-    Retorna el último registro para cada uno de los 5 módulos:
+    Retorna el último registro para cada uno de los módulos:
+      - RMSE
       - WEIGHTED_MEAN
       - VARIANCE
       - ANOMALY_DETECTION
@@ -54,7 +55,7 @@ def get_arm64_results():
       - ADVANCED_TREND
     """
     db = get_database()
-    modules = ["WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND"]
+    modules = ["RMSE", "WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND", "LIVE_ENGINE"]
     results = {}
     for module in modules:
         res = db.arm64_results.find_one({"module": module}, sort=[("created_at", -1)])
@@ -112,6 +113,22 @@ def generate_mock_arm64_results(dev: bool = False):
     now = _now()
 
     mock_data = [
+        {
+            "module": "RMSE",
+            "total_values": 30,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 30,
+                "COUNT": 30,
+                "IDEAL_VALUE": 30,
+                "SUM_SQUARED_ERROR": 145,
+                "MSE": 7,
+                "RMSE": 2
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
         {
             "module": "WEIGHTED_MEAN",
             "total_values": 30,
@@ -208,7 +225,7 @@ COLUMN_LABELS = {
     4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS", 7: "RIEGO_1", 8: "RIEGO_2",
 }
 
-DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1}
+DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1}
 
 
 @router.get("/api/arm64/csv")
@@ -385,3 +402,118 @@ def set_arm64_column_config(payload: dict):
     }
     db.arm64_column_config.insert_one(doc)
     return {"status": "ok", "columns": columns, "labels": {int(k): COLUMN_LABELS.get(int(v), f"col{v}") for k, v in columns.items()}}
+
+
+@router.post("/api/arm64/historical-analysis")
+def trigger_historical_analysis(payload: dict):
+    """
+    Recibe parametros para analisis historico desde el dashboard.
+    Guarda la solicitud en MongoDB y publica comando MQTT a la Pi.
+    Si no hay Pi disponible, ejecuta el analisis localmente (simulado).
+    """
+    db = get_database()
+    now = _now()
+
+    file = payload.get("file", "lecturas.csv")
+    start_line = payload.get("start_line", 1)
+    end_line = payload.get("end_line", 30)
+    column = payload.get("column", 1)
+    ideal_value = payload.get("ideal_value", 55)
+    module = payload.get("module", "RMSE")
+
+    doc = {
+        "file": file,
+        "start_line": start_line,
+        "end_line": end_line,
+        "column": column,
+        "ideal_value": ideal_value,
+        "module": module,
+        "status": "pending",
+        "created_at": now,
+    }
+    db.arm64_analysis_requests.insert_one(doc)
+
+    db.events.insert_one({
+        "event_type": "historical_analysis",
+        "message": f"Analisis historico solicitado: {file} lineas {start_line}-{end_line} columna {column}.",
+        "severity": "info",
+        "area": "control",
+        "source": "web",
+        "created_at": now
+    })
+
+    mqtt_ok = False
+    try:
+        from ..mqtt.publisher import MQTTPublisher
+        publisher = MQTTPublisher()
+        result = publisher.publish_control_command(
+            command="run_historical",
+            target="arm64_historical",
+            state="execute",
+            source="web",
+            payload=doc,
+        )
+        mqtt_ok = result and result.success
+    except Exception:
+        mqtt_ok = False
+
+    if not mqtt_ok:
+        total = db.sensor_readings.count_documents({})
+        rows = _generate_csv_rows(db, total)
+        col_label = COLUMN_LABELS.get(column, "TEMP")
+        count = 0
+        values = []
+        for row in rows:
+            rid = row.get("ID", 0)
+            if rid >= start_line and rid <= end_line:
+                val = row.get(col_label)
+                if val is not None and isinstance(val, (int, float)):
+                    values.append(float(val))
+                    count += 1
+
+        if module == "RMSE":
+            n = len(values)
+            if n >= 2:
+                sse = sum((v - ideal_value) ** 2 for v in values)
+                mse = int(sse / n)
+                rmse = int(mse ** 0.5)
+                results_data = {
+                    "COLUMN": column,
+                    "WINDOW_START": start_line,
+                    "WINDOW_END": end_line,
+                    "COUNT": n,
+                    "IDEAL_VALUE": ideal_value,
+                    "SUM_SQUARED_ERROR": int(sse),
+                    "MSE": mse,
+                    "RMSE": rmse,
+                }
+            else:
+                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+        else:
+            results_data = {"STATUS": "ERROR", "ERROR": "MODULE_NOT_IMPLEMENTED"}
+
+        arm64_payload = ARM64ResultCreate(
+            module=module,
+            total_values=count,
+            results=results_data,
+            source="backend-sim",
+        )
+        arm64_doc = arm64_payload.model_dump()
+        arm64_doc["created_at"] = now
+        db.arm64_results.insert_one(arm64_doc)
+
+        db.events.insert_one({
+            "event_type": "arm64_analysis",
+            "message": f"Analisis historico completado (simulado): {module} columna {column}.",
+            "severity": "info",
+            "area": "control",
+            "source": "backend-sim",
+            "created_at": now
+        })
+
+    logger.info("Solicitud de analisis historico registrada: %s", doc)
+    return {
+        "status": "ok",
+        "message": f"Analisis historico completado para {file} lineas {start_line}-{end_line}. Revisa la seccion de resultados.",
+        "mqtt_notified": mqtt_ok,
+    }

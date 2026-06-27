@@ -149,6 +149,11 @@ def post_to_backend(url: str, module: str, data: dict[str, Any]) -> bool:
         "module": module,
         "total_values": total_values,
         "results": results,
+        "column": data.get("COLUMN"),
+        "range_start": _coerce(data.get("WINDOW_START", "0")) if data.get("WINDOW_START") else None,
+        "range_end": _coerce(data.get("WINDOW_END", "0")) if data.get("WINDOW_END") else None,
+        "status": data.get("STATUS", "OK"),
+        "error_detail": data.get("ERROR") if data.get("STATUS") == "ERROR" else None,
         "source": "raspi-01",
     }
 

@@ -71,7 +71,7 @@ _start:
     // validamos que la columna este en el rango permitido
     mov x0, x22
     bl utils_validate_column    // llamamos a la funcion que lee y almacena en values_buf
-    cbnz x0, error_columna      // x0 == 0 si x0 != 0 hubo error de lectura
+    cbnz x0, error_column      // x0 == 0 si x0 != 0 hubo error de lectura
 
     // abrimos el archivo usando los parametros que mandamos
     mov x0, #-100    // AT_FDCWD es para abrir relativo al directorio actual
@@ -118,7 +118,6 @@ _start:
     ldr x9, =out_buf         // cargamos la direccion del buffer de salida
     ldr x0, =lbl_calc        // cargamos la etiqueta del modulo al buffer de salida
 
-//falta actualizar las funciones de inicio sigo al rato
 
 // funciones inicio
 
@@ -132,21 +131,137 @@ copy_mod:   // sirve para copiar el nombre del modulo al buffer de salida
     b copy_mod      // se repite la funcion hasta que copie el nombre
 
 copy_mod_end:
-    ldr x0, =total_v // cargamos a x0 el total de los valores del bff de salida
+    ldr x0, =lbl_colum  //  cargamos la direccion de memoria de columna
 
+copy_col_lbl:   // copiar el texto de la etiqueta de la columna
+    ldrb w2, [x0]   // leemos un caracter de lbl_colum
+    cbz w2, copy_col_lbl_end    // si se llega al final con un /0 se termina el bucle
+    strb w2, [x9]   // guardamos el caracter al buf de salida 
+    add x0, x0, #1  // avanzamos al siguiente byte 
+    add x9, x9, #1  // avanzamos y sumamos un byte a la salida
+    b copy_col_lbl  // repetimos 
 
-copy_total:
-    ldrb w2, [x0] // cargamos el byte menos significativo del total de valores
-    cbz w2, copy_total_end // si es 0 termina de copiar
+copy_col_lbl_end:
+    mov x0, x22         // pasamos el nuemero de la columna a x0
+    mov x1, x9          // pasamos la direccion del buf de salida  a x1
+    bl utils_i64_to_str // llamamos a la funcion 
+    mov x9, x0          // copiamos a x9 el nuevo valor 
+    ldr x0, =nl         // cargamos la direccion del salto de linea
 
-    strb w2, [x9] // almacenar el byte en el buffer de salida
-    add x0, x0, #1 // avanzar al siguiente byte del total de valores
-    add x9, x9, #1 // avanzar al siguiente byte del buff de salida
-    b copy_total // repetir la funcion hasta que se termine de copiar el total de valores
+copy_nl0:
+    ldrb w2, [x0]   // leemos el caracter del salto de linea
+    cbz w2, copy_nl0_end    // si lo lee completo sale 
+    strb w2, [x9]   // lo guardamos en el buffer
+    add x0, x0, #1  // avanzamos un byte
+    add x9, x9, #1  // avanzamos al buffer de salida
+    b copy_nl0  // repetimos
 
-copy_total_end:
-    ldr x0, =lbl_mean   // cargamos ña direccion de la media en el bff de salida
+copy_nl0_end:
+    ldr x0, =lbl_ws     // cargamos la etiqueta de inicio de ventana
 
+copy_ws_lbl:
+    ldrb w2, [x0]   // comenzamos a leer un caracter
+    cbz w2, copy_ws_lbl_end // si llegamos al final se termina
+    strb w2, [x9]   // lo guardamos en el buffer
+    add x0, x0, #1  // seguimos leyendo
+    add x9, x9, #1  // lo mandamos al buffer de salida
+    b copy_ws_lbl   // repetimos
+
+copy_ws_lbl_end:
+    mov x0, x20         // mandamos la fila de inicio a x0
+    mov x1, x9  // pasamos la direccion del buffer 
+    bl utils_i64_to_str // llamamos a la funcion
+    mov x9, x0  // mandamos el nuevo dato al buffer de salida
+    ldr x0, =nl // cargamos el salto de linea
+
+copy_nl_ws:
+    ldrb w2, [x0]   // cargamos el salto de linea 
+    cbz w2, copy_nl_ws_end  // si da 0 se termina
+    strb w2, [x9]   // cargamos al buffer 
+    add x0, x0, #1  // avanzamos al siguiente byte del buff
+    add x9, x9, #1  // avanzamos al siguiente byte del buffer de salida
+    b copy_nl_ws    // repetimos
+
+copy_nl_ws_end:
+    ldr x0, =lbl_we     // etiqueta de fin de ventana
+
+copy_we_lbl:    
+    ldrb w2, [x0]   // leemos el carater de la ventana
+    cbz w2, copy_we_lbl_end // si ya lo completamos termina
+    strb w2, [x9]   // guardamos al buffer
+    add x0, x0, #1  // avanzamos un byte al buff
+    add x9, x9, #1  // avanzamos un byte del buffer de salida
+    b copy_we_lbl   // repetimos
+
+copy_we_lbl_end:
+    mov x0, x21         // copiamos en final de la fila guardado en x0 
+    mov x1, x9  // pasamos la direccion del buff 
+    bl utils_i64_to_str // llamamos a la funcion
+    mov x9, x0  // copiamos el valor nuevo al final del buff
+    ldr x0, =nl // cargamos el salto de linea
+
+copy_nl_we:
+    ldrb w2, [x0]   // cargamos el salto
+    cbz w2, copy_nl_we_end  // si es 0 se acaba
+    strb w2, [x9]   // guardamos en el buffer
+    add x0, x0, #1  // avanzamos al sigueite byte del buff
+    add x9, x9, #1  // avanzamos al siguite byte del buff de salida
+    b copy_nl_we // repe
+
+copy_nl_we_end:
+    ldr x0, =lbl_cnt    // etiqueta de cantidad de valores leidos
+
+copy_cnt_lbl:
+    ldrb w2, [x0]   // cargamos la catidad de valores leidos
+    cbz w2, copy_cnt_lbl_end
+    strb w2, [x9]   // guardamo en el buff
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_cnt_lbl // se repite
+
+copy_cnt_lbl_end:
+    mov x0, x24         // copiamos lacantidad de valores realmente leidos
+    mov x1, x9  // copiamos la direccion del buffer
+    bl utils_i64_to_str // cargamos la funcion
+    mov x9, x0  // copamos la direccion actual del buff
+    ldr x0, =nl // \n
+
+copy_nl_cnt:
+    ldrb w2, [x0]   // cargamos el \n
+    cbz w2, copy_nl_cnt_end // si es 0 se acaba
+    strb w2, [x9]   // gaudamos en el buffer
+    add x0, x0, #1  
+    add x9, x9, #1
+    b copy_nl_cnt
+
+copy_nl_cnt_end:
+    ldr x0, =lbl_sumx   // etiqueta de la suma total la calculamos antes de imprimir
+
+copy_sumx_lbl:
+    ldrb w2, [x0]   // cargamos los carateres
+    cbz w2, copy_sumx_lbl_end   
+    strb w2, [x9]   // guardamos en el buff
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_sumx_lbl // repe
+
+copy_sumx_lbl_end:
+    mov x0, x27         // suma real calculada dentro de mean_value no aproximada
+    mov x1, x9  // copiamos la direccion del buffer 
+    bl utils_i64_to_str
+    mov x9, x0  // actualizamos el valor del buffer
+    ldr x0, =nl
+
+copy_nl_sumx:
+    ldrb w2, [x0]
+    cbz w2, copy_nl_sumx_end
+    strb w2, [x9]
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_nl_sumx
+
+copy_nl_sumx_end:
+    ldr x0, =lbl_mean   // cargamos la etiqueta de la media en el bff de salida
 
 copy_mean_lbl:
     ldrb w2, [x0]
@@ -157,13 +272,11 @@ copy_mean_lbl:
     b copy_mean_lbl
 
 copy_mean_lbl_end:
-    mov x0, x21     // copiamos la media a x0
+    mov x0, x26     // copiamos la media a x0
     mov x1, x9      // copiamos el puntero del buffer de salida a x1
-    bl utils_i64_to_str // se convierte la media a cadena y almacenarla en el buffer de salida
+    bl utils_i64_to_str // se convierte la media a cadena y se almacena en el buffer de salida
     mov x9, x0      // se actualiza el puntero del buffer de salida
-
     ldr x0, =nl     // newline
-
 
 // primer salto de linea
 copy_nl1:
@@ -186,13 +299,12 @@ copy_var_lbl:
     b copy_var_lbl
 
 copy_var_lbl_end:
-    mov x0, x22 // Mover la varianza a x0
+    mov x0, x28 // Mover la varianza a x0
     mov x1, x9
     bl utils_i64_to_str
     mov x9, x0
 
     ldr x0, =nl
-
 
 // segundo salto de linea
 copy_nl2:
@@ -204,7 +316,7 @@ copy_nl2:
     b copy_nl2
 
 copy_nl2_end:
-    ldr x0, =lbl_std // Copiar la etiqueta de la desviacion estandar al buffer de salida
+    ldr x0, =lbl_std // copiamos la desviacion estandar al buffer de salida
 
 copy_std_lbl:
     ldrb w2, [x0]
@@ -215,7 +327,7 @@ copy_std_lbl:
     b copy_std_lbl
 
 copy_std_lbl_end:
-    mov x0, x23 // Mover la desviacion estandar a x0
+    mov x0, x10 // copiamos la desviacion estandar a x0
     mov x1, x9
     bl utils_i64_to_str
     mov x9, x0
@@ -232,65 +344,103 @@ copy_nl3:
     b copy_nl3
 
 copy_nl3_end:
-    ldr x10, =out_buf   // cargamos la direcion del buffer de salida en x10
-    sub x24, x9, x10 // x24 = cantidad total de bytes escritos en buffer de salida
+    ldr x0, =lbl_ok      // copiamos la etiqueta de STATUS=OK al final
+
+copy_ok_lbl:
+    ldrb w2, [x0]
+    cbz w2, copy_ok_lbl_end
+    strb w2, [x9]
+    add x0, x0, #1
+    add x9, x9, #1
+    b copy_ok_lbl
+
+copy_ok_lbl_end:
+    ldr x10, =out_buf   // cargamos la direccion del buffer de salida en x10
+    sub x2, x9, x10      // x2 = cantidad total de bytes escritos en buffer de salida
 
     ldr x0, =out_path
     ldr x1, =out_buf
-    mov x2, x24
     bl utils_write_result
 
     mov x0, #0
     bl utils_exit
 
-error_lectura:
-    mov x0, #1 // STDOUT
-    ldr x1, =err_read
-    mov x2, #42 // longitud del mensaje de error
+// manejo de errores: cada uno imprime su mensaje por stderr y sale con codigo 1
+error_argc:
+    mov x0, #1
+    ldr x1, =msg_err_argc
+    mov x2, len_err_argc
     mov x8, #64 // syscall write
     svc #0
+    mov x0, #1
+    bl utils_exit
 
+error_rango:
+    mov x0, #1
+    ldr x1, =msg_err_rng
+    mov x2, len_err_rng
+    mov x8, #64
+    svc #0
+    mov x0, #1
+    bl utils_exit
+
+error_column:
+    mov x0, #1
+    ldr x1, =msg_err_col
+    mov x2, len_err_col
+    mov x8, #64
+    svc #0
+    mov x0, #1
+    bl utils_exit
+
+error_open:
+    mov x0, #1
+    ldr x1, =msg_err_opn
+    mov x2, len_err_opn
+    mov x8, #64
+    svc #0
     mov x0, #1
     bl utils_exit
 
 // funciones final
 
 // calculos inicio
-
 ## MEDIA
 mean_value:
     stp x29, x30, [sp, #-16]!
     mov x29, sp 
-    mov x1, x0  // x0 contiene la dirección del buffer de valores
+    mov x7, x1  // x1 contiene la dirección del buffer de valores
     mov x2, #0  // inicializamos la suma en 0
     mov x3, #0  // inicializamos el contador en 0
-    mov x6, #N_VALUES   // copiamos el total de valores en x6
+    mov x6, x1   // copiamos el total de valores en x6
 
 mean_loop:
     cbz x6, mean_done
-    ldr x4, [x1, x3, lsl #3] // cargamos el valor actual (8 bytes por valor)
+    ldr x4, [x0, x3, lsl #3] // cargamos el valor actual (8 bytes por valor)
     add x2, x2, x4 // Suma el valor actual a la suma
     add x3, x3, #1 // Incrementar el índice
     sub x6, x6, #1 // Decrementar el contador de valores restantes
     b mean_loop
 
 mean_done:
-    mov x5, #N_VALUES   // copiamos en x5 los valores
-    sdiv x0, x2, x5     // hacemos una division entera -- media = suma / N_VALUES (entera)
+    sdiv x0, x2, x7     // hacemos una division entera -- media = suma / valores
+    mov x1, x2  // copamos la suma obtenida antes
     ldp x29, x30, [sp], #16
     ret
 ## Fin media
 
 ## VARIANZA: 
-// Entrada en  x0 == puntero al buffer de valores y  x1 == media ya calculada
+// Entrada en  x0 == puntero al buffer de valores y  x1 == cantidad de valores x2 == madia calculada
 variance_value:
     stp x29, x30, [sp, #-16]!
     mov x29, sp
+    mov x9, x2 // guardamos la media aparte antes de ir a x2
+    mov x8, x1 // guardamos la cantidad de valores 
+    mov x7, x9 // x7 = media
     mov x2, x0 // x2 = puntero al buffer de valores
-    mov x7, x1 // x7 = media
-    mov x3, #0 // Inicializar la suma de diferencias al cuadrado en 0
-    mov x4, #0 // Inicializar el índice en 0
-    mov x6, #N_VALUES // cargamos el número total de valores en x6
+    mov x3, #0 // inicializamos la suma de diferencias al cuadrado en 0
+    mov x4, #0 // inicializamos el índice en 0
+    mov x6, x1 // contador descendente para el loop 
 
 var_loop:
     cbz x6, var_done
@@ -303,8 +453,7 @@ var_loop:
     b var_loop
 
 var_done:
-    mov x5, #N_VALUES
-    sdiv x0, x3, x5 // division entera de varianza = suma de diferencias al cuadrado / N_VALUES
+    sdiv x0, x3, x8 // division entera de varianza = suma de diferencias al cuadrado / cantidad 
     ldp x29, x30, [sp], #16
     ret
 ## Fin varianza

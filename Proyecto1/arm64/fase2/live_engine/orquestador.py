@@ -117,12 +117,18 @@ def ejecutar_accion_en_gpio(accion: str):
 def leer_sensores_realtime() -> Optional[str]:
     try:
         if GPIO_AVAILABLE:
-            import Adafruit_DHT
-            hum, temp = Adafruit_DHT.read_retry(Adafruit_DHT.DHT22, 4)
-            if hum is None or temp is None:
+            import adafruit_dht
+            import board
+            dht = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+            try:
+                temp = dht.temperature
+                hum = dht.humidity
+                if temp is None or hum is None:
+                    raise RuntimeError("Lectura nula")
+            except RuntimeError:
                 print("[SENSOR] Error DHT22, usando defaults")
                 temp, hum = 25.0, 55.0
-            import board, busio
+            import busio
             import adafruit_ads1x15.ads1115 as ADS
             from adafruit_ads1x15.analog_in import AnalogIn
             i2c = busio.I2C(board.SCL, board.SDA)

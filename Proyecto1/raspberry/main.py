@@ -815,11 +815,11 @@ class GreenhouseDevice:
                 raw_adc[ch_name] = int(raw) >> 6
         else:
             raw_adc = {"soil_1": 400, "soil_2": 400, "light": 500, "gas": 100}
-        temp = int(readings.get("temperature", 25))
-        hum = int(readings.get("humidity", 55))
+        temp = round(readings.get("temperature", 25))
+        hum = round(readings.get("humidity", 55))
         soil1 = raw_adc.get("soil_1", 400)
         soil2 = raw_adc.get("soil_2", 400)
-        luz = raw_adc.get("light", 500)
+        luz = 1023 - raw_adc.get("light", 500)  # invertir (pull-up: oscuro=alto)
         gas = raw_adc.get("gas", 100)
         csv_line = f"{temp},{hum},{soil1},{soil2},{luz},{gas},{modo}"
         try:

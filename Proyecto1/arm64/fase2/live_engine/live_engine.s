@@ -5,7 +5,7 @@
 .equ GAS_ALTO, 300
 .equ GAS_AMP_ALTA, 50
 .equ SOIL_BAJO, 300
-.equ LUZ_BAJA, 200
+.equ LUZ_BAJA, 500
 .equ TEMP_ALTA, 30
 .equ INPUT_BUF_SIZE, 64
 .equ NUM_BUF_SIZE, 32
@@ -241,24 +241,24 @@ main_loop_proceed:
     cmp x28, #GAS_AMP_ALTA
     bgt output_gas_alarm
 
-    // prioridad 2: suelo 1 bajo y descendiendo
+    // prioridad 2: suelo 1 seco y ascendiendo (pull-up: seco=raw alto)
     cmp x21, #SOIL_BAJO
-    blt check_soil2_low
+    bgt check_soil2_low
     b check_soil2
 
 check_soil2_low:
     cmp x25, #0
-    blt output_riego1
+    bgt output_riego1
 
 check_soil2:
-    // prioridad 3: suelo 2 bajo y descendiendo
+    // prioridad 3: suelo 2 seco y ascendiendo (pull-up: seco=raw alto)
     cmp x22, #SOIL_BAJO
-    blt check_soil2_low2
+    bgt check_soil2_low2
     b check_luz
 
 check_soil2_low2:
     cmp x26, #0
-    blt output_riego2
+    bgt output_riego2
 
 check_luz:
     // prioridad 4: luz baja y descendiendo
@@ -273,7 +273,7 @@ check_luz_low:
 check_temp:
     // prioridad 5: temperatura alta y ascendiendo
     cmp x24, #TEMP_ALTA
-    bgt check_temp_high
+    bge check_temp_high
     b check_mode
 
 check_temp_high:

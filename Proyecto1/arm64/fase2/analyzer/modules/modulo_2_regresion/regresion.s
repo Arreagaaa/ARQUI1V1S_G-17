@@ -128,10 +128,86 @@ _start:
     cmp x25, #2
     blt error_data
 
-    // para probar
+    // calcular el numerador, denominador y la pendiente m_x100
+    ldr x0, =values_buf // cargamos la direcion del buf
+    mov x1, x25 // pasamso a x1 los N valores
+
+    // x0 = M_X100 la pendiente ya escalada por 100 y dividida)
+    // x1 = 0 si el denominador fue valido y 1 si fue cero es decir que no se calculo
+    bl regresion_calc
+    cbnz x1, error_data // camparamos si el denominador es distinto de 0 si es 0 salta al error
+    mov x27, x0 // copiamos a x27 la pendiente 
+
     mov x0, #0
     mov x8, #93
     svc #0
+
+## Calculo de la regresion
+/*
+lo que vamos a hacer es a recibir el buffer, N valores
+x0= values_buf que sera Y x1=N valores
+para esperar 
+x0=M_X100 la pendiente * 100 con una division entera
+x1= 0 si es exitoso o 1 si fallo o el denominador quedo en 0
+*/ 
+
+regresion_calc:
+    stp x29, x30, [sp, #-16]!  
+    mov x29, sp // ajustamos la pila para darle el espacio a la funcion
+    
+    mov x9, x0  // copiamos el valor del buf
+    mov x10, x1 // copiamos los N valores 
+
+    mov x2, #0  // creamos el contador para la suma en x x2 = suma_x
+    mov x3, #0  // creamos el contador para la suma en y x3 = suma_y
+    mov x4, #0  // creamos el contador para la suma de x*y  x4 = suma_xy
+    mov x5, #0  // creamos el contador para la suma de x*x x5 = suma_x2
+    mov x6, #0  // este sera como el indicador de x
+
+reg_loop:
+    cmp x6, x10 // comparamos como va el indicador con la cantidad de valores
+    bge reg_loop_done // si es mayor o igual salta 
+
+    ldr x7, [x9, x6, lsl#3] // cargamos a x7 la direciion saltando de 8 bytes extrae la lectura de y
+    add x2, x2, x6 // hacemos el incremento en x2 del indicador en ese momento de x
+    add x3, x3, x7  // incrementamos en y suma_y += y
+
+    mul x8, x6, x7  // x8 sera la mutiplicacion de x * y 
+    add x4, x4, x8  // va incremementado para la sumatoria de suma_xy
+
+    mul x8, x6, x6   // x8 = x * x
+    add x5, x5, x8   // suma_x2 += x * x
+
+    add x6, x6, #1   // siguiente indice
+    b reg_loop
+
+reg_loop_done:
+    //  para el numerador = (N * suma_xy) - (suma_x * suma_y)
+    mul x11, x10, x4 // x11 = N * suma_xy
+    mul x12, x2, x3  // x12 = suma_x * suma_y
+    sub x11, x11, x12  // x11 = numerador
+
+    // para el denominador = (N * suma_x2) - (suma_x * suma_x)
+    mul x13, x10, x5 // x13 = N * suma_x2
+    mul x14, x2, x2  // x14 = suma_x * suma_x
+    sub x13, x13, x14 // x13 = denominador
+
+    cbz x13, reg_denom_zero //si el denominador es 0 no se divide
+
+    // m_x100 = (numerador * 100) / denominador con division entera
+    mov x15, #100
+    mul x11, x11, x15         // x11 = numerador * 100
+    sdiv x0, x11, x13         // x0 = m_x100
+    mov x1, #0                // x1 = 0  calculo valido
+    b reg_calc_done
+
+reg_denom_zero:
+    mov x0, #0
+    mov x1, #1 // x1 = 1  denominador era cero
+
+reg_calc_done:
+    ldp x29, x30, [sp], #16
+    ret
 
 ## ERRORES
 error_argc:

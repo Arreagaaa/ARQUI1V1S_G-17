@@ -12,5 +12,7 @@ arm64/results/
 arm64/fase1/build/
 arm64/fase1/results/
 arm64/fase2/build/
+arm64/fase2/results/
+arm64/fase2/lecturas.csv
 arm64/column_config.txt
 backend/lecturas.csv

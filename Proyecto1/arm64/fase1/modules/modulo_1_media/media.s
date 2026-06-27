@@ -223,7 +223,7 @@ _start:
     mov x0, #0
     bl utils_exit
 
-// manejo de errores, todos imprimen a stderr y salen con codigo 1
+// errores
 error_argc:
     mov x0, #1
     ldr x1, =msg_err_argc
@@ -260,8 +260,7 @@ error_open:
     mov x0, #1
     bl utils_exit
 
-// x0=ptr buffer, x1=cantidad de valores
-// retorna suma simple en x0
+// sum_values(ptr, count)
 sum_values:
     mov x5, x0 // ptr
     mov x6, x1 // contador
@@ -280,9 +279,7 @@ sum_done:
     mov x0, x3
     ret
 
-// x0=ptr buffer, x1=cantidad de valores
-// cada valor se multiplica por su posicion (1-based) antes de sumar
-// retorna media ponderada en x0
+// weighted_mean(ptr, count)
 weighted_mean:
     mov x5, x0 // ptr
     mov x6, x1 // contador
@@ -309,8 +306,7 @@ wm_done:
     sdiv x0, x3, x7
     ret
 
-// x0=src, x1=dst
-// copia string hasta \0, retorna puntero al byte siguiente del ultimo char copiado
+// copia string
 copy_str:
     ldrb w2, [x0]
     cbz w2, copy_end

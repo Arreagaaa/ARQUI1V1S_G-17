@@ -1341,8 +1341,11 @@ class GreenhouseDevice:
             return
 
         state = payload.get("overall_state")
-        # No sobreescribir EMERGENCIA con NORMAL del backend
-        if state and not (self.gpio.current_state == "EMERGENCIA" and state != "EMERGENCIA"):
+        # No sobreescribir estados de ARM64 con estado del backend
+        cur = self.gpio.current_state
+        if cur in ("EMERGENCIA", "ADVERTENCIA") and state != cur:
+            return
+        if state:
             self.gpio.set_global_state(state)
 
     # --- Loop principal ------------------------------------------------

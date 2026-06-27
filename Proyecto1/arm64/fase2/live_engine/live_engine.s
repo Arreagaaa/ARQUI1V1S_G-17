@@ -271,26 +271,8 @@ soil1_saturated:
     b main_loop
 
 check_soil2:
-    // prioridad 4: suelo 2 seco y ascendiendo (pull-up: seco=raw alto)
-    cmp x22, #SOIL_SATURATED
-    blt soil2_saturated
-    cmp x22, #SOIL_BAJO
-    bgt check_soil2_trend
+    // prioridad 4: suelo 2 ignorado (sin valvula fisica)
     b check_luz
-
-check_soil2_trend:
-    cmp x26, #0
-    bgt output_riego2
-    b check_luz
-
-soil2_saturated:
-    mov x0, x22; mov x1, x26
-    ldr x19, =msg_action_led_yellow;         mov x20, len_action_led_yellow
-    ldr x21, =msg_target_soil2;              mov x22, len_target_soil2
-    ldr x23, =msg_risk_low;                  mov x24, len_risk_low
-    ldr x25, =msg_reason_soil_saturated;     mov x26, len_reason_soil_saturated
-    bl output_action
-    b main_loop
 
 check_luz:
     // prioridad 5: luz baja (<65%) -> LIGHT_ON (sin tendencia)

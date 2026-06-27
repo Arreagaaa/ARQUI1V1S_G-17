@@ -1,5 +1,10 @@
+ifeq ($(shell which aarch64-linux-gnu-as 2>/dev/null),)
+AS      = as
+LD      = ld
+else
 AS      = aarch64-linux-gnu-as
 LD      = aarch64-linux-gnu-ld
+endif
 QEMU    ?= qemu-aarch64
 ASFLAGS = -g
 LDFLAGS =

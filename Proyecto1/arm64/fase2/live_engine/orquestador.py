@@ -119,15 +119,30 @@ def leer_sensores_realtime() -> Optional[str]:
         if GPIO_AVAILABLE:
             import adafruit_dht
             import board
-            dht = adafruit_dht.DHT22(board.D4, use_pulseio=False)
+            dht_pin = 26  # GPIO 26 (igual que raspberry/main.py)
+            dht = None
             try:
+                dht = adafruit_dht.DHT11(getattr(board, f"D{dht_pin}"), use_pulseio=False)
                 temp = dht.temperature
                 hum = dht.humidity
                 if temp is None or hum is None:
                     raise RuntimeError("Lectura nula")
-            except RuntimeError:
-                print("[SENSOR] Error DHT22, usando defaults")
-                temp, hum = 25.0, 55.0
+            except Exception:
+                if dht:
+                    try: dht.exit()
+                    except: pass
+                try:
+                    dht = adafruit_dht.DHT22(getattr(board, f"D{dht_pin}"), use_pulseio=False)
+                    temp = dht.temperature
+                    hum = dht.humidity
+                    if temp is None or hum is None:
+                        raise RuntimeError("Lectura nula")
+                except Exception:
+                    if dht:
+                        try: dht.exit()
+                        except: pass
+                    print("[SENSOR] Error DHT11/DHT22, usando defaults")
+                    temp, hum = 25.0, 55.0
             import busio
             import adafruit_ads1x15.ads1115 as ADS
             from adafruit_ads1x15.analog_in import AnalogIn

@@ -48,11 +48,11 @@ out_buf:       .skip 512
 .text
 
 // Registros de larga vida en _start:
-//   x19 = path csv / fd      x20 = INCREMENTS
-//   x21 = DECREMENTS         x22 = MAX_UP_STREAK
-//   x23 = MAX_DOWN_STREAK    x24 = ACCUM_DIFF (con signo)
-//   x25 = ptr string TREND   x26 = N (valores leidos)
-//   x27 = columna            x28 = fila inicio
+//   x19 = path csv / fd		x20 = INCREMENTS
+//   x21 = DECREMENTS			x22 = MAX_UP_STREAK
+//   x23 = MAX_DOWN_STREAK		x24 = ACCUM_DIFF (con signo)
+//   x25 = ptr string TREND		x26 = N (valores leidos)
+//   x27 = columna				x28 = fila inicio
 //   [sp, #0] = fila fin (se guarda en stack)
 _start:
 	ldr  x0, [sp]
@@ -68,9 +68,9 @@ _start:
 	ldr  x0, [sp, #32]
 	bl   utils_parse_i64
 	sub  sp, sp, #16
-	str  x0, [sp]              // guardar fila fin en stack
+	str  x0, [sp]				// guardar fila fin en stack
 
-	ldr  x0, [sp, #56]        // argv[4] = columna (sp+16+40)
+	ldr  x0, [sp, #56]			// argv[4] = columna (sp+16+40)
 	bl   utils_parse_i64
 	mov  x27, x0
 
@@ -84,6 +84,13 @@ _start:
 	mov  x0, x27
 	bl   utils_validate_column
 	cbnz x0, error_column
+
+	// validar tamano del rango
+	ldr  x0, [sp]
+	sub  x0, x0, x28
+	add  x0, x0, #1
+	cmp  x0, #MAX_VALUES
+	b.gt error_range
 
 	// abrir csv con openat
 	mov  x0, #-100
@@ -106,6 +113,13 @@ _start:
 	bl   utils_read_int_column
 	mov  x26, x0
 
+	// validar que el rango exista completo
+	ldr  x0, [sp]
+	sub  x0, x0, x28
+	add  x0, x0, #1
+	cmp  x26, x0
+	b.ne error_range
+
 	// cerrar csv
 	mov  x0, x19
 	mov  x8, #57
@@ -119,14 +133,13 @@ _start:
 	mov  x1, x26
 	bl   contar_cambios
 
-	// Calcular ACCUM_DIFF y determinar tendencia
-	mov  x0, x20
-	mov  x1, x21
+	// Determinar tendencia con ACCUM_DIFF
+	mov  x0, x24
 	bl   calcular_tendencia
 	mov  x24, x0
 	mov  x25, x1
 
-	// ---- Construir salida en out_buf ----
+	// Construir salida en out_buf
 	ldr  x9, =out_buf
 
 	ldr  x0, =lbl_module
@@ -317,7 +330,7 @@ accum_nl:
 	mov  x0, #0
 	bl   utils_exit
 
-// ---- Manejo de errores ----
+// Manejo de errores
 error_argc:
 	mov  x0, #1
 	ldr  x1, =msg_err_argc
@@ -360,8 +373,7 @@ error_exit:
 
 // contar_cambios — analiza pares consecutivos del arreglo
 // Entrada: x0 = base del arreglo, x1 = N (cantidad de datos)
-// Salida:  x20 = INCREMENTS, x21 = DECREMENTS
-//          x22 = MAX_UP_STREAK, x23 = MAX_DOWN_STREAK
+// Salida:  x20 = INCREMENTS, x21 = DECREMENTS, x22 = MAX_UP_STREAK, x23 = MAX_DOWN_STREAK
 contar_cambios:
 	stp  x29, x30, [sp, #-16]!
 	mov  x29, sp
@@ -370,6 +382,7 @@ contar_cambios:
 	mov  x21, #0
 	mov  x22, #0
 	mov  x23, #0
+	mov  x24, #0
 	mov  x14, #0
 	mov  x15, #0
 
@@ -386,6 +399,9 @@ cc_loop:
 	add  x10, x10, #1
 	lsl  x16, x10, #3
 	ldr  x12, [x9, x16]
+
+	sub  x17, x12, x11
+	add  x24, x24, x17
 
 	cmp  x12, x11
 	b.gt cc_sube
@@ -420,14 +436,12 @@ cc_done:
 	ldp  x29, x30, [sp], #16
 	ret
 
-// calcular_tendencia — ACCUM_DIFF y etiqueta de tendencia
-// Entrada: x0 = INCREMENTS, x1 = DECREMENTS
-// Salida:  x0 = ACCUM_DIFF (con signo), x1 = ptr string tendencia
+// calcular_tendencia — etiqueta segun ACCUM_DIFF
+// Entrada: x0 = ACCUM_DIFF
+// Salida:  x0 = ACCUM_DIFF, x1 = ptr string tendencia
 calcular_tendencia:
 	stp  x29, x30, [sp, #-16]!
 	mov  x29, sp
-
-	sub  x0, x0, x1
 
 	cmp  x0, #0
 	b.gt ct_up

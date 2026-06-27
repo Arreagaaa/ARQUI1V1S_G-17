@@ -241,7 +241,7 @@ def registrar_en_mongodb(decision: dict, lectura: str, api_url: str):
         "source": "raspi-01",
     }
     try:
-        resp = requests.post(f"{api_url}/api/arm64-results", json=payload, timeout=5)
+        resp = requests.post(f"{api_url}/api/arm64-results", json=payload, timeout=30)
         if resp.status_code in (200, 201):
             print(f"     [MongoDB] OK id={resp.json().get('inserted_id','?')}")
         else:

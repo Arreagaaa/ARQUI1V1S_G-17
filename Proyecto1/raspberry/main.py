@@ -812,7 +812,7 @@ class GreenhouseDevice:
             for ch_name, ch_num in [("soil_1", s.soil_adc_ch1), ("soil_2", s.soil_adc_ch2),
                                      ("light", s.ldr_adc_ch), ("gas", s.mq_adc_ch)]:
                 raw = self.gpio.read_adc_channel(ch_num)
-                raw_adc[ch_name] = int(raw >> 6)
+                raw_adc[ch_name] = int(raw) >> 6
         else:
             raw_adc = {"soil_1": 400, "soil_2": 400, "light": 500, "gas": 100}
         temp = int(readings.get("temperature", 25))

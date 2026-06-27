@@ -26,6 +26,14 @@ lbl_ok: .ascii "STATUS=OK\n";      len_ok = . - lbl_ok
 newline: .ascii "\n"
 minus_sign: .ascii "-"
 
+col_temp: .asciz "TEMP"
+col_hum:  .asciz "HUM_AIRE"
+col_s1:   .asciz "SOIL1"
+col_s2:   .asciz "SOIL2"
+col_luz:  .asciz "LUZ"
+col_gas:  .asciz "GAS"
+col_names: .quad col_temp, col_hum, col_s1, col_s2, col_luz, col_gas
+
 // mensajes de error
 msg_err_argc: .ascii "STATUS=ERROR\nERROR=INVALID_ARGS\nDETAIL=EXPECTED_5_ARGS\n"
 len_err_argc = . - msg_err_argc
@@ -154,8 +162,16 @@ _start:
     mov x2, len_col
     mov x8, #64
     svc #0
-    mov x0, x22
-    bl print_uint
+    sub x0, x22, #1
+    ldr x1, =col_names
+    ldr x1, [x1, x0, lsl #3]
+    mov x0, #1
+    bl write_str
+    mov x0, #1
+    ldr x1, =newline
+    mov x2, #1
+    mov x8, #64
+    svc #0
 
     mov x0, #1
     ldr x1, =lbl_ws
@@ -223,6 +239,23 @@ _start:
     mov x0, #0
     mov x8, #93
     svc #0
+
+// write_str(x0=fd, x1=str) -> escribe string .asciz a stdout
+write_str:
+    stp x29, x30, [sp, #-16]!
+    mov x5, x1
+    mov x6, #0
+ws_len:
+    ldrb w7, [x5, x6]
+    cbz w7, ws_write
+    add x6, x6, #1
+    b ws_len
+ws_write:
+    mov x2, x6
+    mov x8, #64
+    svc #0
+    ldp x29, x30, [sp], #16
+    ret
 
 // errores
 error_argc:

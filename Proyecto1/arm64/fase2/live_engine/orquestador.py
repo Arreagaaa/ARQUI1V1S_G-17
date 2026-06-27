@@ -233,6 +233,11 @@ def registrar_en_mongodb(decision: dict, lectura: str, api_url: str):
             "STATUS": decision["status"],
             "INPUT": lectura,
         },
+        "input": lectura,
+        "column": decision.get("target", ""),
+        "decision": decision["action"],
+        "risk": decision["risk"],
+        "status": decision["status"],
         "source": "raspi-01",
     }
     try:

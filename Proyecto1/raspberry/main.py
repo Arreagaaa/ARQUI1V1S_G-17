@@ -1012,6 +1012,10 @@ class GreenhouseDevice:
                         "module": module,
                         "total_values": total_values,
                         "results": results,
+                        "column": data.get("COLUMN"),
+                        "range_start": int(data["WINDOW_START"]) if "WINDOW_START" in data else None,
+                        "range_end": int(data["WINDOW_END"]) if "WINDOW_END" in data else None,
+                        "status": data.get("STATUS", "OK"),
                         "source": "raspi-01",
                     }, timeout=10)
                     if resp.status_code == 200:

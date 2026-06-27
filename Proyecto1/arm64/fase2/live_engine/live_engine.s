@@ -16,6 +16,8 @@ msg_action_riego1_on: .ascii "ACTION=RIEGO_1_ON\n"; len_action_riego1_on = . - m
 msg_action_riego2_on: .ascii "ACTION=RIEGO_2_ON\n"; len_action_riego2_on = . - msg_action_riego2_on
 msg_action_light_on: .ascii "ACTION=LIGHT_ON\n";    len_action_light_on = . - msg_action_light_on
 msg_action_led_green: .ascii "ACTION=LED_GREEN\n";  len_action_led_green = . - msg_action_led_green
+msg_action_led_yellow: .ascii "ACTION=LED_YELLOW\n";len_action_led_yellow = . - msg_action_led_yellow
+msg_action_led_red: .ascii "ACTION=LED_RED\n";      len_action_led_red = . - msg_action_led_red
 msg_action_no_action: .ascii "ACTION=NO_ACTION\n";  len_action_no_action = . - msg_action_no_action
 
 msg_target_gas: .ascii "TARGET=GAS_SENSOR\n";     len_target_gas = . - msg_target_gas
@@ -26,6 +28,7 @@ msg_target_temp: .ascii "TARGET=TEMPERATURE\n";   len_target_temp = . - msg_targ
 msg_target_general: .ascii "TARGET=GENERAL\n";    len_target_general = . - msg_target_general
 msg_target_none: .ascii "TARGET=NONE\n";          len_target_none = . - msg_target_none
 
+msg_risk_critical: .ascii "RISK=CRITICAL\n";      len_risk_critical = . - msg_risk_critical
 msg_risk_high: .ascii "RISK=HIGH\n";              len_risk_high = . - msg_risk_high
 msg_risk_medium: .ascii "RISK=MEDIUM\n";          len_risk_medium = . - msg_risk_medium
 msg_risk_low: .ascii "RISK=LOW\n";                len_risk_low = . - msg_risk_low
@@ -281,13 +284,21 @@ check_mode:
     // prioridad 6 o 7 segun modo
     cmp x15, #0
     bne output_no_action
+    // warning: tendencia descendente en suelo o luz -> LED_YELLOW
+    cmp x25, #0
+    blt output_led_yellow
+    cmp x26, #0
+    blt output_led_yellow
+    cmp x27, #0
+    blt output_led_yellow
+    // prioridad 6: estado normal -> LED_GREEN
     b output_led_green
 
 output_gas_alarm:
     mov x0, x20; mov x1, x28
     ldr x19, =msg_action_alarm_on; mov x20, len_action_alarm_on
     ldr x21, =msg_target_gas;      mov x22, len_target_gas
-    ldr x23, =msg_risk_high;       mov x24, len_risk_high
+    ldr x23, =msg_risk_critical;   mov x24, len_risk_critical
     ldr x25, =msg_reason_gas;      mov x26, len_reason_gas
     bl output_action
     b main_loop
@@ -334,6 +345,24 @@ output_led_green:
     ldr x21, =msg_target_general;   mov x22, len_target_general
     ldr x23, =msg_risk_low;         mov x24, len_risk_low
     ldr x25, =msg_reason_normal;    mov x26, len_reason_normal
+    bl output_action
+    b main_loop
+
+output_led_yellow:
+    mov x0, #0; mov x1, #0
+    ldr x19, =msg_action_led_yellow;  mov x20, len_action_led_yellow
+    ldr x21, =msg_target_general;     mov x22, len_target_general
+    ldr x23, =msg_risk_medium;        mov x24, len_risk_medium
+    ldr x25, =msg_reason_normal;      mov x26, len_reason_normal
+    bl output_action
+    b main_loop
+
+output_led_red:
+    mov x0, #0; mov x1, #0
+    ldr x19, =msg_action_led_red;  mov x20, len_action_led_red
+    ldr x21, =msg_target_general;  mov x22, len_target_general
+    ldr x23, =msg_risk_high;       mov x24, len_risk_high
+    ldr x25, =msg_reason_normal;   mov x26, len_reason_normal
     bl output_action
     b main_loop
 

@@ -32,6 +32,14 @@ len_err_col = . - msg_err_col
 msg_err_opn: .ascii "STATUS=ERROR\nERROR=FILE_NOT_FOUND\nDETAIL=COULD_NOT_OPEN_FILE\n"
 len_err_opn = . - msg_err_opn
 
+col_temp: .asciz "TEMP"
+col_hum:  .asciz "HUM_AIRE"
+col_s1:   .asciz "SOIL1"
+col_s2:   .asciz "SOIL2"
+col_luz:  .asciz "LUZ"
+col_gas:  .asciz "GAS"
+col_names: .quad col_temp, col_hum, col_s1, col_s2, col_luz, col_gas
+
 .bss
 values_buf: .skip 8 * MAX_VALUES
 out_buf:    .skip 256
@@ -115,9 +123,11 @@ _start:
     mov x1, x9
     bl copy_str
     mov x9, x0
-    mov x0, x22
+    sub x0, x22, #1
+    ldr x1, =col_names
+    ldr x0, [x1, x0, lsl #3]
     mov x1, x9
-    bl utils_i64_to_str
+    bl copy_str
     mov x9, x0
     ldr x0, =nl
     mov x1, x9

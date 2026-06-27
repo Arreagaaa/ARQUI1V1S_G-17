@@ -293,13 +293,8 @@ soil2_saturated:
     b main_loop
 
 check_luz:
-    // prioridad 5: luz baja y descendiendo
+    // prioridad 5: luz baja (<65%) -> LIGHT_ON (sin tendencia)
     cmp x23, #LUZ_BAJA
-    blt check_luz_low
-    b check_temp
-
-check_luz_low:
-    cmp x27, #0
     blt output_light_on
 
 check_temp:

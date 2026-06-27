@@ -157,7 +157,7 @@ _start:
     // limpiar toda el area .bss (buffers y contadores)
     ldr x0, =temp_buffer
     ldr x1, =num_buffer
-    add x1, x1, #32
+    add x1, x1, #NUM_BUF_SIZE
     sub x1, x1, x0
     mov x2, #0
 
@@ -175,7 +175,7 @@ main_loop:
     // leer entrada desde stdin (hasta 64 bytes)
     mov x0, #0
     ldr x1, =input_buffer
-    mov x2, #64
+    mov x2, #INPUT_BUF_SIZE
     mov x8, #63
     svc #0
 
@@ -589,32 +589,28 @@ amplitud_cero:
 // imprime "VALUE=" seguido del numero
 print_value_only:
     stp x29, x30, [sp, #-16]!
-    stp x19, xzr, [sp, #-16]!
-    mov x19, x0
+    mov x9, x0
     mov x0, #1
     ldr x1, =msg_label_value
     mov x2, len_label_value
     mov x8, #64
     svc #0
-    mov x0, x19
+    mov x0, x9
     bl print_uint
-    ldp x19, xzr, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
 // imprime "INDICATOR=" seguido del numero
 print_indicator_only:
     stp x29, x30, [sp, #-16]!
-    stp x19, xzr, [sp, #-16]!
-    mov x19, x0
+    mov x9, x0
     mov x0, #1
     ldr x1, =msg_label_indicator
     mov x2, len_label_indicator
     mov x8, #64
     svc #0
-    mov x0, x19
+    mov x0, x9
     bl print_uint
-    ldp x19, xzr, [sp], #16
     ldp x29, x30, [sp], #16
     ret
 
@@ -648,18 +644,15 @@ print_uint:
     cmp x0, #0
     bge print_uint_positive
     // es negativo -> imprimir '-' y negar
-    stp x29, x30, [sp, #-16]!
-    mov x19, x0
+    mov x9, x0
     mov x0, #1
     ldr x1, =minus_sign
     mov x2, #1
     mov x8, #64
     svc #0
-    mov x0, x19
+    mov x0, x9
     neg x0, x0
-    bl print_uint_positive
-    ldp x29, x30, [sp], #16
-    ret
+    b print_uint_positive
 
 print_uint_positive:
     ldr x1, =num_buffer

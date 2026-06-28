@@ -376,8 +376,6 @@ set_flag_riego2:
 check_luz:
     cmp x23, #LUZ_BAJA
     bge check_temp
-    cmp x27, #0
-    bge check_temp
     orr x28, x28, #FLAG_LIGHT_ON
     cmp x16, #0
     bne check_temp

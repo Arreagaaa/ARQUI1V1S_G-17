@@ -1140,7 +1140,7 @@ class GreenhouseDevice:
         print(f"[arm64] analisis historico: {module} {file} lineas {start_line}-{end_line} columna {column}")
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        arm_dir = os.path.join(script_dir, "..", "arm64")
+        arm_dir = os.path.join(script_dir, "..", "arm64", "fase2")
         url = self.settings.backend_url
 
         executor = os.path.join(script_dir, "arm_executor.py")

@@ -98,33 +98,40 @@ $(M5_BIN): $(M5_O) $(UTILS_O)
 modulo5: $(M5_BIN)
 	@echo "==> modulo_5_tendencia compilado: $(M5_BIN)"
 
+CSV      = lecturas.csv
+ARGS1    = $(CSV) 1 30 1
+ARGS2    = $(CSV) 1 30 1
+ARGS3    = $(CSV) 1 30 1
+ARGS4    = $(CSV) 1 30 4
+ARGS5    = $(CSV) 1 30 5
+
 run1: $(M1_BIN)
 	mkdir -p results
-	$(QEMU) $<
+	$(QEMU) $< $(ARGS1)
 	@echo "--- Resultado ---"
 	@cat results/resultado_media.txt
 
 run2: $(M2_BIN)
 	mkdir -p results
-	$(QEMU) $<
+	$(QEMU) $< $(ARGS2)
 	@echo "--- Resultado ---"
 	@cat results/resultado_varianza.txt
 
 run3: $(M3_BIN)
 	mkdir -p results
-	$(QEMU) $<
+	$(QEMU) $< $(ARGS3)
 	@echo "--- Resultado ---"
 	@cat results/resultado_anomalias.txt
 
 run4: $(M4_BIN)
 	mkdir -p results
-	$(QEMU) $<
+	$(QEMU) $< $(ARGS4)
 	@echo "--- Resultado ---"
 	@cat results/resultado_prediccion.txt
 
 run5: $(M5_BIN)
 	mkdir -p results
-	$(QEMU) $<
+	$(QEMU) $< $(ARGS5)
 	@echo "--- Resultado ---"
 	@cat results/resultado_tendencia.txt
 

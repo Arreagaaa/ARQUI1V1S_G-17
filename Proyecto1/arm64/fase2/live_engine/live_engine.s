@@ -350,12 +350,12 @@ set_flag_riego1:
     mov x12, len_reason_soil
     mov x13, x21
 
-    // prioridad 3: suelo 2 seco y ascendiendo -> RIEGO_2_ON
+    // prioridad 3: suelo 2 seco y tendencia descendente -> RIEGO_2_ON
 check_soil2:
     cmp x22, #SOIL_BAJO
     ble check_luz
     cmp x26, #0
-    ble check_luz
+    bge check_luz
     b set_flag_riego2
 
 set_flag_riego2:
@@ -417,11 +417,6 @@ check_mode:
 
 check_soil_warn_flg:
     cmp x25, #0
-    bge check_soil2_warn
-    b set_flag_yellow
-
-check_soil2_warn:
-    cmp x26, #0
     bge check_luz_warn
     b set_flag_yellow
 

@@ -142,39 +142,104 @@ _start:
     cbnz x1, error_data // camparamos si el denominador es distinto de 0 si es 0 salta al error
     mov x27, x0 // copiamos a x27 la pendiente 
 
+## clasificacion
     // vamos a clasificar la pendiente por medio del signo
     cmp x27, #0
     bgt trend_is_asc // si >0 va a ascendente
     blt trend_is_desc
 
     ldr x28, =trend_stbl // si no es mayor ni menor a 0 es pendiente 0
-    mov x9, len_trend_stbl // copiamops la longitud exacta 
+    mov x14, len_trend_stbl // copiamops la longitud exacta 
     b trend_done    // salata para hacer la clasificacion
+##Fin de clasificacion    
 
 // asecendente
 trend_is_asc:
     ldr x28, =trend_asc // carga la direccion del trend_asc en x28 "TREND=ASCENDING"
-    mov x9, len_trend_asc   // copiamos la longitud en byte de "ASCENDING"
+    mov x14, len_trend_asc   // copiamos la longitud en byte de "ASCENDING"
     b trend_done    // saltamos a
 
 // descendente
 trend_is_desc:      
     ldr x28, =trend_desc // cargamos la direccion en x28 de "TREND=DECENDING"
-    mov x9, len_trend_desc  // copiamos la longitud en bytes de "DECENDING"
+    mov x14, len_trend_desc  // copiamos la longitud en bytes de "DECENDING"
 
-
-// x28 = puntero al string  x9 = su longitud
+// x28 = puntero al string  x14 = su longitud
 trend_done:
-// para probar lo nuevo
-    mov x0, #1  // STDOUT salida 
-    mov x1, x28 // copiamos la salida de x28 en x1 
-    mov x2, x9  //copiamos la cantidad exacta que se va a imprimir
-    mov x8, #64 
+// imprimir salidas
+
+    // para CALC=LINEAR_REGRESSION
+    mov x0, #1 //STDOUT para salida
+    ldr x1, =lbl_calc   // cargamos al texto
+    mov x2, len_calc    // copiamos el tamaño del texto o longitud
+    mov x8, #64         // escribimos
     svc #0
 
-##Fin de clasificacion    
+    // para COLUMN=con numero
+    mov x0, #1 //STDOUT
+    ldr x1, =lbl_col    // cargamos el texto
+    mov x2, len_col     // copiamos el tamaño o longitud
+    mov x8, #64
+    svc #0
+    mov x0, x22 // cargamos el numero almacenado 
+    bl print_uint   // convetimos el numero a texto 
 
+    //para WINDOW_START=numero
+    mov x0, #1  // STDOUT
+    ldr x1, =lbl_ws // cargamos el texto
+    mov x2, len_ws  // copiamos el tamaño o longitud
+    mov x8, #64
+    svc #0
+    mov x0, x20 // copiamos la linea inicial almacenada
+    bl print_uint
 
+    //para WINDOW_END=numero
+    mov x0, #1
+    ldr x1, =lbl_we
+    mov x2, len_we
+    mov x8, #64
+    svc #0
+    mov x0, x21 // copiamos la linea final almacenada
+    bl print_uint
+
+    // para COUNT=numero
+    mov x0, #1
+    ldr x1, =lbl_cnt
+    mov x2, len_cnt
+    mov x8, #64
+    svc #0
+    mov x0, x25 // copiamos los N valores
+    bl print_uint
+
+    // para el SLOPE_X100=numero con signo
+    mov x0, #1
+    ldr x1, =lbl_slope
+    mov x2, len_slope
+    mov x8, #64
+    svc #0
+    mov x0, x27 // copiamos la pendiente almacenada
+    bl print_uint
+
+    // para el TREND=ASCENDING|DESCENDING|STABLE
+    mov x0, #1
+    ldr x1, =lbl_trend
+    mov x2, len_trend
+    mov x8, #64     // escribimos
+    svc #0
+    mov x0, #1  // volvemos a STDOUT
+    mov x1, x28 // copiamos la clasificacion almacenada
+    mov x2, x14 // copiamos la longitud del texto
+    mov x8, #64     // escribimos
+    svc #0
+
+    // para STATUS=OK
+    mov x0, #1 // STDOUT
+    ldr x1, =lbl_ok
+    mov x2, len_ok
+    mov x8, #64
+    svc #0
+
+    //salida
     mov x0, #0
     mov x8, #93
     svc #0
@@ -187,7 +252,6 @@ para esperar
 x0=M_X100 la pendiente * 100 con una division entera
 x1= 0 si es exitoso o 1 si fallo o el denominador quedo en 0
 */ 
-
 regresion_calc:
     stp x29, x30, [sp, #-16]!  
     mov x29, sp // ajustamos la pila para darle el espacio a la funcion

@@ -202,13 +202,14 @@ def run_and_parse(
 
 def post_to_backend(url: str, module: str, data: dict[str, Any]) -> bool:
     total_values = int(data.get("COUNT", 0))
-    results = {k: _coerce(v) for k, v in data.items() if k not in ("COUNT",)}
+    results = {k: _coerce(v) for k, v in data.items()}
+    results["COUNT"] = total_values  # frontend lo busca en results.COUNT
 
     payload = {
         "module": module,
         "total_values": total_values,
         "results": results,
-        "column": _coerce(data.get("COLUMN", "0")),
+        "column": str(data.get("COLUMN", "")),
         "range_start": _coerce(data.get("WINDOW_START", "0")),
         "range_end": _coerce(data.get("WINDOW_END", "0")),
         "status": data.get("STATUS", "OK"),

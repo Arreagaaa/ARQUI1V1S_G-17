@@ -11,9 +11,9 @@ LDFLAGS =
 
 BUILD   = build
 
-.PHONY: all live_engine rmse varianza prediccion clean
+.PHONY: all live_engine rmse varianza prediccion integrals derivada clean
 
-all: live_engine rmse varianza prediccion
+all: live_engine rmse varianza prediccion integrals derivada
 
 LIVE_DIR = live_engine
 LIVE_S   = $(LIVE_DIR)/live_engine.s
@@ -56,7 +56,7 @@ VAR_O     = $(BUILD)/varianza.o
 VAR_BIN   = $(BUILD)/varianza
 
 $(VAR_O): $(VAR_S) | $(BUILD)
-	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -I $(VAR_DIR) -o $@ $<
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -o $@ $<
 
 $(VAR_BIN): $(VAR_O) $(UTILS_O)
 	$(LD) $(LDFLAGS) -o $@ $^
@@ -78,6 +78,33 @@ $(PRED_BIN): $(PRED_O) $(UTILS_O)
 prediccion: $(PRED_BIN)
 	@echo "==> prediccion compilado: $(PRED_BIN)"
 
+INT_DIR   = analyzer/modules/modulo_4_integral_error
+INT_S     = $(INT_DIR)/integrals.s
+INT_O     = $(BUILD)/integrals.o
+INT_BIN   = $(BUILD)/integrals
+
+$(INT_O): $(INT_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -o $@ $<
+
+$(INT_BIN): $(INT_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+integrals: $(INT_BIN)
+	@echo "==> integrals compilado: $(INT_BIN)"
+
+DER_DIR   = analyzer/modules/modulo_5_derivada_local
+DER_S     = $(DER_DIR)/derivada.s
+DER_O     = $(BUILD)/derivada.o
+DER_BIN   = $(BUILD)/derivada
+
+$(DER_O): $(DER_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -o $@ $<
+
+$(DER_BIN): $(DER_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+derivada: $(DER_BIN)
+	@echo "==> derivada compilado: $(DER_BIN)"
 
 $(BUILD):
 	mkdir -p $(BUILD)

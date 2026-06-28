@@ -284,7 +284,7 @@ COLUMN_LABELS = {
     4: "HUM_SUELO_2", 5: "LUZ", 6: "GAS", 7: "RIEGO_1", 8: "RIEGO_2",
 }
 
-DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1}
+DEFAULT_COLUMNS = {1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1}
 
 
 @router.get("/api/arm64/csv")

@@ -1107,7 +1107,7 @@ class GreenhouseDevice:
         print("[arm64] ejecutando módulos ARM64...")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         executor = os.path.join(script_dir, "arm_executor.py")
-        arm_dir = os.path.join(script_dir, "..", "arm64")
+        arm_dir = os.path.join(script_dir, "..", "arm64", "fase2")
         url = self.settings.backend_url
 
         try:
@@ -1165,8 +1165,8 @@ class GreenhouseDevice:
             return
 
         binary_name, needs_ideal = module_map[module]
-        binary_path = os.path.join(arm_dir, "fase2", "build", binary_name)
-        csv_path = os.path.join(arm_dir, "fase2", file) if not file.startswith("/") else file
+        binary_path = os.path.join(arm_dir, "build", binary_name)
+        csv_path = os.path.join(arm_dir, file) if not file.startswith("/") else file
 
         if needs_ideal:
             cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(ideal_value)]

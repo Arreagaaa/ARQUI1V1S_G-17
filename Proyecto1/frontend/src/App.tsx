@@ -1188,7 +1188,7 @@ const COLUMN_LABELS: Record<number, string> = {
 
 const COLUMN_OPTIONS = Object.entries(COLUMN_LABELS).map(([v, l]) => ({ value: Number(v), label: l }));
 
-const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1 };
+const DEFAULT_COLUMNS: Record<number, number> = { 1: 1, 2: 1, 3: 1, 4: 4, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
 
 function ARM64ResultsSection({
   results,
@@ -1443,7 +1443,7 @@ function ARM64ResultsSection({
           </h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[1, 2, 3, 4, 5, 6].map((modId) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((modId) => (
             <div key={modId} className="flex items-center gap-1.5 bg-slate-950/60 rounded-lg px-2.5 py-1.5">
               <span className="text-[10px] text-slate-400 font-medium">M{modId}:</span>
               <select

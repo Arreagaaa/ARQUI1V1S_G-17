@@ -246,6 +246,19 @@ def fetch_csv_from_backend(url: str, csv_path: Path) -> bool:
         return False
 
 
+def fetch_column_config_from_backend(url: str) -> dict[int, int]:
+    base = url.rstrip("/")
+    try:
+        resp = requests.get(f"{base}/api/arm64/column-config", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            raw = data.get("columns", {})
+            return {int(k): int(v) for k, v in raw.items()}
+    except Exception:
+        pass
+    return {}
+
+
 def main() -> int:
     args = parse_args()
     fase2_dir = Path(args.dir).resolve()
@@ -267,23 +280,40 @@ def main() -> int:
 
     csv_path = fase2_dir / "lecturas.csv"
 
-    # Fase 0: fetch CSV desde backend
+    # Fase 0: fetch CSV + column config desde backend
+    column_config: dict[int, int] = {}
     if args.fetch:
         print("Descargando datos desde el backend...")
         if not fetch_csv_from_backend(args.url, csv_path):
             print("Error al descargar CSV. Abortando.")
             return 1
+        column_config = fetch_column_config_from_backend(args.url)
         print()
+    elif args.url:
+        column_config = fetch_column_config_from_backend(args.url)
 
     if not csv_path.exists():
         print(f"CSV no encontrado: {csv_path}")
         print("Usa --fetch para descargar o coloca lecturas.csv en el directorio")
         return 1
 
+    # Mapear frontend module IDs (M6-M10) a arm_executor indices (col1-col5)
+    # M6=RMSE, M7=LINEAR_REGRESSION, M8=PREDICTION_LINEAR, M9=ERROR_INTEGRAL, M10=LOCAL_DERIVATIVE
+    FRONTEND_TO_EXECUTOR = {6: 1, 7: 2, 8: 3, 9: 4, 10: 5}
     cols = {}
     for i in range(1, 6):
         col = getattr(args, f"col{i}")
-        cols[i] = col if col is not None else 1
+        if col is not None:
+            cols[i] = col
+        elif column_config:
+            # buscar frontend module ID que mapea a este executor index i
+            frontend_id = next((fid for fid, eidx in FRONTEND_TO_EXECUTOR.items() if eidx == i), None)
+            if frontend_id and frontend_id in column_config:
+                cols[i] = column_config[frontend_id]
+            else:
+                cols[i] = 1
+        else:
+            cols[i] = 1
 
     print(f"  Start={args.start}, End={args.end}, Ideal={args.ideal}, K={args.k}")
     for i, (module_name, info) in enumerate(MODULES.items(), 1):

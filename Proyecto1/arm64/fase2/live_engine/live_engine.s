@@ -18,6 +18,7 @@
 .equ FLAG_BLOQUEADO,     32
 .equ FLAG_LED_YELLOW,    64
 .equ FLAG_LED_GREEN,     128
+.equ FLAG_RIEGO_2_ON,    512
 .equ FLAG_NO_ACTION,     256
 .equ INPUT_BUF_SIZE, 64
 .equ NUM_BUF_SIZE, 32
@@ -30,7 +31,6 @@ msg_action_riego2_on: .ascii "ACTION=RIEGO_2_ON\n"; len_action_riego2_on = . - m
 msg_action_light_on: .ascii "ACTION=LIGHT_ON\n";    len_action_light_on = . - msg_action_light_on
 msg_action_led_green: .ascii "ACTION=LED_GREEN\n";  len_action_led_green = . - msg_action_led_green
 msg_action_led_yellow: .ascii "ACTION=LED_YELLOW\n";len_action_led_yellow = . - msg_action_led_yellow
-msg_action_led_red: .ascii "ACTION=LED_RED\n";      len_action_led_red = . - msg_action_led_red
 msg_action_no_action: .ascii "ACTION=NO_ACTION\n";  len_action_no_action = . - msg_action_no_action
 
 
@@ -243,8 +243,7 @@ main_loop_proceed:
     ldr x0, =gas_array
     ldr x1, =gas_count
     bl calcular_amplitud
-    mov x28, x0  // gas amplitud
-    mov x14, x0  // respaldo gas amplitud (se pierde cuando x28 se reusa como bitmask)
+    mov x14, x0  // gas amplitud
 
     ldr x0, =hum_array
     ldr x1, =hum_count
@@ -263,6 +262,9 @@ main_loop_proceed:
     ldr x11, =msg_reason_manual
     mov x12, len_reason_manual
     mov x13, #0
+    // modo manual: solo NO_ACTION
+    cmp x15, #0
+    bne check_mode
 
     // prioridad 1: gas critico (>92) -> ALARM_ON
     cmp x20, #GAS_CRITICAL
@@ -291,7 +293,16 @@ set_flag_alarm:
 
 set_flag_gas_warning:
     orr x28, x28, #FLAG_GAS_WARNING
-    // solo bandera, no toma prioridad (no es una accion principal segun especificacion)
+    cmp x16, #0
+    bne done_gas
+    mov x16, #2
+    ldr x5, =msg_action_gas_warning
+    mov x6, len_action_gas_warning
+    ldr x7, =msg_target_gas
+    mov x9, len_target_gas
+    ldr x11, =msg_reason_gas_warning
+    mov x12, len_reason_gas_warning
+    mov x13, x20
 
 done_gas:
     // prioridad 2: suelo 1 seco y ascendiendo
@@ -311,7 +322,7 @@ set_flag_bloqueado:
     orr x28, x28, #FLAG_BLOQUEADO
     cmp x16, #0
     bne check_soil2
-    mov x16, #9
+    mov x16, #10
     ldr x5, =msg_action_no_action
     mov x6, len_action_no_action
     ldr x7, =msg_target_soil1
@@ -325,7 +336,7 @@ set_flag_riego1:
     orr x28, x28, #FLAG_RIEGO_1_ON
     cmp x16, #0
     bne check_soil2
-    mov x16, #2
+    mov x16, #3
     ldr x5, =msg_action_riego1_on
     mov x6, len_action_riego1_on
     ldr x7, =msg_target_soil1
@@ -349,7 +360,7 @@ set_flag_riego2:
     orr x28, x28, #FLAG_RIEGO_2_ON
     cmp x16, #0
     bne check_luz
-    mov x16, #3
+    mov x16, #4
     ldr x5, =msg_action_riego2_on
     mov x6, len_action_riego2_on
     ldr x7, =msg_target_soil2
@@ -359,13 +370,14 @@ set_flag_riego2:
     mov x13, x22
 
 check_luz:
-    // luz baja (<65%) -> LIGHT_ON (sin tendencia)
     cmp x23, #LUZ_BAJA
+    bge check_temp
+    cmp x27, #0
     bge check_temp
     orr x28, x28, #FLAG_LIGHT_ON
     cmp x16, #0
     bne check_temp
-    mov x16, #4
+    mov x16, #5
     ldr x5, =msg_action_light_on
     mov x6, len_action_light_on
     ldr x7, =msg_target_luz
@@ -388,7 +400,7 @@ set_flag_fan:
     orr x28, x28, #FLAG_FAN_ON
     cmp x16, #0
     bne check_mode
-    mov x16, #5
+    mov x16, #6
     ldr x5, =msg_action_fan_on
     mov x6, len_action_fan_on
     ldr x7, =msg_target_temp
@@ -421,7 +433,7 @@ set_flag_green:
     orr x28, x28, #FLAG_LED_GREEN
     cmp x16, #0
     bne output_combined
-    mov x16, #7
+    mov x16, #8
     ldr x5, =msg_action_led_green
     mov x6, len_action_led_green
     ldr x7, =msg_target_general
@@ -435,7 +447,7 @@ set_flag_yellow:
     orr x28, x28, #FLAG_LED_YELLOW
     cmp x16, #0
     bne output_combined
-    mov x16, #6
+    mov x16, #7
     ldr x5, =msg_action_led_yellow
     mov x6, len_action_led_yellow
     ldr x7, =msg_target_soil1
@@ -449,7 +461,7 @@ set_flag_noact:
     orr x28, x28, #FLAG_NO_ACTION
     cmp x16, #0
     bne output_combined
-    mov x16, #8
+    mov x16, #9
     ldr x5, =msg_action_no_action
     mov x6, len_action_no_action
     ldr x7, =msg_target_none
@@ -491,6 +503,8 @@ output_combined:
     beq risk_low
     cmp x16, #9
     beq risk_low
+    cmp x16, #10
+    beq risk_low
     b risk_med
 risk_crit:
     ldr x1, =msg_risk_critical
@@ -527,11 +541,6 @@ print_risk:
     svc #0
     mov x0, x28
     bl print_uint
-    mov x0, #1
-    ldr x1, =newline
-    mov x2, #1
-    mov x8, #64
-    svc #0
 
     // INDICATOR=<indicator>
     mov x0, #1
@@ -541,11 +550,6 @@ print_risk:
     svc #0
     mov x0, x13
     bl print_uint
-    mov x0, #1
-    ldr x1, =newline
-    mov x2, #1
-    mov x8, #64
-    svc #0
 
     // STATUS=OK
     mov x0, #1

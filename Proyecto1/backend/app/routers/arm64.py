@@ -55,7 +55,8 @@ def get_arm64_results():
       - ADVANCED_TREND
     """
     db = get_database()
-    modules = ["RMSE", "WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND", "LIVE_ENGINE"]
+    modules = ["RMSE", "WEIGHTED_MEAN", "VARIANCE", "ANOMALY_DETECTION", "PREDICTION", "ADVANCED_TREND",
+                "LINEAR_REGRESSION", "PREDICTION_LINEAR", "ERROR_INTEGRAL", "LOCAL_DERIVATIVE", "LIVE_ENGINE"]
     results = {}
     for module in modules:
         res = db.arm64_results.find_one({"module": module}, sort=[("created_at", -1)])
@@ -186,6 +187,64 @@ def generate_mock_arm64_results(dev: bool = False):
                 "MAX_DOWN_STREAK": 6,
                 "ACCUM_DIFF": 8,
                 "TREND": "UP"
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "LINEAR_REGRESSION",
+            "total_values": 10,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 10,
+                "COUNT": 10,
+                "SLOPE_X100": 45,
+                "TREND": "ASCENDING"
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "PREDICTION_LINEAR",
+            "total_values": 10,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 10,
+                "COUNT": 10,
+                "K": 5,
+                "SLOPE_X100": 45,
+                "INTERCEPT_X100": 2500,
+                "PREDICTED_5": 2725
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "ERROR_INTEGRAL",
+            "total_values": 10,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 10,
+                "COUNT": 10,
+                "IDEAL": 30,
+                "ERROR_INTEGRAL": 45
+            },
+            "source": "raspi-01",
+            "created_at": now
+        },
+        {
+            "module": "LOCAL_DERIVATIVE",
+            "total_values": 10,
+            "results": {
+                "COLUMN": 1,
+                "WINDOW_START": 1,
+                "WINDOW_END": 10,
+                "COUNT": 10,
+                "WINDOW_SIZE": 5,
+                "MAX_LOCAL_SLOPE_X100": 120
             },
             "source": "raspi-01",
             "created_at": now
@@ -489,6 +548,106 @@ def trigger_historical_analysis(payload: dict):
                 }
             else:
                 results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+
+        elif module == "LINEAR_REGRESSION":
+            n = len(values)
+            if n >= 2:
+                sum_x = sum(range(n))
+                sum_y = sum(values)
+                sum_xy = sum(i * v for i, v in enumerate(values))
+                sum_x2 = sum(i * i for i in range(n))
+                denom = n * sum_x2 - sum_x * sum_x
+                if denom != 0:
+                    slope_x100 = int((n * sum_xy - sum_x * sum_y) * 100 / denom)
+                else:
+                    slope_x100 = 0
+                trend = "ASCENDING" if slope_x100 > 0 else ("DESCENDING" if slope_x100 < 0 else "STABLE")
+                results_data = {
+                    "COLUMN": column,
+                    "WINDOW_START": start_line,
+                    "WINDOW_END": end_line,
+                    "COUNT": n,
+                    "SLOPE_X100": slope_x100,
+                    "TREND": trend,
+                }
+            else:
+                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+
+        elif module == "PREDICTION_LINEAR":
+            n = len(values)
+            if n >= 2:
+                sum_x = sum(range(n))
+                sum_y = sum(values)
+                sum_xy = sum(i * v for i, v in enumerate(values))
+                sum_x2 = sum(i * i for i in range(n))
+                denom = n * sum_x2 - sum_x * sum_x
+                if denom != 0:
+                    slope_x100 = int((n * sum_xy - sum_x * sum_y) * 100 / denom)
+                    intercept_x100 = int((sum_y * 100 - slope_x100 * sum_x) / n)
+                else:
+                    slope_x100 = 0
+                    intercept_x100 = int(sum_y * 100 / n) if n else 0
+                k = 5
+                predicted = int((slope_x100 * (n - 1 + k) + intercept_x100) / 100)
+                results_data = {
+                    "COLUMN": column,
+                    "WINDOW_START": start_line,
+                    "WINDOW_END": end_line,
+                    "COUNT": n,
+                    "K": k,
+                    "SLOPE_X100": slope_x100,
+                    "INTERCEPT_X100": intercept_x100,
+                    f"PREDICTED_{k}": predicted,
+                }
+            else:
+                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+
+        elif module == "ERROR_INTEGRAL":
+            n = len(values)
+            if n >= 2:
+                area = 0
+                for i in range(n - 1):
+                    err_i = abs(values[i] - ideal_value)
+                    err_next = abs(values[i + 1] - ideal_value)
+                    area += (err_i + err_next) // 2
+                results_data = {
+                    "COLUMN": column,
+                    "WINDOW_START": start_line,
+                    "WINDOW_END": end_line,
+                    "COUNT": n,
+                    "IDEAL": ideal_value,
+                    "ERROR_INTEGRAL": area,
+                }
+            else:
+                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+
+        elif module == "LOCAL_DERIVATIVE":
+            n = len(values)
+            if n >= 5:
+                max_slope = 0
+                window_size = 5
+                for start in range(n - window_size + 1):
+                    window = values[start:start + window_size]
+                    sx = sum(range(window_size))
+                    sy = sum(window)
+                    sxy = sum(i * v for i, v in enumerate(window))
+                    sx2 = sum(i * i for i in range(window_size))
+                    denom = window_size * sx2 - sx * sx
+                    if denom != 0:
+                        slope = abs(int((window_size * sxy - sx * sy) * 100 / denom))
+                        if slope > max_slope:
+                            max_slope = slope
+                results_data = {
+                    "COLUMN": column,
+                    "WINDOW_START": start_line,
+                    "WINDOW_END": end_line,
+                    "COUNT": n,
+                    "WINDOW_SIZE": window_size,
+                    "MAX_LOCAL_SLOPE_X100": max_slope,
+                }
+            else:
+                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
+
         else:
             results_data = {"STATUS": "ERROR", "ERROR": "MODULE_NOT_IMPLEMENTED"}
 

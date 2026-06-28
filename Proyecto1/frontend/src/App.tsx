@@ -915,6 +915,10 @@ export default function App() {
                 <option value="ANOMALY_DETECTION">Anomalias</option>
                 <option value="PREDICTION">Prediccion</option>
                 <option value="ADVANCED_TREND">Tendencia</option>
+                <option value="LINEAR_REGRESSION">Regresion Lineal (F2)</option>
+                <option value="PREDICTION_LINEAR">Prediccion Lineal (F2)</option>
+                <option value="ERROR_INTEGRAL">Error Integral (F2)</option>
+                <option value="LOCAL_DERIVATIVE">Derivada Local (F2)</option>
               </select>
             </Field>
           </div>
@@ -1424,6 +1428,73 @@ function ARM64ResultsSection({
         { label: 'Dif Acum (ACCUM_DIFF)', key: 'ACCUM_DIFF' },
         { label: 'Tendencia (TREND)', key: 'TREND', badge: true }
       ]
+    },
+    // --- Modulos historicos Fase 2 (agregados por devs) ---
+    {
+      key: 'LINEAR_REGRESSION',
+      title: 'Regresion Lineal (F2)',
+      responsable: 'Integrante 2',
+      file: 'modulo_2_regresion/varianza.s',
+      outputFile: 'resultado_regresion.txt',
+      formula: 'SLOPE = (N*ΣXY - ΣX*ΣY) / (N*ΣX² - (ΣX)²) × 100',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Pendiente×100 (SLOPE_X100)', key: 'SLOPE_X100', highlight: true },
+        { label: 'Tendencia (TREND)', key: 'TREND', badge: true }
+      ]
+    },
+    {
+      key: 'PREDICTION_LINEAR',
+      title: 'Prediccion Lineal (F2)',
+      responsable: 'Integrante 3',
+      file: 'modulo_3_prediccion/predicciones.s',
+      outputFile: 'resultado_prediccion.txt',
+      formula: 'PRED = SLOPE×(N+K)/100 + INTERCEPT/100',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'K pasos', key: 'K' },
+        { label: 'Pendiente×100 (SLOPE_X100)', key: 'SLOPE_X100' },
+        { label: 'Intercepto×100 (INTERCEPT_X100)', key: 'INTERCEPT_X100' },
+        { label: 'Valor predecido', key: 'PREDICTED_', dynamic: true, highlight: true }
+      ]
+    },
+    {
+      key: 'ERROR_INTEGRAL',
+      title: 'Error Integral (F2)',
+      responsable: 'Integrante 4',
+      file: 'modulo_4_integral_error/integrals.s',
+      outputFile: 'resultado_integral.txt',
+      formula: '∫|Y-IDEAL| dx ≈ Σ(|Y_i-IDEAL| + |Y_next-IDEAL|)/2',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Valor ideal (IDEAL)', key: 'IDEAL' },
+        { label: 'Error integral (ERROR_INTEGRAL)', key: 'ERROR_INTEGRAL', highlight: true }
+      ]
+    },
+    {
+      key: 'LOCAL_DERIVATIVE',
+      title: 'Derivada Local (F2)',
+      responsable: 'Integrante 5',
+      file: 'modulo_5_derivada_local/derivada.s',
+      outputFile: 'resultado_derivada_local.txt',
+      formula: 'MAX|SLOPE| en ventana deslizante de 5',
+      fields: [
+        { label: 'Columna (COLUMN)', key: 'COLUMN' },
+        { label: 'Inicio (WINDOW_START)', key: 'WINDOW_START' },
+        { label: 'Fin (WINDOW_END)', key: 'WINDOW_END' },
+        { label: 'Cantidad (COUNT)', key: 'COUNT' },
+        { label: 'Tamano ventana (WINDOW_SIZE)', key: 'WINDOW_SIZE' },
+        { label: 'Max pendiente×100 (MAX_LOCAL_SLOPE_X100)', key: 'MAX_LOCAL_SLOPE_X100', highlight: true }
+      ]
     }
   ];
 
@@ -1536,7 +1607,10 @@ function ARM64ResultsSection({
                   <div className="mt-4 space-y-2">
                     {modData ? (
                       mod.fields.map((f) => {
-                        const val = modData.results?.[f.key];
+                        const isDynamic = (f as any).dynamic;
+                        const val = isDynamic
+                          ? Object.entries(modData.results ?? {}).find(([k]) => k.startsWith(f.key))?.[1]
+                          : modData.results?.[f.key];
                         return (
                           <div key={f.key} className="flex items-center justify-between text-[10px] border-b border-white/5 pb-1">
                             <span className="text-slate-400">{f.label.split(' (')[0]}</span>

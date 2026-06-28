@@ -858,8 +858,14 @@ class GreenhouseDevice:
     def _execute_arm64_decision(self, decision: dict) -> None:
         if self.gpio.mode != "auto":
             return
+        action = decision.get("ACTION", "")
+        _ALLOWED = {"ALARM_ON","GAS_WARNING","RIEGO_1_ON","RIEGO_2_ON","FAN_ON",
+                    "LIGHT_ON","LED_GREEN","LED_YELLOW","NO_ACTION"}
+        if action not in _ALLOWED:
+            print(f"[arm64] accion no permitida: {action}")
+            return
         try:
-            flags = int(decision.get("ACTION", "0"))
+            flags = int(decision.get("VALUE", "0"))
         except ValueError:
             flags = 0
         now = time.time()

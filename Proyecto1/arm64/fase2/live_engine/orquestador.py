@@ -56,15 +56,19 @@ ACCIONES = {
 
 _ACCIONES_CON_PIN = {k: v for k, v in ACCIONES.items() if v["pin"] is not None}
 
-# Mapa de bits de flags (mismo orden que live_engine.s) a pines GPIO
+# Mapa de bits de flags (mismo orden que live_engine.s y main.py) a pines GPIO
+# FLAG_ALARM_ON=1, FLAG_RIEGO_1_ON=4, FLAG_LIGHT_ON=8, FLAG_FAN_ON=16,
+# FLAG_LED_YELLOW=64, FLAG_LED_GREEN=128, FLAG_RIEGO_2_ON=512
 FLAG_TO_PIN = {
-    0b000001: 17,  # RIEGO_1_ON
-    0b000010: 23,  # FAN_ON
-    0b000100: 24,  # LIGHT_ON
-    0b001000: 5,   # LED_GREEN
-    0b010000: 6,   # LED_YELLOW
-    0b100000: 25,  # ALARM_ON
+    1:   25,  # ALARM_ON -> buzzer
+    4:   17,  # RIEGO_1_ON -> pump
+    8:   24,  # LIGHT_ON -> light
+    16:  23,  # FAN_ON -> fan
+    64:  6,   # LED_YELLOW -> led_yellow
+    128: 5,   # LED_GREEN -> led_green
+    512: 22,  # RIEGO_2_ON -> valve_2
 }
+
 LED_RED_PIN = 12
 
 # ---------------------------------------------------------------------------
@@ -105,13 +109,18 @@ def gpio_cleanup():
 def ejecutar_accion_en_gpio(accion: str, value: str):
     if not GPIO_AVAILABLE:
         return
+    _ALLOWED = {"ALARM_ON","GAS_WARNING","RIEGO_1_ON","RIEGO_2_ON","FAN_ON",
+                "LIGHT_ON","LED_GREEN","LED_YELLOW","NO_ACTION"}
+    if accion not in _ALLOWED:
+        print(f"[GPIO] accion no permitida: {accion}")
+        return
     try:
         bitmask = int(value)
     except ValueError:
         bitmask = 0
 
-    # LED_RED sigue a ALARM_ON (bit 5 = 32)
-    if bitmask & 0b100000:
+    # LED_RED sigue a ALARM_ON (bit 0 = 1)
+    if bitmask & 1:
         bitmask |= 1 << 6  # bit 6 = LED_RED
 
     for flag, pin in FLAG_TO_PIN.items():
@@ -125,9 +134,10 @@ def ejecutar_accion_en_gpio(accion: str, value: str):
         pass
 
     activas = []
-    for nombre, f in [("RIEGO_1_ON", 0b000001), ("FAN_ON", 0b000010),
-                      ("LIGHT_ON", 0b000100), ("LED_GREEN", 0b001000),
-                      ("LED_YELLOW", 0b010000), ("ALARM_ON", 0b100000)]:
+    for nombre, f in [("ALARM_ON", 1), ("RIEGO_1_ON", 4),
+                      ("LIGHT_ON", 8), ("FAN_ON", 16),
+                      ("LED_YELLOW", 64), ("LED_GREEN", 128),
+                      ("RIEGO_2_ON", 512)]:
         if bitmask & f:
             activas.append(nombre)
     if bitmask & (1 << 6):

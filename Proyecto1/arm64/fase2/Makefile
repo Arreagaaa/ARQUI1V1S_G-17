@@ -11,9 +11,9 @@ LDFLAGS =
 
 BUILD   = build
 
-.PHONY: all live_engine rmse clean
+.PHONY: all live_engine rmse prediccion clean
 
-all: live_engine rmse
+all: live_engine rmse prediccion
 
 LIVE_DIR = live_engine
 LIVE_S   = $(LIVE_DIR)/live_engine.s
@@ -49,6 +49,21 @@ $(RMSE_BIN): $(RMSE_O) $(UTILS_O)
 
 rmse: $(RMSE_BIN)
 	@echo "==> rmse compilado: $(RMSE_BIN)"
+
+PRED_DIR   = analyzer/modules/modulo_3_prediccion
+PRED_S     = $(PRED_DIR)/predicciones.s
+PRED_O     = $(BUILD)/prediccion.o
+PRED_BIN   = $(BUILD)/prediccion
+
+$(PRED_O): $(PRED_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -o $@ $<
+
+$(PRED_BIN): $(PRED_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+prediccion: $(PRED_BIN)
+	@echo "==> prediccion compilado: $(PRED_BIN)"
+
 
 $(BUILD):
 	mkdir -p $(BUILD)

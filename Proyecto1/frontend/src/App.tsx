@@ -1238,7 +1238,7 @@ function ARM64ResultsSection({
         { label: 'Ventana inicio (WINDOW_START)', key: 'WINDOW_START' },
         { label: 'Ventana fin (WINDOW_END)', key: 'WINDOW_END' },
         { label: 'Cantidad (COUNT)', key: 'COUNT' },
-        { label: 'Valor ideal (IDEAL_VALUE)', key: 'IDEAL_VALUE' },
+        { label: 'Valor ideal (IDEAL)', key: 'IDEAL' },
         { label: 'Suma error² (SUM_SQUARED_ERROR)', key: 'SUM_SQUARED_ERROR' },
         { label: 'MSE', key: 'MSE' },
         { label: 'RMSE', key: 'RMSE', highlight: true }

@@ -122,7 +122,7 @@ def generate_mock_arm64_results(dev: bool = False):
                 "WINDOW_START": 1,
                 "WINDOW_END": 30,
                 "COUNT": 30,
-                "IDEAL_VALUE": 30,
+                "IDEAL": 30,
                 "SUM_SQUARED_ERROR": 145,
                 "MSE": 7,
                 "RMSE": 2

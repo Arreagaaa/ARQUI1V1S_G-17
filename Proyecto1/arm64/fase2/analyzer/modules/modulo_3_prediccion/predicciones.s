@@ -27,6 +27,14 @@ lbl_ok:        .ascii "STATUS=OK\n";             len_ok = . - lbl_ok
 minus_sign:    .ascii "-"
 newline:       .ascii "\n"
 
+col_temp: .asciz "TEMP"
+col_hum:  .asciz "HUM_AIRE"
+col_s1:   .asciz "SOIL1"
+col_s2:   .asciz "SOIL2"
+col_luz:  .asciz "LUZ"
+col_gas:  .asciz "GAS"
+col_names: .quad col_temp, col_hum, col_s1, col_s2, col_luz, col_gas
+
 msg_err_argc: .ascii "STATUS=ERROR\nERROR=INVALID_ARGS\nDETAIL=EXPECTED_PATH_START_END_COLUMN_OPTIONAL_K\n"
 len_err_argc = . - msg_err_argc
 
@@ -216,7 +224,7 @@ calc_regression:
     mov x2, len_col
     bl print_label
     mov x0, x22
-    bl print_uint
+    bl print_col_name
 
     ldr x1, =lbl_ws
     mov x2, len_ws
@@ -275,6 +283,42 @@ calc_regression:
     mov x0, #0
     mov x8, #93
     svc #0
+
+print_col_name:
+    stp x30, x19, [sp, #-16]!
+
+    sub x19, x0, #1
+    ldr x1, =col_names
+    ldr x1, [x1, x19, lsl #3]
+    bl write_str
+
+    ldr x1, =newline
+    mov x2, #1
+    bl print_label
+
+    ldp x30, x19, [sp], #16
+    ret
+
+write_str:
+    stp x30, x19, [sp, #-16]!
+
+    mov x19, x1
+    mov x2, #0
+
+ws_len:
+    ldrb w3, [x19, x2]
+    cbz w3, ws_write
+    add x2, x2, #1
+    b ws_len
+
+ws_write:
+    mov x0, #1
+    mov x1, x19
+    mov x8, #64
+    svc #0
+
+    ldp x30, x19, [sp], #16
+    ret
 
 print_label:
     mov x0, #1
@@ -398,4 +442,3 @@ error_exit:
     mov x0, #1
     mov x8, #93
     svc #0
-

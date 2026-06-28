@@ -11,9 +11,9 @@ LDFLAGS =
 
 BUILD   = build
 
-.PHONY: all live_engine rmse prediccion clean
+.PHONY: all live_engine rmse varianza prediccion clean
 
-all: live_engine rmse prediccion
+all: live_engine rmse varianza prediccion
 
 LIVE_DIR = live_engine
 LIVE_S   = $(LIVE_DIR)/live_engine.s
@@ -47,8 +47,22 @@ $(RMSE_O): $(RMSE_S) | $(BUILD)
 $(RMSE_BIN): $(RMSE_O) $(UTILS_O)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-rmse: $(RMSE_BIN)
+rmse: $(RMSE_BIN) 
 	@echo "==> rmse compilado: $(RMSE_BIN)"
+
+VAR_DIR   = analyzer/modules/modulo_2_regresion
+VAR_S     = $(VAR_DIR)/varianza.s
+VAR_O     = $(BUILD)/varianza.o
+VAR_BIN   = $(BUILD)/varianza
+
+$(VAR_O): $(VAR_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -I ../utils -I $(VAR_DIR) -o $@ $<
+
+$(VAR_BIN): $(VAR_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+varianza: $(VAR_BIN)
+	@echo "==> varianza compilado: $(VAR_BIN)"
 
 PRED_DIR   = analyzer/modules/modulo_3_prediccion
 PRED_S     = $(PRED_DIR)/predicciones.s

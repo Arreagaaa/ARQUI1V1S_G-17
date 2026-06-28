@@ -74,7 +74,9 @@ _start:
 	bl   utils_read_int_column
 	// utils_read_int_column devuelve cuantos valores leyo
 	cmp  x0, #N_VALUES
-	b.ne error_exit
+	beq  tend_read_ok
+	b    error_exit
+tend_read_ok:
 
 	// Cerrar archivo
 	mov  x0, x19
@@ -169,7 +171,9 @@ _start:
 	bl   copy_str
 	mov  x9, x0
 	cmp  x24, #0
-	b.ge accum_pos
+	bge  accum_pos
+	b    accum_neg
+accum_neg:
 	adr  x0, minus_sign
 	mov  x1, x9
 	bl   copy_str
@@ -241,15 +245,21 @@ contar_cambios:
 
 cc_loop:
 	cmp  x10, #N_PAIRS
-	b.ge cc_done
+	bge  cc_done
+	b    cc_body
+cc_body:
 
 	add  x10, x10, #1
 	lsl  x16, x10, #3
 	ldr  x12, [x9, x16]        // valor[i+1]
 
 	cmp  x12, x11
-	b.gt cc_sube
-	b.lt cc_baja
+	ble  tend_check_down
+	b    cc_sube
+tend_check_down:
+	cmp  x12, x11
+	bge  cc_next
+	b    cc_baja
 
 	// estable: reiniciar rachas
 	mov  x14, #0
@@ -261,7 +271,9 @@ cc_sube:
 	add  x14, x14, #1
 	mov  x15, #0
 	cmp  x14, x22
-	b.le cc_next
+	ble  cc_next
+	b    tend_new_max_up
+tend_new_max_up:
 	mov  x22, x14
 	b    cc_next
 
@@ -270,7 +282,9 @@ cc_baja:
 	add  x15, x15, #1
 	mov  x14, #0
 	cmp  x15, x23
-	b.le cc_next
+	ble  cc_next
+	b    tend_new_max_dn
+tend_new_max_dn:
 	mov  x23, x15
 
 cc_next:
@@ -291,8 +305,13 @@ calcular_tendencia:
 	sub  x0, x0, x1             // ACCUM_DIFF = inc - dec
 
 	cmp  x0, #0
-	b.gt ct_up
-	b.lt ct_down
+	ble  ct_check_down
+	b    ct_up
+ct_check_down:
+	cmp  x0, #0
+	bge  ct_stable
+	b    ct_down
+ct_stable:
 	adr  x1, str_stable
 	b    ct_fin
 ct_up:

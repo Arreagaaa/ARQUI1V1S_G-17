@@ -36,10 +36,13 @@ _start:
     mov x1, #COL_TEMP   // copiamos al registro x1 el # de columna
     mov x0, x19 // descriptor del archivo csv
     ldr x2, =values_buf // cargamos la direccion de values_buf
+    mov x3, #1           // fila inicio
+    mov x4, #N_VALUES    // fila fin
 
     // utils_read_int_column devolvera en x0 los valores que faltaron, va en cuenta descendente
     bl utils_read_int_column    // llamamos a la funcion que lee y almacena en values_buf
-    cbnz x0, error_lectura      // x0 == 0 si x0 != 0 hubo error de lectura
+    cmp x0, #N_VALUES
+    bne error_lectura
 
     mov x0, x19
     bl utils_close_csv // cerramos el csv

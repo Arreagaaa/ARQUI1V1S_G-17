@@ -1614,7 +1614,7 @@ function ARM64ResultsSection({
                         return (
                           <div key={f.key} className="flex items-center justify-between text-[10px] border-b border-white/5 pb-1">
                             <span className="text-slate-400">{f.label.split(' (')[0]}</span>
-                            {f.badge ? (
+                            {(f as any).badge ? (
                               <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${val === 'HIGH' || val === 'DOWN' ? 'bg-red-500/20 text-red-300' :
                                   val === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
                                     val === 'NORMAL' || val === 'UP' ? 'bg-emerald-500/20 text-emerald-300' :

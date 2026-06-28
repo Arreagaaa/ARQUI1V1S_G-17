@@ -2,7 +2,9 @@
 calcular_amplitud:
     ldr x2, [x1]
     cmp x2, #1
-    blt amplitud_cero
+    bge init_amp
+    b amplitud_cero
+init_amp:
     mov x3, x0
     mov x4, #0
     ldr x5, [x3]

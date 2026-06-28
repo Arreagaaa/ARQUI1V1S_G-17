@@ -37,10 +37,14 @@ _start:
     mov x1, #COL_PRED
     mov x0, x19
     ldr x2, =values_buf
+    mov x3, #1
+    mov x4, #N_VALUES
     bl utils_read_int_column
 
-    cmp x0, #0
-    b.ne error
+    cmp x0, #N_VALUES
+    beq pred_f1_read_ok
+    b error
+pred_f1_read_ok:
 
     mov x0, x19
     bl utils_close_csv
@@ -177,7 +181,9 @@ copy_end:
 
 num_to_text:
     cmp x0, #0
-    b.ge num_positive
+    bge num_positive
+    b num_negative
+num_negative:
 
     mov w2, #'-'
     strb w2, [x1]

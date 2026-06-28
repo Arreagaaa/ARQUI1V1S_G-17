@@ -171,8 +171,8 @@ def generate_mock_arm64_results(dev: bool = False):
                 "INITIAL_VALUE": 22,
                 "FINAL_VALUE": 30,
                 "TOTAL_DIFF": 8,
-                "AVG_CHANGE": 0.27,
-                "NEXT_VALUE": 30.27
+                "AVG_CHANGE": 0,
+                "NEXT_VALUE": 30
             },
             "source": "raspi-01",
             "created_at": now
@@ -391,7 +391,7 @@ def _generate_csv_rows(db, total: int, count: int = 30) -> list[dict]:
                 if col:
                     if col not in groups:
                         groups[col] = []
-                    v = doc.get("value", 0.0)
+                    v = doc.get("value", 0)
                     if isinstance(v, (int, float)):
                         groups[col].append(float(v))
 
@@ -529,124 +529,6 @@ def trigger_historical_analysis(payload: dict):
                 if val is not None and isinstance(val, (int, float)):
                     values.append(float(val))
                     count += 1
-
-        if module == "RMSE":
-            n = len(values)
-            if n >= 2:
-                sse = sum((v - ideal_value) ** 2 for v in values)
-                mse = int(sse / n)
-                rmse = int(mse ** 0.5)
-                results_data = {
-                    "COLUMN": column,
-                    "WINDOW_START": start_line,
-                    "WINDOW_END": end_line,
-                    "COUNT": n,
-                    "IDEAL_VALUE": ideal_value,
-                    "SUM_SQUARED_ERROR": int(sse),
-                    "MSE": mse,
-                    "RMSE": rmse,
-                }
-            else:
-                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
-
-        elif module == "LINEAR_REGRESSION":
-            n = len(values)
-            if n >= 2:
-                sum_x = sum(range(n))
-                sum_y = sum(values)
-                sum_xy = sum(i * v for i, v in enumerate(values))
-                sum_x2 = sum(i * i for i in range(n))
-                denom = n * sum_x2 - sum_x * sum_x
-                if denom != 0:
-                    slope_x100 = int((n * sum_xy - sum_x * sum_y) * 100 / denom)
-                else:
-                    slope_x100 = 0
-                trend = "ASCENDING" if slope_x100 > 0 else ("DESCENDING" if slope_x100 < 0 else "STABLE")
-                results_data = {
-                    "COLUMN": column,
-                    "WINDOW_START": start_line,
-                    "WINDOW_END": end_line,
-                    "COUNT": n,
-                    "SLOPE_X100": slope_x100,
-                    "TREND": trend,
-                }
-            else:
-                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
-
-        elif module == "PREDICTION_LINEAR":
-            n = len(values)
-            if n >= 2:
-                sum_x = sum(range(n))
-                sum_y = sum(values)
-                sum_xy = sum(i * v for i, v in enumerate(values))
-                sum_x2 = sum(i * i for i in range(n))
-                denom = n * sum_x2 - sum_x * sum_x
-                if denom != 0:
-                    slope_x100 = int((n * sum_xy - sum_x * sum_y) * 100 / denom)
-                    intercept_x100 = int((sum_y * 100 - slope_x100 * sum_x) / n)
-                else:
-                    slope_x100 = 0
-                    intercept_x100 = int(sum_y * 100 / n) if n else 0
-                k = 5
-                predicted = int((slope_x100 * (n - 1 + k) + intercept_x100) / 100)
-                results_data = {
-                    "COLUMN": column,
-                    "WINDOW_START": start_line,
-                    "WINDOW_END": end_line,
-                    "COUNT": n,
-                    "K": k,
-                    "SLOPE_X100": slope_x100,
-                    "INTERCEPT_X100": intercept_x100,
-                    f"PREDICTED_{k}": predicted,
-                }
-            else:
-                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
-
-        elif module == "ERROR_INTEGRAL":
-            n = len(values)
-            if n >= 2:
-                area = 0
-                for i in range(n - 1):
-                    err_i = abs(values[i] - ideal_value)
-                    err_next = abs(values[i + 1] - ideal_value)
-                    area += (err_i + err_next) // 2
-                results_data = {
-                    "COLUMN": column,
-                    "WINDOW_START": start_line,
-                    "WINDOW_END": end_line,
-                    "COUNT": n,
-                    "IDEAL": ideal_value,
-                    "ERROR_INTEGRAL": area,
-                }
-            else:
-                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
-
-        elif module == "LOCAL_DERIVATIVE":
-            n = len(values)
-            if n >= 5:
-                max_slope = 0
-                window_size = 5
-                for start in range(n - window_size + 1):
-                    window = values[start:start + window_size]
-                    sx = sum(range(window_size))
-                    sy = sum(window)
-                    sxy = sum(i * v for i, v in enumerate(window))
-                    sx2 = sum(i * i for i in range(window_size))
-                    denom = window_size * sx2 - sx * sx
-                    if denom != 0:
-                        slope = abs(int((window_size * sxy - sx * sy) * 100 / denom))
-                        if slope > max_slope:
-                            max_slope = slope
-                results_data = {
-                    "COLUMN": column,
-                    "WINDOW_START": start_line,
-                    "WINDOW_END": end_line,
-                    "COUNT": n,
-                    "WINDOW_SIZE": window_size,
-                    "MAX_LOCAL_SLOPE_X100": max_slope,
-                }
-            else:
-                results_data = {"STATUS": "ERROR", "ERROR": "INSUFFICIENT_DATA"}
 
         else:
             results_data = {"STATUS": "ERROR", "ERROR": "MODULE_NOT_IMPLEMENTED"}

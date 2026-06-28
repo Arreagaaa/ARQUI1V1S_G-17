@@ -51,7 +51,9 @@ _start:
     // vamos a validar los argumentos  programa,path, inicio, fin y columna
     ldr x0, [sp] // cargamos el valor en la cima de la pila
     cmp x0, #5  // comparamos si vienen los 5 argumentos
-    blt error_argc // no vienen pues error de argumentos
+    bge reg_args_ok
+    b error_argc // no vienen pues error de argumentos
+reg_args_ok:
 
     // x19=path x20=inicio x21=fin x22=columna
     ldr x19, [sp, #16]   // cargamos el paht del archivo
@@ -60,7 +62,9 @@ _start:
     bl utils_parse_i64  // llamamos a la funcion
     mov x20, x0     //  copiamos el numero de inicio de la fila en x20
     cmp x20, #1     // comparamos si el inicio es menor a 1
-    blt error_start 
+    bge reg_start_ok
+    b error_start
+reg_start_ok:
 
     ldr x0, [sp, #32]   // cargamos la linea final en x0
     bl utils_parse_i64 // llamamos a la funcion 
@@ -88,8 +92,10 @@ _start:
     mov x8, #56     // OPENAT   
     svc #0
     cmp x0, #0      // comparamos el resultado x0
-    blt error_open  // si falla al abrir error
+    bge reg_open_ok
+    b error_open  // si falla al abrir error
 
+reg_open_ok:
     mov x24, x0     // copiamos el descriptor del archivo en x24
     bl utils_count_lines    // llamamos la funcion 
     mov x26, x0     // copiamod la cantidad de lineas contadas en x26
@@ -101,7 +107,9 @@ _start:
 
     // validar que el final no exceda la cantidad de lineas
     cmp x21, x26    // compara el limite con las lineas del archivo
-    bgt error_eof   // salta al error si es mayor 
+    ble reg_eof_ok
+    b error_eof   // salta al error si es mayor
+reg_eof_ok:
 
     // arbimos de nuevo para leer los datos
     mov x0, #-100  // AT_FDCWD
@@ -110,8 +118,10 @@ _start:
     mov x8, #56    // syscall openat
     svc #0
     cmp x0, #0
-    blt error_open
+    bge reg_open2_ok
+    b error_open
 
+reg_open2_ok:
     mov x23, x0    // x23 = descriptor del archivo en  la segunda leida
 
     // vamos a leer la columna dentro del rando de inicio y fin
@@ -130,7 +140,9 @@ _start:
 
     // vamos a validar 2 valores para probar
     cmp x25, #2
-    blt error_data
+    bge reg_min_ok
+    b error_data
+reg_min_ok:
 
     // calcular el numerador, denominador y la pendiente m_x100
     ldr x0, =values_buf // cargamos la direcion del buf
@@ -145,8 +157,14 @@ _start:
 ## clasificacion
     // vamos a clasificar la pendiente por medio del signo
     cmp x27, #0
-    bgt trend_is_asc // si >0 va a ascendente
-    blt trend_is_desc
+    ble not_asc
+    b trend_is_asc
+not_asc:
+    cmp x27, #0
+    bge is_stable
+    b trend_is_desc
+is_stable:
+    // x27 == 0 -> stable, fall through
 
     ldr x28, =trend_stbl // si no es mayor ni menor a 0 es pendiente 0
     mov x14, len_trend_stbl // copiamops la longitud exacta 

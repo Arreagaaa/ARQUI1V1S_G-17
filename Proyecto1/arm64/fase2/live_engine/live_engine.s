@@ -99,6 +99,8 @@ num_buffer: .skip NUM_BUF_SIZE
 .text
 .global _start
 
+.extern utils_parse_i64
+
 .include "utils/atoi.s"
 .include "utils/array.s"
 .include "utils/promedio.s"
@@ -116,8 +118,9 @@ main_loop:
     mov x8, #63
     svc #0
     cmp x0, #0
-    bgt main_loop_proceed
-    b end_program
+    ble end_program
+
+main_loop_proceed:
 
 main_loop_proceed:
     ldr x21, =input_buffer
@@ -268,14 +271,18 @@ main_loop_proceed:
 
     // prioridad 1: gas critico (>92) -> ALARM_ON
     cmp x20, #GAS_CRITICAL
-    bgt set_flag_alarm
+    ble check_gas_amp
+    b set_flag_alarm
+check_gas_amp:
     // o amplitud reciente de gas elevada (>GAS_AMP_ALTA)
     cmp x14, #GAS_AMP_ALTA
-    bgt set_flag_alarm
+    ble check_gas_warn
+    b set_flag_alarm
+check_gas_warn:
     // prioridad 2: gas medio (>66) -> GAS_WARNING
     cmp x20, #GAS_WARNING
-    bgt set_flag_gas_warning
-    b done_gas
+    ble done_gas
+    b set_flag_gas_warning
 
 set_flag_alarm:
     orr x28, x28, #FLAG_ALARM_ON
@@ -308,15 +315,15 @@ done_gas:
     // prioridad 2: suelo 1 seco y ascendiendo
     // si esta saturado, bloquear riego
     cmp x21, #SOIL_SATURATED
-    blt set_flag_bloqueado
-    cmp x21, #SOIL_BAJO
-    bgt check_soil1_trend_flg
-    b check_soil2
+    bge check_soil1_dry
+    b set_flag_bloqueado
 
-check_soil1_trend_flg:
+check_soil1_dry:
+    cmp x21, #SOIL_BAJO
+    ble check_soil2
     cmp x25, #0
-    bgt set_flag_riego1
-    b check_soil2
+    ble check_soil2
+    b set_flag_riego1
 
 set_flag_bloqueado:
     orr x28, x28, #FLAG_BLOQUEADO
@@ -348,13 +355,10 @@ set_flag_riego1:
     // prioridad 3: suelo 2 seco y ascendiendo -> RIEGO_2_ON
 check_soil2:
     cmp x22, #SOIL_BAJO
-    bgt check_soil2_trend_flg
-    b check_luz
-
-check_soil2_trend_flg:
+    ble check_luz
     cmp x26, #0
-    bgt set_flag_riego2
-    b check_luz
+    ble check_luz
+    b set_flag_riego2
 
 set_flag_riego2:
     orr x28, x28, #FLAG_RIEGO_2_ON
@@ -388,13 +392,10 @@ check_luz:
 
 check_temp:
     cmp x24, #TEMP_ALTA
-    bgt check_temp_high_flg
-    b check_mode
-
-check_temp_high_flg:
+    ble check_mode
     cmp x19, #0
-    bgt set_flag_fan
-    b check_mode
+    ble check_mode
+    b set_flag_fan
 
 set_flag_fan:
     orr x28, x28, #FLAG_FAN_ON
@@ -413,21 +414,25 @@ check_mode:
     cmp x15, #0
     bne set_flag_noact
     cmp x24, #TEMP_WARN
-    bgt check_temp_warn_flg
-    b check_soil_warn_flg
-
-check_temp_warn_flg:
+    ble check_soil_warn_flg
     cmp x19, #0
-    bgt set_flag_yellow
+    ble check_soil_warn_flg
+    b set_flag_yellow
 
 check_soil_warn_flg:
     cmp x25, #0
-    blt set_flag_yellow
+    bge check_soil2_warn
+    b set_flag_yellow
+
+check_soil2_warn:
     cmp x26, #0
-    blt set_flag_yellow
+    bge check_luz_warn
+    b set_flag_yellow
+
+check_luz_warn:
     cmp x27, #0
-    blt set_flag_yellow
-    b set_flag_green
+    bge set_flag_green
+    b set_flag_yellow
 
 set_flag_green:
     orr x28, x28, #FLAG_LED_GREEN

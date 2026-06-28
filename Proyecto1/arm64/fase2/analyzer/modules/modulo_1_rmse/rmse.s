@@ -59,7 +59,9 @@ _start:
     // validar argumentos
     ldr x0, [sp]
     cmp x0, #6
-    blt error_argc
+    bge parse_args
+    b error_argc
+parse_args:
 
     // parsear argumentos: x19=path, x20=inicio, x21=fin, x22=columna, x23=ideal
     ldr x19, [sp, #16]
@@ -67,7 +69,9 @@ _start:
     bl utils_parse_i64
     mov x20, x0
     cmp x20, #1
-    blt error_start
+    bge after_start_check
+    b error_start
+after_start_check:
 
     ldr x0, [sp, #32]
     bl utils_parse_i64
@@ -98,8 +102,10 @@ _start:
     mov x8, #56
     svc #0
     cmp x0, #0
-    blt error_open
+    bge first_open_ok
+    b error_open
 
+first_open_ok:
     mov x24, x0
     bl utils_count_lines
     mov x26, x0
@@ -111,7 +117,9 @@ _start:
 
     // validar que fin no exceda el archivo
     cmp x21, x26
-    bgt error_eof
+    ble eof_check_ok
+    b error_eof
+eof_check_ok:
 
     // reabrir csv para leer datos
     mov x0, #-100
@@ -120,8 +128,10 @@ _start:
     mov x8, #56
     svc #0
     cmp x0, #0
-    blt error_open
+    bge second_open_ok
+    b error_open
 
+second_open_ok:
     // leer columna del csv
     mov x24, x0
     mov x0, x24
@@ -139,7 +149,9 @@ _start:
 
     // validar datos suficientes
     cmp x25, #2
-    blt error_data
+    bge data_check_ok
+    b error_data
+data_check_ok:
 
     // calcular rmse
     ldr x0, =values_buf

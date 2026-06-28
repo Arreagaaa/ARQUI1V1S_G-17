@@ -21,7 +21,9 @@ utils_open_csv:
     mov x8, #56 // openat
     svc #0
     cmp x0, #0
-    blt open_fail
+    bge open_ok
+    b open_fail
+open_ok:
     ret
 
 open_fail:
@@ -44,8 +46,7 @@ utils_read_line:
 
 read_loop:
     cmp x3, x4
-    blt read_more
-    b read_done
+    bge read_done
 
 read_more:
     mov x0, x5
@@ -55,8 +56,7 @@ read_more:
     svc #0
 
     cmp x0, #0
-    bgt read_char
-    b read_done // EOF o error
+    ble read_done // EOF o error
 
 read_char:
     ldrb w7, [x6, x3]
@@ -79,9 +79,13 @@ utils_parse_i64:
 up_loop:
     ldrb w3, [x0]
     cmp w3, #'0'
-    blt up_done
+    bge check_upper
+    b up_done
+check_upper:
     cmp w3, #'9'
-    bgt up_done
+    ble process_digit
+    b up_done
+process_digit:
     mul x1, x1, x2
     sub w3, w3, #'0'
     add x1, x1, x3
@@ -100,8 +104,7 @@ read_column:
 
 skip_column:
     cmp x3, x4
-    blt skip_more
-    b read_value
+    bge read_value
 
 skip_more:
     ldrb w5, [x2]
@@ -154,14 +157,19 @@ rc_read_next:
     mov x2, #BUF_SIZE
     bl utils_read_line
     cmp x0, #0
-    bgt rc_check_range
-    b rc_done // EOF
+    ble rc_done // EOF
 
 rc_check_range:
     cmp x24, x22
-    blt rc_skip // todavia no llegamos al rango
+    bge check_rc_end
+    b rc_skip // todavia no llegamos al rango
+check_rc_end:
+    cmp x23, #0          // end == 0 significa "hasta el final"
+    beq store_value
     cmp x24, x23
-    bgt rc_done // ya pasamos el rango
+    ble store_value
+    b rc_done // ya pasamos el rango
+store_value:
     ldr x0, =line_buf
     mov x1, x20
     bl read_column
@@ -200,8 +208,7 @@ ucl_loop:
     mov x2, #BUF_SIZE
     bl utils_read_line
     cmp x0, #0
-    bgt ucl_count
-    b ucl_done
+    ble ucl_done
 
 ucl_count:
     add x20, x20, #1
@@ -237,7 +244,9 @@ utils_write_result:
     mov x8, #56 // openat
     svc #0
     cmp x0, #0
-    blt write_fail
+    bge write_ok
+    b write_fail
+write_ok:
 
     mov x19, x0 // fd del archivo creado
     mov x0, x19
@@ -346,9 +355,13 @@ utils_print_i64:
 .global utils_validate_range
 utils_validate_range:
     cmp x0, #1
-    blt range_invalid
+    bge check_end_ge_start
+    b range_invalid
+check_end_ge_start:
     cmp x1, x0
-    blt range_invalid
+    bge valid_range
+    b range_invalid
+valid_range:
     mov x0, #0
     ret
 
@@ -360,9 +373,13 @@ range_invalid:
 .global utils_validate_column
 utils_validate_column:
     cmp x0, #1
-    blt col_invalid
+    bge check_col_max
+    b col_invalid
+check_col_max:
     cmp x0, #6
-    bgt col_invalid
+    ble col_valid
+    b col_invalid
+col_valid:
     mov x0, #0
     ret
 

@@ -1,18 +1,39 @@
-# SETUP — Cómo correr todo el proyecto
+# SETUP — Como correr todo el proyecto
 
-## 1. Backend (FastAPI + MongoDB)
+## Arquitectura (local)
+
+```
+LAPTOP (WSL)                          RASPBERRY PI (red local)
+┌──────────────┐                     ┌──────────────────────┐
+│  Frontend     │  ──HTTP──>         │  Backend (FastAPI)    │
+│  (Vite 5173)  │                    │  (uvicorn :8000)      │
+└──────────────┘                    │  MongoDB Atlas        │
+                                     │  MQTT                 │
+                                     │  main.py (GPIO)      │
+                                     │  live_engine (ARM64) │
+                                     └──────────────────────┘
+```
+
+- **Frontend** corre en tu laptop WSL, apunta al backend en la Pi.
+- **Backend + main.py + live_engine** corren en la Raspberry Pi.
+- MongoDB puede estar en Atlas o local en la Pi.
+
+---
+
+## 1. Backend (FastAPI + MongoDB) — en la Raspberry Pi
 
 ```bash
-cd Proyecto1/backend
+# Clonar/actualizar el repo en la Pi
+cd ~/Proyecto1/backend
+cp .env.example .env
+nano .env   # configurar MONGODB_URI, etc.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Requiere:** MongoDB corriendo en `localhost:27017` (o configurar `MONGODB_URI` en `.env`).
-
-**Verificar:** `curl http://localhost:8000/api/health`
+**Verificar:** `curl http://<PI_IP>:8000/api/health`
 
 ```json
 {"status":"ok","mongodb":true,"mqtt_connected":true}
@@ -20,7 +41,7 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-## 2. Frontend (React + Vite)
+## 2. Frontend (React + Vite) — en tu laptop WSL
 
 ```bash
 cd Proyecto1/frontend
@@ -30,104 +51,123 @@ pnpm dev
 
 **Abrir:** `http://localhost:5173`
 
-**Requiere:** Backend corriendo en `http://localhost:8000`.
+**Requiere:** El backend corriendo en la Pi. Si la IP de la Pi es `192.168.0.15`,  
+configurar `VITE_API_URL=http://192.168.0.15:8000` en `frontend/.env`.
 
 ---
 
-## 3. ARM64 (módulos de análisis históricos — Fase 1 legacy)
+## 3. ARM64 — compilar (una vez, en la Pi)
 
-Los módulos ARM64 leen `arm64/lecturas.csv` (30 registros desde MongoDB).
-
-### 1. Generar lecturas.csv desde MongoDB
 ```bash
-cd Proyecto1/backend
-source .venv/bin/activate
-python3 generate_lecturas.py --from-db
-```
-
-### 2. Compilar
-```bash
-cd Proyecto1/arm64
+cd ~/Proyecto1/arm64
 make all
 ```
 
-### 3. Ejecutar individualmente (vía QEMU)
-```bash
-make run1   # Media ponderada
-make run2   # Varianza y desv. estándar
-make run3   # Detección de anomalías
-make run4   # Predicción lineal
-make run5   # Tendencia acumulada
-```
-
-### 4. Enviar resultados al backend
-```bash
-cd Proyecto1/raspberry
-source ../backend/.venv/bin/activate
-python3 arm_executor.py --parse-only --dir ../arm64 --url http://localhost:8000
-```
-
-**Requiere:** `aarch64-linux-gnu-as` y `qemu-aarch64` instalados.
+**Requiere:** `aarch64-linux-gnu-as` y `qemu-aarch64` instalados en la Pi.
 
 ---
 
-## 4. Raspberry Pi — Flujo ARM64 en vivo (Fase 2, RECOMENDADO)
+## 4. Flujo ARM64 en vivo (Fase 2, RECOMENDADO)
 
-**Este es el flujo principal de Fase 2.** ARM64 toma las decisiones,
-Python solo coordina. El backend solo persiste datos.
+**ARM64 decide, Python coordina, backend persiste.**
 
 ### Pipeline
 
 ```
 Pi (GPIO: DHT22 + ADS1115)
   → orquestador.py --mode realtime
-  → stdin → live_engine ARM64 (AArch64)
-  → stdout → ACTION / TARGET / RISK / REASON / VALUE / INDICATOR / STATUS
+  → stdin → live_engine ARM64
+  → stdout → ACTION/TARGET/RISK/REASON/VALUE/INDICATOR/STATUS
   → orquestador ejecuta GPIO (bomba, ventilador, luces, buzzer)
-  → POST /api/arm64-results a backend → MongoDB → Dashboard
+  → POST /api/arm64-results a backend local → MongoDB
 ```
-
-### Compilar motor ARM64 (una vez)
-```bash
-cd Proyecto1/arm64
-make all
-```
-Esto compila `arm64/fase2/build/live_engine`.
 
 ### Correr en la Pi (loop infinito)
+
 ```bash
-cd Proyecto1/arm64/fase2/live_engine
-python3 orquestador.py --mode realtime --interval 3 --api-url http://<PC_BACKEND>:8000
+cd ~/Proyecto1/arm64/fase2/live_engine
+python3 orquestador.py --mode realtime --interval 3 --api-url http://localhost:8000
 ```
 
-### Probar sin Pi (simulado)
+### En tu laptop, abrir el frontend
+
+```bash
+cd Proyecto1/frontend
+pnpm dev
+# Abrir http://localhost:5173
+```
+
+### Probar sin Pi (simulado en laptop)
+
 ```bash
 cd Proyecto1/arm64/fase2/live_engine
+# Requiere qemu-aarch64 o correrlo en la misma maquina
 python3 orquestador.py --once --no-gpio --no-mongo
 ```
+
 Usa 13 lecturas de prueba predefinidas, imprime decisiones en consola.
 
 ### Modos del orquestador
+
 | Modo | Comando | Uso |
 |------|---------|-----|
 | test | `orquestador.py` | 13 casos de prueba (default) |
 | realtime | `orquestador.py --mode realtime` | GPIO real en la Pi |
 | file | `orquestador.py --mode file --file data.csv` | Desde archivo CSV |
 
-### Parámetros adicionales
-| Flag | Default | Descripción |
+### Parametros adicionales
+
+| Flag | Default | Descripcion |
 |------|---------|-------------|
 | `--interval` | 2s | Segundos entre lecturas |
-| `--api-url` | `http://localhost:8000` | URL del backend (IP del PC) |
+| `--api-url` | `http://localhost:8000` | URL del backend |
 | `--no-gpio` | off | Deshabilita GPIO (simulado) |
 | `--no-mongo` | off | No registrar en MongoDB |
-| `--once` | off | Una sola iteración, luego sale |
+| `--once` | off | Una sola iteracion, luego sale |
 
 ### Verificar wiring
+
 Ver `raspberry/wiring.md` para diagrama de pines GPIO.
 
+---
 
-## 5. Pruebas con MQTTX Web
+## 5. Analisis historico ARM64
+
+### Generar lecturas.csv desde MongoDB
+
+```bash
+cd ~/Proyecto1/backend
+source .venv/bin/activate
+python3 generate_lecturas.py --from-db
+```
+
+### Ejecutar modulo individual (via QEMU o nativo)
+
+```bash
+cd ~/Proyecto1/arm64/fase2
+# RMSE: archivo inicio fin columna ideal
+./build/rmse lecturas.csv 1 30 1 55
+# Regresion lineal
+./build/varianza lecturas.csv 1 30 1
+# Prediccion
+./build/prediccion lecturas.csv 1 30 1
+# Integral del error
+./build/integrals lecturas.csv 1 30 1 55
+# Derivada local
+./build/derivada lecturas.csv 1 30 1
+```
+
+### Enviar resultados al backend
+
+```bash
+cd ~/Proyecto1/raspberry
+source ../backend/.venv/bin/activate
+python3 arm_executor.py --parse-only --dir ../arm64 --url http://localhost:8000
+```
+
+---
+
+## 6. Pruebas con MQTTX Web
 
 ```bash
 # Broker: broker.emqx.io:8884 (WSS)
@@ -137,7 +177,7 @@ Ver `raspberry/wiring.md` para diagrama de pines GPIO.
 ```json
 {
   "sensor_type": "temperatura",
-  "value": 34.0,
+  "value": 34,
   "unit": "°C",
   "source": "mqttx_web"
 }
@@ -145,16 +185,15 @@ Ver `raspberry/wiring.md` para diagrama de pines GPIO.
 
 **Flujo:** MQTTX → Broker → Backend → MongoDB → Dashboard
 
+---
 
-## 6. Raspberry Pi — main.py legacy (Fase 1, OPCIONAL)
+## 7. Raspberry Pi — main.py (lectura sensores legacy)
 
-> ⚠️ `main.py` ya NO toma decisiones automáticas. Las reglas de
-> automatización del backend (`_apply_automation_rules`) están
-> desactivadas. Usar solo si se necesita publicar sensores a MQTT
-> o manejar LCD/botones SIN interferir con ARM64.
+> main.py publica sensores a MQTT y maneja LCD/botones.  
+> NO toma decisiones automaticas — eso lo hace ARM64.
 
 ```bash
-cd Proyecto1/raspberry
+cd ~/Proyecto1/raspberry
 cp .env.example .env
 nano .env   # ENABLE_GPIO=true, ajustar BACKEND_URL
 pip install -r requirements.txt
@@ -163,10 +202,10 @@ python3 main.py
 
 ---
 
-## 7. Limpieza de datos
+## 8. Limpieza de datos
 
 ```bash
-cd Proyecto1/backend
+cd ~/Proyecto1/backend
 source .venv/bin/activate
 python3 -c "
 from pymongo import MongoClient
@@ -185,9 +224,9 @@ print('Base de datos limpiada')
 
 ## Resumen de puertos
 
-| Servicio | Puerto |
-|---|---|
-| Backend (FastAPI) | `8000` |
-| Frontend (Vite) | `5173` |
-| MongoDB | `27017` |
-| MQTT (HiveMQ) | `1883` (TCP) / `8884` (WSS) |
+| Servicio | Puerto | Corre en |
+|---|---|---|
+| Backend (FastAPI) | `8000` | Raspberry Pi |
+| Frontend (Vite) | `5173` | Laptop (WSL) |
+| MongoDB | `27017` | Pi o Atlas |
+| MQTT (HiveMQ) | `1883` (TCP) / `8884` (WSS) | Broker externo |

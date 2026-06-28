@@ -55,7 +55,9 @@ out_buf:       .skip 512
 _start:
     ldr  x0, [sp]
     cmp  x0, #5
-    blt  error_argc
+    bge  deriv_args_ok
+    b    error_argc
+deriv_args_ok:
 
     ldr  x19, [sp, #16]
 
@@ -88,7 +90,9 @@ _start:
     sub  x25, x25, x28
     add  x25, x25, #1
     cmp  x25, #MAX_VALUES
-    b.gt error_range
+    ble  deriv_range_ok
+    b    error_range
+deriv_range_ok:
 
     // abrir csv
     mov  x0, #-100
@@ -98,8 +102,10 @@ _start:
     mov  x8, #56
     svc  #0
     cmp  x0, #0
-    blt  error_open
+    bge  deriv_open_ok
+    b    error_open
 
+deriv_open_ok:
     mov  x19, x0
 
     // leer columna del csv
@@ -118,11 +124,15 @@ _start:
 
     // validar que el rango exista
     cmp  x26, x25
-    b.ne error_eof
+    beq  deriv_eof_ok
+    b    error_eof
+deriv_eof_ok:
 
     // minimo para regresion local
     cmp  x26, #MIN_DATOS
-    b.lt error_few_data
+    bge  deriv_few_ok
+    b    error_few_data
+deriv_few_ok:
 
     // recorrer ventanas de 5 datos
     mov  x20, #0
@@ -131,7 +141,9 @@ _start:
 
 local_loop:
     cmp  x10, x13
-    b.gt local_done
+    ble  deriv_local_loop_body
+    b    local_done
+deriv_local_loop_body:
 
     lsl  x11, x10, #3
     ldr  x12, =values_buf
@@ -141,7 +153,9 @@ local_loop:
     bl   calc_local_slope
 
     cmp  x0, #0
-    b.ge slope_positive
+    bge  slope_positive
+    b    slope_neg
+slope_neg:
     neg  x1, x0
     b    slope_check
 slope_positive:
@@ -149,7 +163,9 @@ slope_positive:
 
 slope_check:
     cmp  x1, x20
-    b.le slope_next
+    ble  slope_next
+    b    deriv_new_max
+deriv_new_max:
     mov  x20, x1
 
 slope_next:
@@ -277,7 +293,9 @@ calc_local_slope:
 
 slope_loop:
     cmp  x3, #VENTANA_REG
-    b.ge slope_done
+    bge  slope_done
+    b    slope_local_loop
+slope_local_loop:
     ldr  x4, [x0, x3, lsl #3]
     add  x1, x1, x4
     mul  x5, x3, x4

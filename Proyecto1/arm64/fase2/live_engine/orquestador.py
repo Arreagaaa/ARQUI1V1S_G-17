@@ -36,6 +36,11 @@ import requests
 # Constantes
 # ---------------------------------------------------------------------------
 
+# Estado de la bomba para proteccion (runtime max, cooldown, gas cutoff)
+_pump_start_time: float = 0.0
+_pump_last_stop_time: float = 0.0
+_pump_is_on: bool = False
+
 ARM64_PROGRAM = os.path.realpath(
     os.path.join(os.path.dirname(__file__), "..", "build", "live_engine")
 )
@@ -107,6 +112,7 @@ def gpio_cleanup():
 
 
 def ejecutar_accion_en_gpio(accion: str, value: str):
+    global _pump_start_time, _pump_last_stop_time, _pump_is_on
     if not GPIO_AVAILABLE:
         return
     _ALLOWED = {"ALARM_ON","GAS_WARNING","RIEGO_1_ON","RIEGO_2_ON","FAN_ON",
@@ -119,19 +125,69 @@ def ejecutar_accion_en_gpio(accion: str, value: str):
     except ValueError:
         bitmask = 0
 
-    # LED_RED sigue a ALARM_ON (bit 0 = 1)
-    if bitmask & 1:
-        bitmask |= 1 << 6  # bit 6 = LED_RED
-
     for flag, pin in FLAG_TO_PIN.items():
         try:
             GPIO.output(pin, GPIO.HIGH if (bitmask & flag) else GPIO.LOW)
         except Exception:
             pass
+
+    # LED_RED independiente: solo con ALARM_ON (bit 0)
     try:
-        GPIO.output(LED_RED_PIN, GPIO.HIGH if (bitmask & (1 << 6)) else GPIO.LOW)
+        red_on = bool(bitmask & 1)
+        GPIO.output(LED_RED_PIN, GPIO.HIGH if red_on else GPIO.LOW)
     except Exception:
         pass
+
+    # Proteccion de bomba: runtime max 30s, cooldown 15s, corte por gas
+    now = time.time()
+    pump_safety_stop = bool(bitmask & (1 | 2))  # ALARM_ON (1) o GAS_WARNING (2)
+    pump_request = bool(bitmask & 4)  # RIEGO_1_ON (4)
+
+    if pump_safety_stop:
+        if _pump_is_on:
+            try:
+                GPIO.output(17, GPIO.LOW)
+            except Exception:
+                pass
+            _pump_is_on = False
+            _pump_last_stop_time = now
+            _pump_start_time = 0.0
+            print("  [PUMP] Corte por gas")
+    elif pump_request:
+        if _pump_is_on:
+            runtime = now - _pump_start_time
+            if runtime > 30:
+                try:
+                    GPIO.output(17, GPIO.LOW)
+                except Exception:
+                    pass
+                _pump_is_on = False
+                _pump_last_stop_time = now
+                _pump_start_time = 0.0
+                print(f"  [PUMP] Runtime {runtime:.0f}s > 30s, forzado apagado")
+            else:
+                pass
+        else:
+            since_stop = (now - _pump_last_stop_time) if _pump_last_stop_time > 0 else 999
+            if since_stop >= 15:
+                try:
+                    GPIO.output(17, GPIO.HIGH)
+                except Exception:
+                    pass
+                _pump_is_on = True
+                _pump_start_time = now
+                print(f"  [PUMP] Encendido (cooldown {since_stop:.0f}s)")
+            else:
+                print(f"  [PUMP] Cooldown {since_stop:.0f}s restante")
+    else:
+        if _pump_is_on:
+            try:
+                GPIO.output(17, GPIO.LOW)
+            except Exception:
+                pass
+            _pump_is_on = False
+            _pump_last_stop_time = now
+            _pump_start_time = 0.0
 
     activas = []
     for nombre, f in [("ALARM_ON", 1), ("RIEGO_1_ON", 4),
@@ -140,7 +196,7 @@ def ejecutar_accion_en_gpio(accion: str, value: str):
                       ("RIEGO_2_ON", 512)]:
         if bitmask & f:
             activas.append(nombre)
-    if bitmask & (1 << 6):
+    if bitmask & 1:
         activas.append("LED_RED")
     print(f"[GPIO] {accion} -> {activas if activas else 'NINGUNA'}")
 
@@ -319,6 +375,11 @@ def _signal_handler(signum, frame):
     print(f"\n[Señal {signum}] Cerrando...")
     if _motor_proc and _motor_proc.poll() is None:
         try:
+            _motor_proc.stdin.write('n\n')
+            _motor_proc.stdin.flush()
+        except Exception:
+            pass
+        try:
             _motor_proc.stdin.close()
         except Exception:
             pass
@@ -363,19 +424,28 @@ def parse_args():
 # ---------------------------------------------------------------------------
 
 LECTURAS_PRUEBA = [
-    "25,55,40,50,400,120,0",   # LED_GREEN
-    "28,60,42,48,600,140,0",   # LED_GREEN
-    "32,58,41,52,350,110,0",   # LED_GREEN
-    "35,63,39,47,700,160,0",   # LED_GREEN
-    "30,61,45,53,300,100,0",   # LED_GREEN
-    "20,50,250,280,150,90,0",  # LIGHT_ON
-    "18,65,200,250,100,80,0",  # RIEGO_1_ON
-    "22,55,400,180,120,70,0",  # RIEGO_2_ON
-    "33,58,500,500,600,95,0",  # FAN_ON
-    "29,60,450,480,800,350,0", # ALARM_ON
-    "27,62,420,450,700,310,0", # ALARM_ON
-    "28,60,42,48,600,140,1",   # NO_ACTION (manual)
-    "25,55,40,50,400,120,0",   # LED_GREEN
+    # 1-5: buffer fill, gas=10 safe, soil=357 (<SOIL_BAJO=358),
+    #       luz=800 (>LUZ_BAJA=665), temp 25-28 (<TEMP_ALTA=30)
+    "25,55,357,357,800,10,0",
+    "25,55,357,357,800,10,0",
+    "25,55,357,357,800,10,0",
+    "27,55,357,357,800,10,0",
+    "28,55,357,357,800,10,0",
+    # 6: soil1 dry+ascending -> RIEGO_1_ON (P3)
+    "30,55,370,357,800,10,0",
+    # 7: soil2 dry+ascending -> RIEGO_2_ON (P4)
+    "32,55,350,370,800,10,0",
+    # 8: luz dark+descending -> LIGHT_ON (P5)
+    "34,55,350,350,0,10,0",
+    # 9: temp hot+ascending -> FAN_ON (P6)
+    "36,55,350,350,800,10,0",
+    # 10: modo manual -> NO_ACTION (P9)
+    "25,55,357,357,800,10,1",
+    # 11: vuelta a normal (auto) -> LED_GREEN (P8)
+    "25,55,357,357,800,10,0",
+    # 12-13: gas critico -> ALARM_ON (P1)
+    "25,55,357,357,800,350,0",
+    "25,55,357,357,800,310,0",
 ]
 
 
@@ -519,6 +589,11 @@ def main():
     finally:
         print("[Orquestador] Cerrando motor...")
         if _motor_proc and _motor_proc.poll() is None:
+            try:
+                _motor_proc.stdin.write('n\n')
+                _motor_proc.stdin.flush()
+            except Exception:
+                pass
             try:
                 _motor_proc.stdin.close()
             except Exception:

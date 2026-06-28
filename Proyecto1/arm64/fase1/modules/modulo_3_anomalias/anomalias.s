@@ -37,10 +37,14 @@ _start:
     mov  x0, x19
     mov  x1, #1             // x1 = Columna 1
     adr  x2, values_buf
+    mov  x3, #1             // fila inicio
+    mov  x4, #N_VALUES      // fila fin
     bl   utils_read_int_column
     
-    cmp  x0, #0             // Validar lectura nueva utils
-    b.ne error_exit
+    cmp  x0, #N_VALUES      // Validar lectura nueva utils
+    beq  anom_read_ok
+    b    error_exit
+anom_read_ok:
 
     mov  x0, x19
     bl   utils_close_csv
@@ -51,7 +55,9 @@ _start:
     adr x12, values_buf
 ciclo_media:
     cmp x10, #30
-    b.ge fin_media
+    bge fin_media
+    b anom_media_body
+anom_media_body:
     ldr x14, [x12, x10, lsl #3]
     add x11, x11, x14       // Acumular
     add x10, x10, #1
@@ -66,7 +72,9 @@ fin_media:
     adr x12, values_buf
 ciclo_varianza:
     cmp x10, #30
-    b.ge fin_varianza
+    bge fin_varianza
+    b anom_var_body
+anom_var_body:
     ldr x14, [x12, x10, lsl #3]
     sub x15, x14, x21       // (Xi - media)
     mul x16, x15, x15       // (Xi - media)^2
@@ -80,13 +88,17 @@ fin_varianza:
 ciclo_raiz:
     mul x18, x22, x22
     cmp x18, x17
-    b.gt fin_raiz
+    ble anom_raiz_cont
+    b fin_raiz
+anom_raiz_cont:
     add x22, x22, #1
     b ciclo_raiz
 fin_raiz:
     sub x22, x22, #1
     cmp x22, #0
-    b.ne desviacion_lista
+    beq anom_std_failsafe
+    b desviacion_lista
+anom_std_failsafe:
     mov x22, #1             // Failsafe div por cero
 desviacion_lista:
 
@@ -96,16 +108,20 @@ desviacion_lista:
     adr x12, values_buf
 ciclo_zscore:
     cmp x10, #30
-    b.ge fin_zscore
+    bge fin_zscore
+    b anom_zscore_cont
+anom_zscore_cont:
     ldr x14, [x12, x10, lsl #3]
     sub x15, x14, x21       // X_i - media
     sdiv x16, x15, x22      // Z = diff / std
     cmp x16, #0             // Valor absoluto
-    b.ge check_anomalia
+    bge check_anomalia
     neg x16, x16
 check_anomalia:
     cmp x16, #2             // Umbral |Z| >= 2
-    b.lt siguiente_z
+    bge anom_detected
+    b siguiente_z
+anom_detected:
     add x23, x23, #1        // Anomalía detectada
 siguiente_z:
     add x10, x10, #1
@@ -114,9 +130,13 @@ fin_zscore:
 
     // RIESGO
     cmp x23, #0
-    b.eq riesgo_normal
+    bne anom_check_risk
+    b riesgo_normal
+anom_check_risk:
     cmp x23, #3
-    b.le riesgo_medio
+    ble riesgo_medio
+    b anom_risk_high
+anom_risk_high:
     adr x24, str_high
     b fin_riesgo
 riesgo_normal: adr x24, str_normal

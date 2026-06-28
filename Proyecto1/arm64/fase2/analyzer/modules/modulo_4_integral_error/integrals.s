@@ -53,7 +53,9 @@ out_buf:     .skip 512
 _start:
     ldr  x0, [sp]
     cmp  x0, #6
-    blt  error_argc
+    bge  parse_int_args
+    b    error_argc
+parse_int_args:
 
     // Extraer argumentos 
     ldr  x19, [sp, #16]     // path del archivo
@@ -80,7 +82,9 @@ _start:
 
     // Validar start >= 1
     cmp  x20, #1
-    blt  error_start
+    bge  int_range_ok
+    b    error_start
+int_range_ok:
 
     // Validar start <= end
     mov  x0, x20
@@ -97,7 +101,9 @@ _start:
     sub  x26, x21, x20
     add  x26, x26, #1
     cmp  x26, #MAX_VALUES
-    bgt  error_count
+    ble  int_count_ok
+    b    error_count
+int_count_ok:
 
     // Abrir archivo usando el path recibido
     mov  x0, #-100
@@ -107,8 +113,10 @@ _start:
     mov  x8, #56
     svc  #0
     cmp  x0, #0
-    blt  error_open
+    bge  int_open_ok
+    b    error_open
 
+int_open_ok:
     mov  x24, x0
 
     // Contar líneas reales del archivo
@@ -121,7 +129,9 @@ _start:
 
     // Validar que end exista dentro del archivo
     cmp  x21, x25
-    bgt  error_eof
+    ble  int_eof_ok
+    b    error_eof
+int_eof_ok:
 
     // Abrir de nuevo para leer los datos
     mov  x0, #-100
@@ -131,8 +141,10 @@ _start:
     mov  x8, #56
     svc  #0
     cmp  x0, #0
-    blt  error_open
+    bge  int_open2_ok
+    b    error_open
 
+int_open2_ok:
     mov  x24, x0
 
     mov  x0, x24
@@ -150,11 +162,15 @@ _start:
     sub  x26, x21, x20
     add  x26, x26, #1
     cmp  x25, x26
-    b.ne error_count
+    beq  int_count_match
+    b    error_count
+int_count_match:
 
     // Integral por trapecio requiere mínimo 2 valores
     cmp  x25, #2
-    blt  error_data
+    bge  int_enough_data
+    b    error_data
+int_enough_data:
 
     // INTEGRAL DEL ERROR REGLA DEL TRAPECIO
   
@@ -167,12 +183,14 @@ _start:
 
 ciclo_integral:
     cmp  x10, x26
-    b.ge fin_integral
+    bge  fin_integral
+    b    do_integral
+do_integral:
 
     //CÁLCULO ERROR_i: |Y_i - IDEAL|
     ldr  x14, [x12, x10, lsl #3] // x14 = Dato actual (Y_i)
     subs x15, x14, x27           // x15 = Dato - IDEAL
-    b.ge abs1_ok                 // Si (Dato >= IDEAL), salta
+    bge  abs1_ok                 // Si (Dato >= IDEAL), salta
     neg  x15, x15                // Si es negativo, lo vuelve absoluto
 abs1_ok:
 
@@ -180,7 +198,7 @@ abs1_ok:
     add  x11, x10, #1            // x11 = i + 1
     ldr  x16, [x12, x11, lsl #3] // x16 = Dato siguiente (Y_next)
     subs x17, x16, x27           // x17 = Dato siguiente - IDEAL
-    b.ge abs2_ok
+    bge  abs2_ok
     neg  x17, x17
 abs2_ok:
 

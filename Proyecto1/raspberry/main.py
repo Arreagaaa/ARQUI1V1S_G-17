@@ -1154,10 +1154,14 @@ class GreenhouseDevice:
 
         module_map = {
             "RMSE": ("rmse", None),
+            "LINEAR_REGRESSION": ("varianza", None),
+            "PREDICTION_LINEAR": ("prediccion", None),
+            "ERROR_INTEGRAL": ("integral", None),
+            "LOCAL_DERIVATIVE": ("derivada", None),
         }
 
         if module not in module_map:
-            print(f"[arm64] modulo no soportado: {module}")
+            print(f"[arm64] modulo no soportado localmente, intentando backend: {module}")
             return
 
         binary_name, _ = module_map[module]

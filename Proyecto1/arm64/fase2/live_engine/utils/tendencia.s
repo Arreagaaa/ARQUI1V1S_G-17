@@ -2,7 +2,9 @@
 calcular_tendencia:
     ldr x2, [x1]
     cmp x2, #2
-    blt tendencia_cero
+    bge init_tend
+    b tendencia_cero
+init_tend:
     mov x3, x0
     mov x4, #0
     mov x5, #0

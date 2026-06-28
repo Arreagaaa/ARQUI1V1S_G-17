@@ -20,21 +20,21 @@ LIVE_S   = $(LIVE_DIR)/live_engine.s
 LIVE_O   = $(BUILD)/live_engine.o
 LIVE_BIN = $(BUILD)/live_engine
 
-$(LIVE_O): $(LIVE_S) | $(BUILD)
-	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -o $@ $<
-
-$(LIVE_BIN): $(LIVE_O)
-	$(LD) $(LDFLAGS) -o $@ $^
-
-live_engine: $(LIVE_BIN)
-	@echo "==> live_engine compilado: $(LIVE_BIN)"
-
 UTILS_S = ../utils/utils.s
 UTILS_O = ../build/utils.o
 
 $(UTILS_O): $(UTILS_S)
 	@mkdir -p $(dir $@)
 	$(AS) $(ASFLAGS) -o $@ $<
+
+$(LIVE_O): $(LIVE_S) | $(BUILD)
+	$(AS) $(ASFLAGS) -I $(LIVE_DIR) -o $@ $<
+
+$(LIVE_BIN): $(LIVE_O) $(UTILS_O)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+live_engine: $(LIVE_BIN)
+	@echo "==> live_engine compilado: $(LIVE_BIN)"
 
 RMSE_DIR   = analyzer/modules/modulo_1_rmse
 RMSE_S     = $(RMSE_DIR)/rmse.s

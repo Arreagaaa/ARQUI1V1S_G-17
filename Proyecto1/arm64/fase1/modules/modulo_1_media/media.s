@@ -49,7 +49,9 @@ _start:
     // leer argc y validar que vengan 4 argumentos (path, inicio, fin, columna)
     ldr x0, [sp]
     cmp x0, #5
-    blt error_argc
+    bge media_args_ok
+    b error_argc
+media_args_ok:
 
     // parsear argumentos: x19=path, x20=inicio, x21=fin, x22=columna
     ldr x19, [sp, #16] // path del csv
@@ -83,7 +85,9 @@ _start:
     mov x8, #56 // openat
     svc #0
     cmp x0, #0
-    blt error_open
+    bge media_open_ok
+    b error_open
+media_open_ok:
 
     // leer columna del csv en values_buf
     mov x23, x0 // fd

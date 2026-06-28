@@ -2,7 +2,8 @@ guardar_dato:
     ldr x2, [x1]
 
     cmp x2, #5
-    blt guardar_directo
+    bge desplazar_array
+    b guardar_directo
 
 desplazar_array:
     ldr x4, [x3, #8]

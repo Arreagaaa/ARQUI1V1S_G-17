@@ -73,7 +73,9 @@ num_buffer:
 _start:
     ldr x0, [sp]
     cmp x0, #5
-    blt error_argc
+    bge pred_args_ok
+    b error_argc
+pred_args_ok:
 
     ldr x19, [sp, #16]
 
@@ -93,7 +95,9 @@ _start:
 
     ldr x0, [sp]
     cmp x0, #6
-    blt args_ready
+    bge pred_parse_k
+    b args_ready
+pred_parse_k:
 
     ldr x0, [sp, #48]
     bl utils_parse_i64
@@ -101,7 +105,9 @@ _start:
 
 args_ready:
     cmp x23, #1
-    blt error_k
+    bge pred_k_ok
+    b error_k
+pred_k_ok:
 
     mov x0, x20
     mov x1, x21
@@ -115,7 +121,9 @@ args_ready:
     sub x26, x21, x20
     add x26, x26, #1
     cmp x26, #MAX_VALUES
-    bgt error_count
+    ble pred_count_ok
+    b error_count
+pred_count_ok:
 
     mov x0, #-100
     mov x1, x19
@@ -124,8 +132,10 @@ args_ready:
     mov x8, #56
     svc #0
     cmp x0, #0
-    blt error_open
+    bge pred_open_ok
+    b error_open
 
+pred_open_ok:
     mov x24, x0
     mov x0, x24
     bl utils_count_lines
@@ -135,7 +145,9 @@ args_ready:
     bl utils_close_csv
 
     cmp x21, x25
-    bgt error_eof
+    ble pred_eof_ok
+    b error_eof
+pred_eof_ok:
 
     mov x0, #-100
     mov x1, x19
@@ -144,8 +156,10 @@ args_ready:
     mov x8, #56
     svc #0
     cmp x0, #0
-    blt error_open
+    bge pred_open2_ok
+    b error_open
 
+pred_open2_ok:
     mov x24, x0
 
     mov x0, x24
@@ -160,10 +174,14 @@ args_ready:
     bl utils_close_csv
 
     cmp x25, x26
-    b.ne error_count
+    beq pred_match
+    b error_count
+pred_match:
 
     cmp x25, #2
-    blt error_min_values
+    bge pred_min_ok
+    b error_min_values
+pred_min_ok:
 
     ldr x10, =values_buf
     mov x11, #0

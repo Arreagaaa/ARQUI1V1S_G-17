@@ -4,7 +4,9 @@ int_sqrt:
 sqrt_loop:
     mul x2, x1, x1
     cmp x2, x0
-    bgt sqrt_end
+    ble sqrt_inc
+    b sqrt_end
+sqrt_inc:
     add x1, x1, #1
     b sqrt_loop
 sqrt_end:

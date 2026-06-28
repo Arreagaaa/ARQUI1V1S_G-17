@@ -1153,25 +1153,28 @@ class GreenhouseDevice:
             pass
 
         module_map = {
-            "RMSE": ("rmse", None),
-            "LINEAR_REGRESSION": ("varianza", None),
-            "PREDICTION_LINEAR": ("prediccion", None),
-            "ERROR_INTEGRAL": ("integral", None),
-            "LOCAL_DERIVATIVE": ("derivada", None),
+            "RMSE": ("rmse", True),
+            "LINEAR_REGRESSION": ("varianza", False),
+            "PREDICTION_LINEAR": ("prediccion", False),
+            "ERROR_INTEGRAL": ("integrals", True),
+            "LOCAL_DERIVATIVE": ("derivada", False),
         }
 
         if module not in module_map:
             print(f"[arm64] modulo no soportado localmente, intentando backend: {module}")
             return
 
-        binary_name, _ = module_map[module]
+        binary_name, needs_ideal = module_map[module]
         binary_path = os.path.join(arm_dir, "fase2", "build", binary_name)
-        csv_path = os.path.join(arm_dir, file) if not file.startswith("/") else file
+        csv_path = os.path.join(arm_dir, "fase2", file) if not file.startswith("/") else file
 
-        if module == "RMSE":
+        if needs_ideal:
             cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(ideal_value)]
+        elif module == "PREDICTION_LINEAR":
+            k = params.get("k", 5)
+            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(k)]
         else:
-            cmd = [binary_path]
+            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column)]
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(arm_dir))

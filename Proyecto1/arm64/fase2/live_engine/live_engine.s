@@ -2,9 +2,9 @@
 .align 3
 
 // umbrales
-.equ GAS_CRITICAL, 92
-.equ GAS_WARNING, 66
-.equ GAS_AMP_ALTA, 20
+.equ GAS_CRITICAL, 120
+.equ GAS_WARNING, 90
+.equ GAS_AMP_ALTA, 35
 .equ SOIL_BAJO, 358
 .equ SOIL_SATURATED, 204
 .equ LUZ_BAJA, 665

@@ -321,8 +321,6 @@ done_gas:
 check_soil1_dry:
     cmp x21, #SOIL_BAJO
     ble check_soil2
-    cmp x25, #0
-    ble check_soil2
     b set_flag_riego1
 
 set_flag_bloqueado:

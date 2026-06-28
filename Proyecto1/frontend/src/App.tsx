@@ -17,8 +17,6 @@ import {
   Settings2,
 } from 'lucide-react';
 import {
-  createEvent,
-  createReading,
   controlActuator,
   getDashboard,
   getHealth,
@@ -57,21 +55,6 @@ type ActionState = {
   state: string;
 };
 
-type ReadingState = {
-  area: string;
-  sensor_type: string;
-  value: string;
-  unit: string;
-  status: string;
-};
-
-type EventState = {
-  event_type: string;
-  severity: string;
-  message: string;
-  area: string;
-};
-
 const metricLabels: Array<{ key: keyof SystemStatus; label: string; unit: string }> = [
   { key: 'temperature', label: 'Temperatura', unit: '°C' },
   { key: 'humidity', label: 'Humedad', unit: '%' },
@@ -108,19 +91,6 @@ export default function App() {
   const [authUser, setAuthUser] = useState('');
   const [pumpArea, setPumpArea] = useState<string>('area_1');
 
-  const [reading, setReading] = useState<ReadingState>({
-    area: 'area_1',
-    sensor_type: 'temperature',
-    value: '25',
-    unit: '°C',
-    status: 'normal',
-  });
-  const [eventForm, setEventForm] = useState<EventState>({
-    event_type: 'status_change',
-    severity: 'info',
-    message: '',
-    area: 'area_1',
-  });
   const [histForm, setHistForm] = useState({
     file: 'lecturas.csv',
     start_line: '1',
@@ -298,44 +268,6 @@ export default function App() {
     }
   }
 
-  async function submitReading() {
-    setBusy('reading');
-    setNotice('');
-    try {
-      await createReading({
-        area: reading.area,
-        sensor_type: reading.sensor_type,
-        value: Number(reading.value),
-        unit: reading.unit,
-        status: reading.status,
-      });
-      setNotice('Lectura guardada en MongoDB.');
-      await refresh();
-    } catch {
-      setNotice('No se pudo guardar la lectura.');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function submitEvent() {
-    setBusy('event');
-    setNotice('');
-    try {
-      await createEvent({
-        event_type: eventForm.event_type,
-        message: eventForm.message,
-        severity: eventForm.severity,
-        area: eventForm.area,
-      });
-      setNotice('Evento registrado.');
-      await refresh();
-    } catch {
-      setNotice('No se pudo registrar el evento.');
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function handleGenerateMockARM64() {
     setBusy('arm64-mock');
@@ -407,19 +339,6 @@ export default function App() {
       setBusy(null);
     }
   }
-
-  // Map sensor select option to pre-populate units
-  const handleSensorTypeChange = (type: string) => {
-    let unit = '';
-    let val = '0';
-    if (type === 'temperature') { unit = '°C'; val = '25'; }
-    else if (type === 'humidity') { unit = '%'; val = '60'; }
-    else if (type.startsWith('soil_')) { unit = '%'; val = '45'; }
-    else if (type === 'light') { unit = '%'; val = '50'; }
-    else if (type === 'gas') { unit = 'ppm'; val = '120'; }
-
-    setReading(curr => ({ ...curr, sensor_type: type, unit, value: val }));
-  };
 
   const quickActions = [
     { label: 'Modo automático', actuator: 'mode', state: 'auto' },
@@ -559,211 +478,76 @@ export default function App() {
           </div>
         </section>
 
-        {/* Estado Operativo, Acciones y Logs */}
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <article className="space-y-6 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg sm:text-xl font-semibold text-white">Estado operativo actual</h2>
-                <p className="mt-1 text-xs sm:text-sm text-slate-400">Resumen del modo, actuadores y estado del sistema.</p>
-              </div>
-              <div className={`self-start sm:self-auto rounded-full px-3 py-1 text-xs font-medium ${stateBadge(status?.overall_state)}`}>
-                {status?.overall_state ?? 'sin datos'}
-              </div>
+        {/* Estado Operativo y Acciones */}
+        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 backdrop-blur">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-white">Estado operativo actual</h2>
+              <p className="mt-1 text-xs sm:text-sm text-slate-400">Resumen del modo, actuadores y estado del sistema.</p>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
-              <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-4 w-4" />} />
-              <ToggleCard title="Bomba de Riego (1 compartida)" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-4 w-4" />} />
-              <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-4 w-4" />} />
-              <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
-              <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />
+            <div className={`self-start sm:self-auto rounded-full px-3 py-1 text-xs font-medium ${stateBadge(status?.overall_state)}`}>
+              {status?.overall_state ?? 'sin datos'}
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
-                <span className="text-[9px] uppercase tracking-wider text-slate-400">Riego</span>
-                <p className="mt-1 font-semibold text-white">{status?.irrigation_state ?? '—'}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
-                <span className="text-[9px] uppercase tracking-wider text-slate-400">Ventilación</span>
-                <p className="mt-1 font-semibold text-white">{status?.ventilation_state ?? '—'}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
-                <span className="text-[9px] uppercase tracking-wider text-slate-400">Gas</span>
-                <p className="mt-1 font-semibold text-white">{status?.gas_state ?? '—'}</p>
-              </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <ToggleCard title="Modo" value={status?.mode ?? 'auto'} icon={<Activity className="h-4 w-4" />} />
+            <ToggleCard title="Bomba de Riego (1 compartida)" value={boolLabel(status?.pump_active)} icon={<Droplets className="h-4 w-4" />} />
+            <ToggleCard title="Ventilación" value={boolLabel(status?.fan_active)} icon={<Wind className="h-4 w-4" />} />
+            <ToggleCard title="Iluminación" value={boolLabel(status?.lights_active)} icon={<Sun className="h-4 w-4" />} />
+            <ToggleCard title="Alarma Sonora" value={boolLabel(status?.buzzer_active)} icon={<AlertTriangle className="h-4 w-4" />} />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400">Riego</span>
+              <p className="mt-1 font-semibold text-white">{status?.irrigation_state ?? '—'}</p>
             </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400">Ventilación</span>
+              <p className="mt-1 font-semibold text-white">{status?.ventilation_state ?? '—'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400">Gas</span>
+              <p className="mt-1 font-semibold text-white">{status?.gas_state ?? '—'}</p>
+            </div>
+          </div>
 
-            <section className="grid gap-4 lg:grid-cols-2">
-              <Panel title="Acciones rápidas (Control manual)">
-                <div className="mb-3 flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">Área riego:</span>
-                  <select
-                    value={pumpArea}
-                    onChange={(e) => setPumpArea(e.target.value)}
-                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-white outline-none focus:border-emerald-300/40"
-                  >
-                    <option value="area_1">Área 1</option>
-                    <option value="area_2">Área 2</option>
-                  </select>
-                  <span className="text-slate-500">(1 bomba compartida)</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
-                  {quickActions.map((item) => {
-                    const key = `${item.actuator}-${item.state}-${item.area || ''}`;
-                    const isBusy = busy === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => void runAction(item)}
-                        disabled={busy !== null}
-                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-medium text-white transition hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <span className="flex items-start gap-2">
-                          <Rocket className="h-3.5 w-3.5 mt-0.5 text-emerald-300 shrink-0" />
-                          <span className="leading-snug break-words">{isBusy ? 'Enviando...' : item.label}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Panel>
-
-              <Panel title="Registro manual de lectura">
-                <div className="grid gap-2 text-xs">
-                  <Field label="Área">
-                    <select
-                      value={reading.area}
-                      onChange={(event) => setReading((current) => ({ ...current, area: event.target.value }))}
-                      className={inputClass}
-                    >
-                      <option value="area_1">Área 1</option>
-                      <option value="area_2">Área 2</option>
-                      <option value="control">Centro de control</option>
-                    </select>
-                  </Field>
-                  <Field label="Sensor">
-                    <select
-                      value={reading.sensor_type}
-                      onChange={(event) => handleSensorTypeChange(event.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="temperature">Temperatura</option>
-                      <option value="humidity">Humedad Ambiente</option>
-                      <option value="soil_1">Suelo Área 1</option>
-                      <option value="soil_2">Suelo Área 2</option>
-                      <option value="light">Iluminación (LDR)</option>
-                      <option value="gas">Detección de Gas (MQ)</option>
-                    </select>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Valor">
-                      <input
-                        value={reading.value}
-                        onChange={(event) => setReading((current) => ({ ...current, value: event.target.value }))}
-                        className={inputClass}
-                        type="number"
-                        step="0.1"
-                      />
-                    </Field>
-                    <Field label="Unidad">
-                      <input
-                        value={reading.unit}
-                        onChange={(event) => setReading((current) => ({ ...current, unit: event.target.value }))}
-                        className={inputClass}
-                      />
-                    </Field>
-                  </div>
-                  <div className="flex items-end mt-2">
+          <div className="mt-6">
+            <Panel title="Acciones rápidas (Control manual)">
+              <div className="mb-3 flex items-center gap-2 text-xs">
+                <span className="text-slate-400">Área riego:</span>
+                <select
+                  value={pumpArea}
+                  onChange={(e) => setPumpArea(e.target.value)}
+                  className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-1.5 text-white outline-none focus:border-emerald-300/40"
+                >
+                  <option value="area_1">Área 1</option>
+                  <option value="area_2">Área 2</option>
+                </select>
+                <span className="text-slate-500">(1 bomba compartida)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
+                {quickActions.map((item) => {
+                  const key = `${item.actuator}-${item.state}-${item.area || ''}`;
+                  const isBusy = busy === key;
+                  return (
                     <button
+                      key={key}
                       type="button"
-                      onClick={() => void submitReading()}
+                      onClick={() => void runAction(item)}
                       disabled={busy !== null}
-                      className="w-full rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-medium text-white transition hover:-translate-y-0.5 hover:border-emerald-300/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {busy === 'reading' ? 'Guardando...' : 'Guardar lectura'}
+                      <span className="flex items-start gap-2">
+                        <Rocket className="h-3.5 w-3.5 mt-0.5 text-emerald-300 shrink-0" />
+                        <span className="leading-snug break-words">{isBusy ? 'Enviando...' : item.label}</span>
+                      </span>
                     </button>
-                  </div>
-                </div>
-              </Panel>
-            </section>
-
-            <section className="border-t border-white/5 pt-4">
-              <Panel title="Registrar evento manual">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Tipo de Evento">
-                    <input
-                      value={eventForm.event_type}
-                      onChange={(event) => setEventForm((current) => ({ ...current, event_type: event.target.value }))}
-                      className={inputClass}
-                      placeholder="status_change"
-                    />
-                  </Field>
-                  <Field label="Severidad">
-                    <select
-                      value={eventForm.severity}
-                      onChange={(event) => setEventForm((current) => ({ ...current, severity: event.target.value }))}
-                      className={inputClass}
-                    >
-                      <option value="info">info</option>
-                      <option value="warning">warning</option>
-                      <option value="critical">critical</option>
-                    </select>
-                  </Field>
-                  <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
-                    <Field label="Área Relacionada">
-                      <input
-                        value={eventForm.area}
-                        onChange={(event) => setEventForm((current) => ({ ...current, area: event.target.value }))}
-                        className={inputClass}
-                        placeholder="area_1"
-                      />
-                    </Field>
-                    <Field label="Mensaje de Alerta">
-                      <input
-                        value={eventForm.message}
-                        onChange={(event) => setEventForm((current) => ({ ...current, message: event.target.value }))}
-                        className={inputClass}
-                        placeholder="Alerta de sensor activada"
-                      />
-                    </Field>
-                  </div>
-                  <div className="sm:col-span-2 flex items-end">
-                    <button
-                      type="button"
-                      onClick={() => void submitEvent()}
-                      disabled={busy !== null}
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-emerald-300/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {busy === 'event' ? 'Registrando...' : 'Registrar evento'}
-                    </button>
-                  </div>
-                </div>
-              </Panel>
-            </section>
-          </article>
-
-          {/* Historiales y Timelines */}
-          <aside className="space-y-6">
-            <Panel title="Lecturas Recientes">
-              <Timeline items={dashboard.recent_readings.slice(0, 8).map((item) => `${item.area} · ${item.sensor_type} · ${item.value}${item.unit ?? ''}`)} emptyText="No hay lecturas registradas." />
+                  );
+                })}
+              </div>
             </Panel>
-
-            <Panel title="Comandos Recientes">
-              <Timeline items={dashboard.recent_commands.map((item) => `${item.target} · ${item.command}`)} emptyText="Sin comandos registrados." />
-            </Panel>
-
-            <Panel title="Eventos y Logs del Invernadero">
-              <Timeline
-                items={[
-                  ...dashboard.recent_events.map((item) => `[${(item.severity ?? 'info').toUpperCase()}] ${item.message}`),
-                  ...dashboard.recent_logs.map((item) => `[LOG] Actuador: ${item.actuator} -> ${item.action}`),
-                ]}
-                emptyText="No hay eventos ni logs."
-              />
-            </Panel>
-          </aside>
+          </div>
         </section>
 
         {/* Motor ARM64 - Decisiones en Vivo */}
@@ -783,17 +567,31 @@ export default function App() {
           {dashboard.arm64_results?.LIVE_ENGINE ? (
             (() => {
               const m = dashboard.arm64_results!.LIVE_ENGINE.results;
+              const action = (m?.ACTION as string) || '';
               const risk = (m?.RISK as string) || 'LOW';
               const riskColor =
                 risk === 'CRITICAL' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
                 risk === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border-rose-400/30' :
                 risk === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300 border-amber-400/30' :
                 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+              const actionColor = (a: string) => {
+                switch (a) {
+                  case 'ALARM_ON': return 'bg-red-500/20 text-red-300 border-red-400/30';
+                  case 'GAS_WARNING': return 'bg-amber-500/20 text-amber-300 border-amber-400/30';
+                  case 'RIEGO_1_ON':
+                  case 'RIEGO_2_ON': return 'bg-sky-500/20 text-sky-300 border-sky-400/30';
+                  case 'LIGHT_ON': return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
+                  case 'FAN_ON': return 'bg-slate-500/20 text-slate-300 border-slate-400/30';
+                  case 'LED_GREEN': return 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
+                  case 'LED_YELLOW': return 'bg-amber-400/20 text-amber-200 border-amber-400/30';
+                  default: return riskColor;
+                }
+              };
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mt-4">
-                  <div className={`rounded-2xl border ${riskColor} p-3 col-span-2 sm:col-span-1`}>
+                  <div className={`rounded-2xl border ${actionColor(action)} p-3 col-span-2 sm:col-span-1`}>
                     <p className="text-[9px] uppercase tracking-wider opacity-70">ACCION</p>
-                    <p className="mt-1 text-lg font-bold">{m?.ACTION ?? '—'}</p>
+                    <p className="mt-1 text-lg font-bold">{action || '—'}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                     <p className="text-[9px] uppercase tracking-wider text-slate-400">TARGET</p>
@@ -939,6 +737,80 @@ export default function App() {
           </div>
         </section>
 
+        {/* Historiales */}
+        <section className="grid gap-6 md:grid-cols-3">
+          <Panel title="Lecturas Recientes">
+            {dashboard.recent_readings.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">No hay lecturas registradas.</p>
+            ) : (
+              <ul className="space-y-2 text-[11px] sm:text-xs text-slate-200">
+                {dashboard.recent_readings.slice(0, 6).map((item, i) => (
+                  <li key={i} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 leading-relaxed break-words flex items-center gap-2">
+                    <SensorIcon type={item.sensor_type} />
+                    <span className="text-slate-400 min-w-[80px]">{sensorLabel(item.sensor_type)}</span>
+                    <span className="font-semibold text-white ml-auto">{item.value}{item.unit ?? ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Comandos Recientes">
+            {dashboard.recent_commands.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">Sin comandos registrados.</p>
+            ) : (
+              <ul className="space-y-2 text-[11px] sm:text-xs text-slate-200">
+                {dashboard.recent_commands.slice(0, 6).map((item, i) => (
+                  <li key={i} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 leading-relaxed break-words flex items-center gap-2">
+                    <span className="rounded-lg bg-emerald-400/15 p-1">
+                      <Rocket className="h-3 w-3 text-emerald-300" />
+                    </span>
+                    <span className="text-slate-300">{item.target}</span>
+                    <span className="text-slate-500 mx-1">→</span>
+                    <span className="font-mono text-xs text-slate-400">{item.command.replace('set_', '')}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Eventos y Logs del Invernadero">
+            {(dashboard.recent_events.length === 0 && dashboard.recent_logs.length === 0) ? (
+              <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">No hay eventos ni logs.</p>
+            ) : (
+              <ul className="space-y-2 text-[11px] sm:text-xs text-slate-200">
+                {[
+                  ...dashboard.recent_events.map((item) => ({
+                    text: item.message,
+                    severity: item.severity ?? 'info',
+                    type: 'event' as const,
+                  })),
+                  ...dashboard.recent_logs.map((item) => ({
+                    text: `${item.actuator}: ${item.action}`,
+                    severity: 'info',
+                    type: 'log' as const,
+                  })),
+                ].slice(0, 6).map((item, i) => (
+                  <li key={i} className={`rounded-2xl border px-3 py-2 leading-relaxed break-words flex items-start gap-2 ${
+                    item.severity === 'critical' ? 'border-red-400/20 bg-red-500/10 text-red-200' :
+                    item.severity === 'warning' ? 'border-amber-400/20 bg-amber-500/10 text-amber-200' :
+                    'border-white/10 bg-white/5 text-slate-200'
+                  }`}>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider shrink-0 ${
+                      item.severity === 'critical' ? 'text-red-400' :
+                      item.severity === 'warning' ? 'text-amber-400' :
+                      'text-emerald-400'
+                    }`}>
+                      [{item.severity === 'info' && item.type === 'log' ? 'LOG' : item.severity.toUpperCase()}]
+                    </span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </section>
+
         {/* Espaciado final */}
         <div className="h-4" />
       </section>
@@ -1007,20 +879,33 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Timeline({ items, emptyText }: { items: string[]; emptyText: string }) {
-  if (items.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">{emptyText}</p>;
-  }
+function sensorLabel(type: string): string {
+  const map: Record<string, string> = {
+    temperature: 'Temperatura',
+    humidity: 'Humedad',
+    humedad_ambiente: 'Humedad',
+    soil_1: 'Suelo Área 1',
+    humedad_suelo_area1: 'Suelo Área 1',
+    soil_2: 'Suelo Área 2',
+    humedad_suelo_area2: 'Suelo Área 2',
+    light: 'Luz',
+    luz: 'Luz',
+    gas: 'Gas',
+  };
+  return map[type.toLowerCase()] || type;
+}
 
-  return (
-    <ul className="space-y-2 text-[11px] sm:text-xs text-slate-200">
-      {items.slice(0, 6).map((item, index) => (
-        <li key={`${item}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 leading-relaxed break-words">
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
+function SensorIcon({ type }: { type: string }) {
+  const t = type.toLowerCase();
+  if (t.includes('humidity') || t.includes('humedad') || t.includes('soil') || t.includes('suelo'))
+    return <span className="rounded-lg bg-cyan-400/15 p-1"><Droplets className="h-3 w-3 text-cyan-300" /></span>;
+  if (t.includes('light') || t.includes('luz'))
+    return <span className="rounded-lg bg-amber-400/15 p-1"><Sun className="h-3 w-3 text-amber-300" /></span>;
+  if (t.includes('gas'))
+    return <span className="rounded-lg bg-purple-400/15 p-1"><Wind className="h-3 w-3 text-purple-300" /></span>;
+  if (t.includes('temp'))
+    return <span className="rounded-lg bg-rose-400/15 p-1"><Activity className="h-3 w-3 text-rose-300" /></span>;
+  return <span className="rounded-lg bg-slate-400/15 p-1"><Activity className="h-3 w-3 text-slate-300" /></span>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -1087,7 +972,7 @@ function SensorChart({ readings, metricKey, label, unit }: { readings: SensorRea
   if (data.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-4">
-        <p className="text-xs text-slate-400 text-center">Sin lecturas históricas para {label}. Inserta datos en el panel de registro manual.</p>
+        <p className="text-xs text-slate-400 text-center">Sin lecturas históricas para {label}. Los sensores publican datos cada ~15s via MQTT.</p>
       </div>
     );
   }

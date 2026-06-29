@@ -413,16 +413,35 @@ check_mode:
     ble check_soil_warn_flg
     cmp x19, #0
     ble check_soil_warn_flg
+    ldr x7, =msg_target_temp
+    mov x9, len_target_temp
+    ldr x11, =msg_reason_temp
+    mov x12, len_reason_temp
+    mov x13, x24
     b set_flag_yellow
 
 check_soil_warn_flg:
+    cmp x21, #SOIL_BAJO
+    ble check_luz_warn
     cmp x25, #0
     bge check_luz_warn
+    ldr x7, =msg_target_soil1
+    mov x9, len_target_soil1
+    ldr x11, =msg_reason_soil
+    mov x12, len_reason_soil
+    mov x13, x21
     b set_flag_yellow
 
 check_luz_warn:
+    cmp x23, #LUZ_BAJA
+    bge set_flag_green
     cmp x27, #0
     bge set_flag_green
+    ldr x7, =msg_target_luz
+    mov x9, len_target_luz
+    ldr x11, =msg_reason_light
+    mov x12, len_reason_light
+    mov x13, x23
     b set_flag_yellow
 
 set_flag_green:
@@ -446,11 +465,6 @@ set_flag_yellow:
     mov x16, #7
     ldr x5, =msg_action_led_yellow
     mov x6, len_action_led_yellow
-    ldr x7, =msg_target_soil1
-    mov x9, len_target_soil1
-    ldr x11, =msg_reason_soil
-    mov x12, len_reason_soil
-    mov x13, x21
     b output_combined
 
 set_flag_noact:

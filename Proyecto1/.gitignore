@@ -1,18 +1,46 @@
-node_modules/
-dist/
-venv/
-.venv/
+# Logs
+*.log
+*.err
+
+# Python
 __pycache__/
 *.pyc
-.env
-.DS_Store
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
 *.tsbuildinfo
-arm64/build/
-arm64/results/
-arm64/fase1/build/
-arm64/fase1/results/
-arm64/fase2/build/
-arm64/fase2/results/
-arm64/fase2/lecturas.csv
-arm64/column_config.txt
-backend/lecturas.csv
+.eslintcache
+.parcel-cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Uploads
+uploads/
+*.csv.bak
+
+# ARM64 build artifacts
+Proyecto1/arm64/build/
+Proyecto1/arm64/results/

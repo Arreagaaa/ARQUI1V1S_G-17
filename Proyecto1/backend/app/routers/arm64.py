@@ -510,7 +510,7 @@ def trigger_historical_analysis(payload: dict):
             target="arm64_historical",
             state="execute",
             source="web",
-            payload=doc,
+            extra_payload=doc,
         )
         mqtt_ok = result and result.success
     except Exception:

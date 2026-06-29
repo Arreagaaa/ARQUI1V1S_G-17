@@ -82,14 +82,18 @@ class MQTTPublisher:
 
     def publish_control_command(self, command: str, target: str,
                                 state: str, area: str | None = None,
-                                source: str = "web") -> PublishResult:
+                                source: str = "web",
+                                extra_payload: dict | None = None) -> PublishResult:
         """Publica un comando de control remoto."""
         topic = self.topics.control_remote
+        pl = {"state": state, "area": area}
+        if extra_payload:
+            pl.update(extra_payload)
         payload = {
             "command": command,
             "target": target,
             "source": source,
-            "payload": {"state": state, "area": area},
+            "payload": pl,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         return self._publish(topic, payload)

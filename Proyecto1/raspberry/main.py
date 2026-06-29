@@ -1218,10 +1218,25 @@ class GreenhouseDevice:
                         k, _, v = line.partition("=")
                         data[k.strip()] = v.strip()
 
+                if not data:
+                    result_files_fase2 = {
+                        "ERROR_INTEGRAL": "resultado_integral.txt",
+                        "LOCAL_DERIVATIVE": "resultado_derivada_local.txt",
+                    }
+                    file_path = os.path.join(base_dir, "results", result_files_fase2.get(module, ""))
+                    if os.path.exists(file_path):
+                        with open(file_path) as f:
+                            for line in f:
+                                if "=" in line:
+                                    k, _, v = line.partition("=")
+                                    data[k.strip()] = v.strip()
+
             if data:
                 import requests
                 total_values = int(data.get("COUNT", data.get("TOTAL_VALUES", 0)))
                 results = {k: v for k, v in data.items() if k not in ("MODULE",)}
+                if module == "WEIGHTED_MEAN" and "MEAN" in results:
+                    results["WEIGHTED_MEAN"] = results["MEAN"]
                 try:
                     resp = requests.post(f"{url}/api/arm64-results", json={
                         "module": module,

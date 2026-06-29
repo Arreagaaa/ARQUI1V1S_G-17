@@ -3,7 +3,13 @@ import type { ActuatorLog, CommandItem, EventItem, SensorReading, SystemStatus, 
 export const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      'ngrok-skip-interstitial': 'true',
+      ...init?.headers,
+    },
+  });
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }

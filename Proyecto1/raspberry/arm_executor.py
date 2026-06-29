@@ -256,6 +256,10 @@ def post_to_backend(url: str, module: str, data: dict[str, Any]) -> bool:
     results["COUNT"] = total_values  # frontend lo busca en results.COUNT
     results["TOTAL_VALUES"] = total_values
 
+    # Mapear campos del binario a lo que espera el frontend
+    if module == "WEIGHTED_MEAN" and "MEAN" in results and "WEIGHTED_MEAN" not in results:
+        results["WEIGHTED_MEAN"] = results["MEAN"]
+
     payload = {
         "module": module,
         "total_values": total_values,

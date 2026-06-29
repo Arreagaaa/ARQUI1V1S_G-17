@@ -533,24 +533,18 @@ def trigger_historical_analysis(payload: dict):
         else:
             results_data = {"STATUS": "ERROR", "ERROR": "MODULE_NOT_IMPLEMENTED"}
 
-        arm64_payload = ARM64ResultCreate(
-            module=module,
-            total_values=count,
-            results=results_data,
-            source="backend-sim",
-        )
-        arm64_doc = arm64_payload.model_dump()
-        arm64_doc["created_at"] = now
-        db.arm64_results.insert_one(arm64_doc)
-
-        db.events.insert_one({
-            "event_type": "arm64_analysis",
-            "message": f"Analisis historico completado (simulado): {module} columna {column}.",
-            "severity": "info",
-            "area": "control",
-            "source": "backend-sim",
-            "created_at": now
-        })
+        # No guardar resultado simulado si ya existe uno real de la Pi
+        existing = db.arm64_results.find_one({"module": module, "source": "raspi-01"}, sort=[("created_at", -1)])
+        if not existing:
+            arm64_payload = ARM64ResultCreate(
+                module=module,
+                total_values=count,
+                results=results_data,
+                source="backend-sim",
+            )
+            arm64_doc = arm64_payload.model_dump()
+            arm64_doc["created_at"] = now
+            db.arm64_results.insert_one(arm64_doc)
 
     logger.info("Solicitud de analisis historico registrada: %s", doc)
     return {

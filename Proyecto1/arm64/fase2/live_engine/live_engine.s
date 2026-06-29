@@ -413,6 +413,8 @@ check_mode:
     ble check_soil_warn_flg
     cmp x19, #0
     ble check_soil_warn_flg
+    cmp x16, #0
+    bne set_flag_yellow
     ldr x7, =msg_target_temp
     mov x9, len_target_temp
     ldr x11, =msg_reason_temp
@@ -425,6 +427,8 @@ check_soil_warn_flg:
     ble check_luz_warn
     cmp x25, #0
     bge check_luz_warn
+    cmp x16, #0
+    bne set_flag_yellow
     ldr x7, =msg_target_soil1
     mov x9, len_target_soil1
     ldr x11, =msg_reason_soil
@@ -437,6 +441,8 @@ check_luz_warn:
     bge set_flag_green
     cmp x27, #0
     bge set_flag_green
+    cmp x16, #0
+    bne set_flag_yellow
     ldr x7, =msg_target_luz
     mov x9, len_target_luz
     ldr x11, =msg_reason_light

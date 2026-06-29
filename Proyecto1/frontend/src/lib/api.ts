@@ -6,7 +6,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      'ngrok-skip-interstitial': 'true',
+      'ngrok-skip-browser-warning': 'true',
       ...init?.headers,
     },
   });

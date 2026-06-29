@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   Cloud,
   Droplets,
   Lock,
@@ -66,6 +67,8 @@ const metricLabels: Array<{ key: keyof SystemStatus; label: string; unit: string
 
 const inputClass =
   'w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-300/40 focus:ring-2 focus:ring-emerald-400/20';
+
+const GRAFANA_DASHBOARD_URL = import.meta.env.VITE_GRAFANA_URL || 'https://grafana.com/';
 
 export default function App() {
   const [dashboard, setDashboard] = useState<DashboardState>({
@@ -400,6 +403,15 @@ export default function App() {
                 <RefreshCw className={`h-4 w-4 ${busy === 'seed-clear' ? 'animate-spin' : ''}`} />
                 <span>Borrar y sembrar</span>
               </button>
+              <a
+                href={GRAFANA_DASHBOARD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Grafana</span>
+              </a>
               <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full sm:w-auto sm:flex">
                 <StatusPill icon={<Wifi className="h-4 w-4" />} label="API" value={dashboard.apiStatus} />
                 <StatusPill icon={<Cloud className="h-4 w-4" />} label="MongoDB" value={dashboard.mongodb ? 'Activo' : 'Pendiente'} />

@@ -1111,8 +1111,9 @@ class GreenhouseDevice:
         url = self.settings.backend_url
 
         try:
+            fase1_dir = os.path.join(script_dir, "..", "arm64", "fase1")
             result = subprocess.run(
-                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir],
+                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir, "--fase1-dir", fase1_dir],
                 capture_output=True, text=True, timeout=120,
             )
             for line in result.stdout.splitlines():
@@ -1143,53 +1144,83 @@ class GreenhouseDevice:
         arm_dir = os.path.join(script_dir, "..", "arm64", "fase2")
         url = self.settings.backend_url
 
+        fase1_dir = os.path.join(script_dir, "..", "arm64", "fase1")
         executor = os.path.join(script_dir, "arm_executor.py")
         try:
             subprocess.run(
-                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir],
+                [sys.executable, executor, "--fetch", "--url", url, "--pi", "--dir", arm_dir, "--fase1-dir", fase1_dir],
                 capture_output=True, text=True, timeout=30,
             )
         except Exception:
             pass
 
         module_map = {
-            "RMSE": ("rmse", True),
-            "LINEAR_REGRESSION": ("varianza", False),
-            "PREDICTION_LINEAR": ("prediccion", False),
-            "ERROR_INTEGRAL": ("integrals", True),
-            "LOCAL_DERIVATIVE": ("derivada", False),
+            "RMSE": ("rmse", True, "fase2"),
+            "LINEAR_REGRESSION": ("varianza", False, "fase2"),
+            "PREDICTION_LINEAR": ("prediccion", False, "fase2"),
+            "ERROR_INTEGRAL": ("integrals", True, "fase2"),
+            "LOCAL_DERIVATIVE": ("derivada", False, "fase2"),
+            "WEIGHTED_MEAN": ("modulo_1_media", False, "fase1"),
+            "VARIANCE": ("modulo_2_varianza", False, "fase1"),
+            "ANOMALY_DETECTION": ("modulo_3_anomalias", False, "fase1"),
+            "PREDICTION": ("modulo_4_prediccion", False, "fase1"),
+            "ADVANCED_TREND": ("modulo_5_tendencia", False, "fase1"),
         }
 
         if module not in module_map:
             print(f"[arm64] modulo no soportado localmente, intentando backend: {module}")
             return
 
-        binary_name, needs_ideal = module_map[module]
-        binary_path = os.path.join(arm_dir, "build", binary_name)
+        binary_name, needs_ideal, fase = module_map[module]
+        base_dir = arm_dir if fase == "fase2" else fase1_dir
+        binary_path = os.path.join(base_dir, "build", binary_name)
         csv_path = os.path.join(arm_dir, file) if not file.startswith("/") else file
 
+        if not os.path.exists(binary_path):
+            print(f"[arm64] binario no encontrado: {binary_path}")
+            return
+
+        cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column)]
         if needs_ideal:
-            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(ideal_value)]
+            cmd += [str(ideal_value)]
         elif module == "PREDICTION_LINEAR":
             k = params.get("k", 5)
             cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column), str(k)]
-        else:
-            cmd = [binary_path, csv_path, str(start_line), str(end_line), str(column)]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(arm_dir))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(base_dir))
             for line in result.stdout.splitlines():
                 print(f"[arm64] {line}")
 
-            data = {}
-            for line in result.stdout.splitlines():
-                if "=" in line:
-                    k, _, v = line.partition("=")
-                    data[k.strip()] = v.strip()
+            # Fase 1 modules write to files; parse from file
+            if fase == "fase1":
+                result_files = {
+                    "WEIGHTED_MEAN": "resultado_media.txt",
+                    "VARIANCE": "resultado_varianza.txt",
+                    "ANOMALY_DETECTION": "resultado_anomalias.txt",
+                    "PREDICTION": "resultado_prediccion.txt",
+                    "ADVANCED_TREND": "resultado_tendencia.txt",
+                }
+                file_path = os.path.join(base_dir, "results", result_files.get(module, ""))
+                if not os.path.exists(file_path):
+                    print(f"[arm64] archivo de resultados no encontrado: {file_path}")
+                    return
+                with open(file_path) as f:
+                    data = {}
+                    for line in f:
+                        if "=" in line:
+                            k, _, v = line.partition("=")
+                            data[k.strip()] = v.strip()
+            else:
+                data = {}
+                for line in result.stdout.splitlines():
+                    if "=" in line:
+                        k, _, v = line.partition("=")
+                        data[k.strip()] = v.strip()
 
             if data:
                 import requests
-                total_values = int(data.get("COUNT", 0))
+                total_values = int(data.get("COUNT", data.get("TOTAL_VALUES", 0)))
                 results = {k: v for k, v in data.items() if k not in ("MODULE",)}
                 try:
                     resp = requests.post(f"{url}/api/arm64-results", json={

@@ -1,22 +1,22 @@
 """
 ARM64 Executor — Invernadero Inteligente IoT (ACYE1, Grupo 17)
 
-Ejecuta los 5 módulos ARM64 Fase 2 del coprocesador (RMSE, regresion,
-prediccion, integral, derivada), captura su salida y envía los resultados
-al backend FastAPI para almacenamiento en MongoDB.
+Ejecuta los 10 módulos ARM64 (5 Fase 1 + 5 Fase 2) del coprocesador,
+captura su salida y envía los resultados al backend FastAPI para
+almacenamiento en MongoDB.
 
 Modos de uso:
   Desarrollo (PC con QEMU):
-    python arm_executor.py --dir ../arm64/fase2
+    python arm_executor.py --dir ../arm64/fase2 --fase1-dir ../arm64/fase1
 
   Raspberry Pi (ejecución nativa):
-    python arm_executor.py --pi --dir ../arm64/fase2
+    python arm_executor.py --pi --dir ../arm64/fase2 --fase1-dir ../arm64/fase1
 
   Obtener datos desde el backend (CSV + columna config) y ejecutar:
-    python arm_executor.py --fetch --url http://<backend>:8000 --pi --dir ../arm64/fase2
+    python arm_executor.py --fetch --url http://<backend>:8000 --pi --dir ../arm64/fase2 --fase1-dir ../arm64/fase1
 
   Solo parsear (si los módulos ya se ejecutaron):
-    python arm_executor.py --parse-only --dir ../arm64/fase2
+    python arm_executor.py --parse-only --dir ../arm64/fase2 --fase1-dir ../arm64/fase1
 """
 
 from __future__ import annotations
@@ -88,15 +88,58 @@ MODULES = {
     },
 }
 
+FASE1_MODULES = {
+    "WEIGHTED_MEAN": {
+        "binary": "modulo_1_media",
+        "output": "file",
+        "file": "resultado_media.txt",
+        "needs_ideal": False,
+        "description": "Media ponderada",
+    },
+    "VARIANCE": {
+        "binary": "modulo_2_varianza",
+        "output": "file",
+        "file": "resultado_varianza.txt",
+        "needs_ideal": False,
+        "description": "Varianza y desviacion estandar",
+    },
+    "ANOMALY_DETECTION": {
+        "binary": "modulo_3_anomalias",
+        "output": "file",
+        "file": "resultado_anomalias.txt",
+        "needs_ideal": False,
+        "description": "Deteccion de anomalias",
+    },
+    "PREDICTION": {
+        "binary": "modulo_4_prediccion",
+        "output": "file",
+        "file": "resultado_prediccion.txt",
+        "needs_ideal": False,
+        "description": "Prediccion lineal simple",
+    },
+    "ADVANCED_TREND": {
+        "binary": "modulo_5_tendencia",
+        "output": "file",
+        "file": "resultado_tendencia.txt",
+        "needs_ideal": False,
+        "description": "Tendencia avanzada",
+    },
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="ARM64 Executor — ejecuta modulos ARM64 Fase 2 y envia resultados al backend"
+        description="ARM64 Executor — ejecuta modulos ARM64 Fase 1+2 y envia resultados al backend"
     )
     parser.add_argument(
         "--dir",
         default="../arm64/fase2",
         help="Directorio base de ARM64 Fase 2 (default: ../arm64/fase2)",
+    )
+    parser.add_argument(
+        "--fase1-dir",
+        default=None,
+        help="Directorio base de ARM64 Fase 1 (default: ../arm64/fase1 relativo a --dir)",
     )
     parser.add_argument(
         "--url",
@@ -127,7 +170,14 @@ def parse_args() -> argparse.Namespace:
             f"--col{i}",
             type=int,
             default=None,
-            help=f"Columna para modulo {i} (1-6, default: 1)",
+            help=f"Columna para modulo F2 {i} (1-6, default: 1)",
+        )
+    for i in range(1, 6):
+        parser.add_argument(
+            f"--col-f1-{i}",
+            type=int,
+            default=None,
+            help=f"Columna para modulo F1 {i} (1-6, default: 1)",
         )
     return parser.parse_args()
 
@@ -201,9 +251,10 @@ def run_and_parse(
 
 
 def post_to_backend(url: str, module: str, data: dict[str, Any]) -> bool:
-    total_values = int(data.get("COUNT", 0))
+    total_values = int(data.get("COUNT", data.get("TOTAL_VALUES", 0)))
     results = {k: _coerce(v) for k, v in data.items()}
     results["COUNT"] = total_values  # frontend lo busca en results.COUNT
+    results["TOTAL_VALUES"] = total_values
 
     payload = {
         "module": module,
@@ -235,7 +286,12 @@ def fetch_csv_from_backend(url: str, csv_path: Path) -> bool:
     try:
         resp = requests.get(f"{base}/api/arm64/csv", timeout=30)
         if resp.status_code == 200:
+            # Ensure parent dir is writable before writing
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            if csv_path.exists():
+                csv_path.chmod(0o644)
             csv_path.write_text(resp.text, encoding="utf-8")
+            csv_path.chmod(0o644)
             total = resp.headers.get("X-Total-Records", "?")
             print(f"  CSV descargado: {csv_path} ({total} registros)")
             return True
@@ -316,12 +372,42 @@ def main() -> int:
         else:
             cols[i] = 1
 
+    # --- Fase 2: column config ---
     print(f"  Start={args.start}, End={args.end}, Ideal={args.ideal}, K={args.k}")
     for i, (module_name, info) in enumerate(MODULES.items(), 1):
         print(f"  Modulo {i}: {module_name:20s} col={cols[i]} ({info['description']})")
     print()
 
-    # Fase 1: ejecutar y parsear
+    # --- Fase 1: directorio base ---
+    if args.fase1_dir:
+        fase1_dir = Path(args.fase1_dir).resolve()
+    else:
+        fase1_dir = fase2_dir.parent / "fase1"
+    f1_build_dir = fase1_dir / "build"
+    f1_results_dir = fase1_dir / "results"
+
+    FRONTEND_TO_EXECUTOR_F1 = {2: 1, 3: 2, 4: 3, 5: 4, 6: 5}
+    f1_cols = {}
+    for i in range(1, 6):
+        col = getattr(args, f"col_f1_{i}")
+        if col is not None:
+            f1_cols[i] = col
+        elif column_config:
+            frontend_id = next((fid for fid, eidx in FRONTEND_TO_EXECUTOR_F1.items() if eidx == i), None)
+            if frontend_id and frontend_id in column_config:
+                f1_cols[i] = column_config[frontend_id]
+            else:
+                f1_cols[i] = 1
+        else:
+            f1_cols[i] = 1
+
+    if fase1_dir.exists():
+        print(f"  Fase 1: {fase1_dir}")
+        for i, (module_name, info) in enumerate(FASE1_MODULES.items(), 1):
+            print(f"    M{i}: {module_name:20s} col={f1_cols[i]} ({info['description']})")
+    print()
+
+    # --- Ejecutar y parsear Fase 2 ---
     parsed = []
     for i, (module_name, info) in enumerate(MODULES.items(), 1):
         if args.parse_only and info["output"] == "stdout":
@@ -331,7 +417,6 @@ def main() -> int:
         binary_path = build_dir / info["binary"]
 
         if args.parse_only and info["output"] == "file":
-            # Solo leer archivo
             file_path = results_dir / info["file"]
             if file_path.exists():
                 data = _parse_kv_lines(file_path.read_text().strip())
@@ -352,13 +437,68 @@ def main() -> int:
             parsed.append((module_name, data))
         else:
             print(f"  {module_name}: no ejecutado")
+
+    # --- Ejecutar y parsear Fase 1 ---
+    if fase1_dir.exists() and f1_build_dir.exists():
+        print()
+        for i, (module_name, info) in enumerate(FASE1_MODULES.items(), 1):
+            binary_path = f1_build_dir / info["binary"]
+
+            if not binary_path.exists():
+                print(f"  {module_name}: binario no encontrado: {binary_path}")
+                continue
+
+            if args.parse_only:
+                file_path = f1_results_dir / info["file"]
+                if file_path.exists():
+                    data = _parse_kv_lines(file_path.read_text().strip())
+                    if data:
+                        parsed.append((module_name, data))
+                        print(f"  {module_name}: {len(data)} campos (desde archivo)")
+                    else:
+                        print(f"  {module_name}: archivo vacio")
+                else:
+                    print(f"  {module_name}: archivo no encontrado")
+                continue
+
+            cmd = [str(binary_path), str(csv_path), str(args.start), str(args.end), str(f1_cols[i])]
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=30, cwd=str(fase1_dir)
+                )
+            except FileNotFoundError:
+                print(f"  {module_name}: binario no encontrado")
+                continue
+            except subprocess.TimeoutExpired:
+                print(f"  {module_name}: timeout")
+                continue
+
+            if result.returncode != 0:
+                print(f"  {module_name}: exit code {result.returncode}")
+                stderr = result.stderr.strip()
+                if stderr:
+                    print(f"    stderr: {stderr[:200]}")
+                continue
+
+            file_path = f1_results_dir / info["file"]
+            if not file_path.exists():
+                print(f"  {module_name}: archivo no encontrado: {file_path}")
+                continue
+
+            text = file_path.read_text().strip()
+            data = _parse_kv_lines(text)
+            if not data:
+                print(f"  {module_name}: archivo vacio: {file_path}")
+                continue
+            parsed.append((module_name, data))
+            print(f"  {module_name}: OK ({len(data)} campos)")
     print()
 
     if not parsed:
         print("No hay resultados para enviar")
         return 1
 
-    # Fase 2: enviar al backend
+    # --- Enviar todos los resultados al backend ---
     print("Enviando al backend...")
     success = 0
     for module_name, data in parsed:
